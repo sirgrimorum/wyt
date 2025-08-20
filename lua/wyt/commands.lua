@@ -7,12 +7,16 @@ local M = {}
 -- Comando para configurar el proveedor y la API Key
 function M.setup_command()
     vim.api.nvim_create_user_command("WYTConfig", function(args)
+        if #args.fargs ~= 2 then
+            print(loc.t("config_usage") or "[WYT] Usage: :WYTConfig <provider> <api_key>")
+            return
+        end
         local provider = args.fargs[1]
         local key = args.fargs[2]
         config.setup({ llm_provider = provider, api_key = key })
         print(loc.t("config_updated") .. provider)
     end, {
-        nargs = 2,
+        nargs = "+", -- acepta uno o más argumentos
         complete = function(arglead)
             return {"openai", "claude"}
         end,
