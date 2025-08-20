@@ -1,6 +1,7 @@
 local config = require("wyt.config")
 local llm = require("wyt.llm")
 local loc = require("wyt.localization")
+local project = require("wyt.project")
 
 local M = {}
 
@@ -33,6 +34,20 @@ function M.setup_command()
             return {"en", "es"}
         end,
         desc = "Set plugin language (en/es)"
+    })
+
+    vim.api.nvim_create_user_command("WYTNew", function(args)
+        if args.fargs[1] == "p" then
+            project.new_project()
+        else
+            print(loc.t("new_usage"))
+        end
+    end, {
+        nargs = 1,
+        complete = function(arglead)
+            return {"p"}
+        end,
+        desc = loc.t("new_desc")
     })
 end
 
