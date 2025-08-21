@@ -31,6 +31,22 @@ M.translations = {
         use_llm = "Use LLM to improve/redact the idea?",
         add_to_group = "Add idea to an existing group?",
         idea_added = "[WYT] Idea added: ",
+        no_ideas = "[WYT] No ideas found to group.",
+        select_ideas = "Select ideas to group:",
+        group_action = "Add to existing group or create new?",
+        add_to_existing_group = "Add to existing group",
+        create_new_group = "Create new group",
+        select_group = "Select group:",
+        edit_group_name = "Edit group name (leave blank to keep current):",
+        new_group_name = "Enter new group name:",
+        group_created = "[WYT] Group created: ",
+        group_updated = "[WYT] Group updated: ",
+        add_more_ideas = "Select more ideas to add to the group (optional):",
+        ideas_synced = "[WYT] Ideas automatically synced from groups.",
+        group_tags_updated = "[WYT] Group tags updated in existing ideas.",
+        group_tag = "Group",
+        groups_section = "Groups",
+        ideas_section = "Ideas",
     },
     es = {
         no_project = "[WYT] No se encontró ningún proyecto en el directorio actual. Por favor, navega a la raíz de tu proyecto.",
@@ -62,6 +78,22 @@ M.translations = {
         use_llm = "¿Usar LLM para mejorar/redactar la idea?",
         add_to_group = "¿Agregar la idea a un grupo existente?",
         idea_added = "[WYT] Idea agregada: ",
+        no_ideas = "[WYT] No se encontraron ideas para agrupar.",
+        select_ideas = "Selecciona ideas para agrupar:",
+        group_action = "¿Agregar a grupo existente o crear uno nuevo?",
+        add_to_existing_group = "Agregar a grupo existente",
+        create_new_group = "Crear nuevo grupo",
+        select_group = "Selecciona el grupo:",
+        edit_group_name = "Edita el nombre del grupo (deja vacío para mantenerlo):",
+        new_group_name = "Ingresa el nombre del nuevo grupo:",
+        group_created = "[WYT] Grupo creado: ",
+        group_updated = "[WYT] Grupo actualizado: ",
+        add_more_ideas = "Selecciona más ideas para agregar al grupo (opcional):",
+        ideas_synced = "[WYT] Ideas sincronizadas automáticamente desde grupos.",
+        group_tags_updated = "[WYT] Marcas de grupo actualizadas en ideas existentes.",
+        group_tag = "Grupo",
+        groups_section = "Grupos",
+        ideas_section = "Ideas",
     }
 }
 
@@ -73,13 +105,14 @@ function M.set_lang(lang)
     end
 end
 
-function M.t(key)
-    return M.translations[M.lang][key] or key
+function M.t(key, lang)
+    lang = lang or M.lang
+    return M.translations[lang][key] or key
 end
 
 
 function M.get_lang()
-    return lang
+    return M.lang
 end
 
 return M

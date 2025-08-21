@@ -73,6 +73,10 @@ function M.setup()
     end
 end
 
+function M.t(key)
+    return loc.t(key, M.lang)
+end
+
 local function mkdir(path)
     local sep = package.config:sub(1,1)
     local parts = {}
@@ -106,6 +110,24 @@ end
 function M.commit_changes(msg)
     vim.fn.system({'git', '-C', M.project_root, 'add', '.'})
     vim.fn.system({'git', '-C', M.project_root, 'commit', '-m', msg})
+end
+
+function M.add_item_to_section(content, section, item)
+    local section_header = "## " .. M.t(section)
+    local section_start = content:find(section_header)
+    if section_start then
+        local next_section = content:find("\n## ", section_start + #section_header)
+        if next_section then
+            local before = content:sub(1, next_section - 1)
+            local after = content:sub(next_section)
+            before = before .. "\n- " .. item
+            return before .. after
+        else
+            return content .. "\n- " .. item
+        end
+    else
+        return content .. "\n\n" .. section_header .. "\n- " .. item
+    end
 end
 
 function M.new_project()

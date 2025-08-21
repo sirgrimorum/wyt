@@ -3,6 +3,7 @@ local llm = require("wyt.llm")
 local loc = require("wyt.localization")
 local project = require("wyt.project")
 local idea = require("wyt.idea")
+local group = require("wyt.group")
 
 local M = {}
 
@@ -38,11 +39,13 @@ function M.setup_command()
     })
 
     vim.api.nvim_create_user_command("WYTNew", function(args)
-        if args.fargs[1] == "p" then
-            -- Crear un nuevo proyecto
+        if args.fargs[1] == "g" then
+            if project.setup() then
+                group.new_group(args.line1, args.line2)
+            end
+        elseif args.fargs[1] == "p" then
             project.new_project()
         elseif args.fargs[1] == "i" then
-            -- Crear una nueva idea
             if project.setup() then
                 idea.new_idea()
             end
@@ -51,8 +54,9 @@ function M.setup_command()
         end
     end, {
         nargs = 1,
+        range = true,
         complete = function(arglead)
-            return {"p", "i"}
+            return {"p", "i", "g"}
         end,
         desc = loc.t("new_desc")
     })
