@@ -20,12 +20,13 @@ function M.setup()
         callback = function()
             if not project.setup() then return end
             local lang = project.lang
-            loc.set_lang(lang)
-            print(loc.t("current_lang") .. lang)
+            -- loc.set_lang(lang)
+            -- print(loc.t("current_lang") .. lang)
         end,
         desc = loc.t("set_lang_on_enter")
     })
-    api.nvim_create_autocmd("InsertLeave", {
+
+    api.nvim_create_autocmd({"TextChanged", "TextChangedP", "InsertLeave"}, {
         pattern = "*plan.wyt.md",
         callback = idea.sync_group_ideas_to_ideas,
         desc = loc.t("sync_group_ideas_desc")
