@@ -2,14 +2,75 @@ local uv = vim.loop
 local loc = require("wyt.localization")
 local M = {}
 
+local function find_project_root_from_buffer()
+    local buf_path = vim.api.nvim_buf_get_name(0)
+    if buf_path == "" then return vim.fn.getcwd() end
+    local sep = package.config:sub(1,1)
+    local dir = buf_path:match("^(.*"..sep..")")
+    local last_valid = nil
+    while dir and dir ~= "" do
+        local config_path = dir .. "config.wyt.yml"
+        local plan_path = dir .. "plan.wyt.md"
+        if vim.fn.filereadable(config_path) == 1 and vim.fn.filereadable(plan_path) == 1 then
+            last_valid = dir
+        else
+            if last_valid then
+                return last_valid
+            end
+        end
+        dir = dir:match("^(.*"..sep..")[^"..sep.."]+"..sep.."$")
+    end
+    return last_valid or vim.fn.getcwd()
+end
+
+M.project_root = ""
+M.config_path = ""
+M.plan_path = ""
+M.lang = "en"
+
 local function slugify(str)
     return str:lower():gsub("%s+", "-"):gsub("[^%w%-]", "")
 end
 
-local function write_file(path, content)
+function M.read_file(path)
+    local fd = uv.fs_open(path, "r", 438)
+    if not fd then return nil end
+    local stat = uv.fs_fstat(fd)
+    local data = uv.fs_read(fd, stat.size, 0)
+    uv.fs_close(fd)
+    return data
+end
+
+function M.write_file(path, content)
     local fd = assert(uv.fs_open(path, "w", 438))
     uv.fs_write(fd, content, -1)
     uv.fs_close(fd)
+end
+
+local function get_project_lang()
+    local config_content = M.read_file(M.config_path)
+    if not config_content then return "en" end
+    local lang = config_content:match("lang:%s*(%w+)")
+    return lang or "en"
+end
+
+function M.setup()
+    if M.project_root ~= "" and M.config_path ~= "" and M.plan_path ~= "" then
+        return true
+    end
+    M.project_root = find_project_root_from_buffer()
+    local config_path = M.project_root .. "config.wyt.yml"
+    local plan_path = M.project_root .. "plan.wyt.md"
+    if vim.fn.filereadable(config_path) == 1 and vim.fn.filereadable(plan_path) == 1 then
+        M.config_path = config_path
+        M.plan_path = plan_path
+        M.lang = get_project_lang()
+        return true
+    else
+        print(loc.t("no_project"))
+        print(" [WYT] Project root: " .. M.project_root)
+        return false
+    end
 end
 
 local function mkdir(path)
@@ -37,9 +98,14 @@ local function mkdir(path)
 end
 
 local function run_git_init(path)
-    vim.fn.system({'git', 'init'}, path)
-    vim.fn.system({'git', 'add', '.'}, path)
-    vim.fn.system({'git', 'commit', '-m', 'Initial commit'}, path)
+    vim.fn.system({'git', '-C', path, 'init'})
+    vim.fn.system({'git', '-C', path, 'add', '.'})
+    vim.fn.system({'git', '-C', path, 'commit', '-m', 'Initial commit'})
+end
+
+function M.commit_changes(msg)
+    vim.fn.system({'git', '-C', M.project_root, 'add', '.'})
+    vim.fn.system({'git', '-C', M.project_root, 'commit', '-m', msg})
 end
 
 function M.new_project()
@@ -62,16 +128,16 @@ function M.new_project()
                                 -- Crear estructura
                                 local root = opts.base_path .. "/" .. opts.slug
                                 mkdir(root)
-                                write_file(root .. "/config.wyt.yml", string.format(
+                                M.write_file(root .. "/config.wyt.yml", string.format(
                                     "lang: %s\ntype: %s\ncontent_type: %s\nsections: %s\nname: %s\n",
                                     opts.lang, opts.type, opts.content_type, tostring(opts.sections), opts.name
                                 ))
-                                write_file(root .. "/plan.wyt.md", "# " .. opts.name .. "\n\n" .. loc.t("plan_intro"))
-                                write_file(root .. "/export.wyt.md", "# " .. opts.name .. " " .. loc.t("export_intro"))
+                                M.write_file(root .. "/plan.wyt.md", "# " .. opts.name .. "\n\n" .. loc.t("plan_intro"))
+                                M.write_file(root .. "/export.wyt.md", "# " .. opts.name .. " " .. loc.t("export_intro"))
                                 if opts.sections then
                                     mkdir(root .. "/sections")
                                 else
-                                    write_file(root .. "/text.wyt.md", "# " .. opts.name .. " " .. loc.t("text_intro"))
+                                    M.write_file(root .. "/text.wyt.md", "# " .. opts.name .. " " .. loc.t("text_intro"))
                                 end
                                 -- Inicializar git
                                 run_git_init(root)

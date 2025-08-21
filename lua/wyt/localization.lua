@@ -2,6 +2,7 @@ local M = {}
 
 M.translations = {
     en = {
+        no_project = "[WYT] No project found in current directory. Please navigate to your project root.",
         config_updated = "[WYT] Configuration updated: ",
         provider_not_supported = "[WYT] Provider not supported.",
         result = "[WYT] Result:\n",
@@ -25,9 +26,14 @@ M.translations = {
         export_intro = "Final exported text.",
         project_created = "[WYT] Project created at: ",
         new_usage = "[WYT] Usage: :WYTNew p<tab>",
-        new_desc = "Create new WYT entity ([p]roject, [i]dea, [g]roup, etc.)"
+        new_desc = "Create new WYT entity ([p]roject, [i]dea, [g]roup, etc.)",
+        idea_name = "Enter idea name:",
+        use_llm = "Use LLM to improve/redact the idea?",
+        add_to_group = "Add idea to an existing group?",
+        idea_added = "[WYT] Idea added: ",
     },
     es = {
+        no_project = "[WYT] No se encontró ningún proyecto en el directorio actual. Por favor, navega a la raíz de tu proyecto.",
         config_updated = "[WYT] Configuración actualizada: ",
         provider_not_supported = "[WYT] Proveedor no soportado.",
         result = "[WYT] Resultado:\n",
@@ -51,7 +57,11 @@ M.translations = {
         export_intro = "Texto final exportado.",
         project_created = "[WYT] Proyecto creado en: ",
         new_usage = "[WYT] Uso: :WYTNew p<tab>",
-        new_desc = "Crear nueva entidad WYT ([p]royecto, [i]dea, [g]rupo, etc.)"
+        new_desc = "Crear nueva entidad WYT ([p]royecto, [i]dea, [g]rupo, etc.)",
+        idea_name = "Ingresa el nombre de la idea:",
+        use_llm = "¿Usar LLM para mejorar/redactar la idea?",
+        add_to_group = "¿Agregar la idea a un grupo existente?",
+        idea_added = "[WYT] Idea agregada: ",
     }
 }
 
