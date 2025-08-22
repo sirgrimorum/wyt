@@ -27,10 +27,18 @@ function M.get_groups(plan_content)
     return groups
 end
 
+local function escape_pattern(text)
+    return text:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+end
+
 local function rename_group(content, old_name, new_name)
-    local old_header = "## " .. project.t("group_tag") .. ": " .. old_name
+    local old_header = "## " .. escape_pattern(project.t("group_tag")) .. ": " .. escape_pattern(old_name)
     local new_header = "## " .. project.t("group_tag") .. ": " .. new_name
-    return content:gsub(old_header, new_header)
+    local old_group_marker = "%[" .. escape_pattern(project.t("group_tag")) .. ": " .. escape_pattern(old_name) .. "%]"
+    local new_group_marker = "[" .. project.t("group_tag") .. ": " .. new_name .. "]"
+
+    local new_content = content:gsub(old_group_marker, new_group_marker)
+    return new_content:gsub(escape_pattern(old_header), new_header)
 end
 
 function M.mark_ideas_as_grouped(content, ideas, group_name)
@@ -82,23 +90,72 @@ function M.mark_ideas_as_grouped(content, ideas, group_name)
 end
 
 function M.multi_select(items, opts, callback)
-    local prompt = opts and opts.prompt or "Selecciona elementos:"
-    local lines = {}
-    for i, item in ipairs(items) do
-        table.insert(lines, string.format("[%d] %s", i, item))
-    end
-    local full_prompt = prompt .. "\n" .. table.concat(lines, "\n") .. "\nNúmeros separados por coma: "
-    vim.ui.input({prompt = full_prompt}, function(input)
-        if not input or input == "" then callback({}) return end
-        local selected = {}
-        for num in input:gmatch("%d+") do
-            local idx = tonumber(num)
-            if idx and items[idx] then
-                table.insert(selected, items[idx])
+    local pickers = require('telescope.pickers')
+    local finders = require('telescope.finders')
+    local conf = require('telescope.config').values
+    local actions = require('telescope.actions')
+    local action_state = require('telescope.actions.state')
+
+    local selected = opts and opts.preselected or {}
+
+    local function make_display_list()
+        local display = {}
+        for _, item in ipairs(items) do
+            if vim.tbl_contains(selected, item) then
+                table.insert(display, "[x] " .. item)
+            else
+                table.insert(display, "[ ] " .. item)
             end
         end
-        callback(selected)
-    end)
+        return display
+    end
+
+    local function get_original_item(display_item)
+        return display_item:sub(5)
+    end
+
+    local picker
+    picker = pickers.new({}, {
+        prompt_title = opts and opts.prompt or "Selecciona elementos",
+        finder = finders.new_table {
+            results = make_display_list()
+        },
+        sorter = conf.generic_sorter({}),
+        attach_mappings = function(prompt_bufnr, map)
+            local function toggle_selection()
+                local entry = action_state.get_selected_entry()
+                if entry then
+                    local item = get_original_item(entry.value)
+                    if not vim.tbl_contains(selected, item) then
+                        table.insert(selected, item)
+                    else
+                        for i, v in ipairs(selected) do
+                            if v == item then
+                                table.remove(selected, i)
+                                break
+                            end
+                        end
+                    end
+                    picker:refresh(finders.new_table { results = make_display_list() }, {reset_prompt = false})
+                end
+            end
+
+            map('i', '<Tab>', function()
+                toggle_selection()
+                actions.move_selection_next(prompt_bufnr)
+            end)
+            map('i', '<S-Tab>', function()
+                toggle_selection()
+                actions.move_selection_previous(prompt_bufnr)
+            end)
+            actions.select_default:replace(function()
+                actions.close(prompt_bufnr)
+                callback(selected)
+            end)
+            return true
+        end,
+    })
+    picker:find()
 end
 
 function M.new_group(line1, line2)
@@ -179,7 +236,7 @@ function M.new_group(line1, line2)
                     -- ToDo: Revisar
                     vim.ui.select(groups, {prompt = loc.t("select_group")}, function(group_name)
                         if group_name then 
-                            vim.ui.input({prompt = loc.t("edit_group_name") .. " [" .. group_name .. "]"}, function(new_name)
+                            vim.ui.input({prompt = loc.t("edit_group_name") .. " [" .. group_name .. "]: "}, function(new_name)
                                 local final_name = new_name and new_name ~= "" and new_name or group_name
                                 local updated_content = rename_group(plan_content, group_name, final_name)
                                 for _, idea in ipairs(selected_ideas) do
@@ -209,23 +266,13 @@ function M.new_group(line1, line2)
             selected_ideas = selected
             proceed_group()
         end)
-    elseif #selected_ideas == 1 then
-        local remaining_ideas = {}
-        for _, idea in ipairs(ideas) do
-            if idea ~= selected_ideas[1] then
-                table.insert(remaining_ideas, idea)
-            end
-        end
-        M.multi_select(remaining_ideas, {prompt = loc.t("add_more_ideas")}, function(more_selected)
+    else
+        M.multi_select(ideas, {prompt = loc.t("add_more_ideas"), preselected = selected_ideas}, function(more_selected)
             if more_selected and #more_selected > 0 then
-                for _, idea in ipairs(more_selected) do
-                    table.insert(selected_ideas, idea)
-                end
+                selected_ideas = more_selected
             end
             proceed_group()
         end)
-    else
-        proceed_group()
     end
 
 end
