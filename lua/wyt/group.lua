@@ -1,3 +1,4 @@
+local api = vim.api
 local loc = require("wyt.localization")
 local project = require("wyt.project")
 
@@ -185,14 +186,14 @@ function M.new_group(line1, line2)
     -- Procesa el rango si existe
     if line1 and line2 and line1 ~= 0 and line2 ~= 0 then
         if line1 > line2 then line1, line2 = line2, line1 end
-        local lines = vim.api.nvim_buf_get_lines(0, line1 - 1, line2, false)
+        local lines = api.nvim_buf_get_lines(0, line1 - 1, line2, false)
         for _, line in ipairs(lines) do
             local idea = line:match("%- (.+)")
             insert_selected_idea(idea)
         end
     else
-        local cursor_line = vim.api.nvim_win_get_cursor(0)[1]
-        local line = vim.api.nvim_buf_get_lines(0, cursor_line - 1, cursor_line, false)[1]
+        local cursor_line = api.nvim_win_get_cursor(0)[1]
+        local line = api.nvim_buf_get_lines(0, cursor_line - 1, cursor_line, false)[1]
         local idea = line and line:match("%- (.+)")
         insert_selected_idea(idea)
     end
@@ -202,7 +203,7 @@ function M.new_group(line1, line2)
             vim.cmd("e! " .. project.plan_path)
             if group_name and group_name ~= "" then
                 local group_header = "## " .. project.t("group_tag") .. ": " .. group_name
-                local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+                local lines = api.nvim_buf_get_lines(0, 0, -1, false)
                 local target_line = nil
                 for i, line in ipairs(lines) do
                     if line:find(group_header, 1, true) then
@@ -211,7 +212,7 @@ function M.new_group(line1, line2)
                     end
                 end
                 if target_line then
-                    vim.api.nvim_win_set_cursor(0, {target_line, 0})
+                    api.nvim_win_set_cursor(0, {target_line, 0})
                 end
             end
             vim.cmd("normal! zz")
@@ -275,6 +276,103 @@ function M.new_group(line1, line2)
         end)
     end
 
+end
+
+local function find_group_bounds(lines, cursor)
+    local header_pat = "^## " .. project.t("group_tag") .. ": "
+    if not lines[cursor]:match(header_pat) then return nil end
+
+    local start_idx = cursor
+    local end_idx = cursor
+    for i = cursor + 1, #lines do
+        if lines[i]:match("^## ") then
+            end_idx = i - 1
+            break
+        end
+        end_idx = i
+    end
+    return start_idx, end_idx
+end
+
+function M.move_group(direction)
+    local buf = api.nvim_get_current_buf()
+    local cursor = api.nvim_win_get_cursor(0)[1]
+    local lines = api.nvim_buf_get_lines(buf, 0, -1, false)
+    local start_idx, end_idx = find_group_bounds(lines, cursor)
+    if not start_idx or not end_idx then return end
+
+    -- Busca el grupo anterior/siguiente
+    local header_pat = "^## " .. project.t("group_tag") .. ": "
+    local target_start, target_end
+    if direction == "up" then
+        -- Busca el grupo anterior
+        for i = start_idx - 1, 1, -1 do
+            if lines[i]:match(header_pat) then
+                target_start, target_end = find_group_bounds(lines, i)
+                break
+            elseif lines[i]:match("^## " .. project.t("ideas_section")) then
+                -- No permitir pasar por encima de Ideas
+                return
+            end
+        end
+        if not target_start then return end
+        -- Intercambia los bloques
+        local group_block = {}
+        for i = start_idx, end_idx do table.insert(group_block, lines[i]) end
+        local target_block = {}
+        for i = target_start, target_end do table.insert(target_block, lines[i]) end
+        local new_lines = {}
+        for i = 1, #lines do
+            if i == target_start then
+                for _, l in ipairs(group_block) do table.insert(new_lines, l) end
+            elseif i == start_idx then
+                for _, l in ipairs(target_block) do table.insert(new_lines, l) end
+            elseif i > target_start and i <= target_end then
+                -- skip target block
+            elseif i > start_idx and i <= end_idx then
+                -- skip current block
+            else
+                table.insert(new_lines, lines[i])
+            end
+        end
+        api.nvim_buf_set_lines(buf, 0, -1, false, new_lines)
+        api.nvim_win_set_cursor(0, {target_start, 0})
+    else
+        -- Busca el grupo siguiente
+        local next_idx = end_idx + 1
+        while next_idx <= #lines do
+            if lines[next_idx]:match(header_pat) then
+                target_start, target_end = find_group_bounds(lines, next_idx)
+                break
+            elseif lines[next_idx]:match("^## ") then
+                -- No permitir pasar por debajo de otra sección
+                return
+            end
+            next_idx = next_idx + 1
+        end
+        if not target_start then return end
+        -- Intercambia los bloques
+        local group_block = {}
+        for i = start_idx, end_idx do table.insert(group_block, lines[i]) end
+        local target_block = {}
+        for i = target_start, target_end do table.insert(target_block, lines[i]) end
+        local new_lines = {}
+        for i = 1, #lines do
+            if i == start_idx then
+                for _, l in ipairs(target_block) do table.insert(new_lines, l) end
+            elseif i == target_start then
+                for _, l in ipairs(group_block) do table.insert(new_lines, l) end
+            elseif i > start_idx and i <= end_idx then
+                -- skip current block
+            elseif i > target_start and i <= target_end then
+                -- skip target block
+            else
+                table.insert(new_lines, lines[i])
+            end
+        end
+        api.nvim_buf_set_lines(buf, 0, -1, false, new_lines)
+        api.nvim_win_set_cursor(0, {start_idx + #target_block, 0})
+    end
 end
 
 return M
