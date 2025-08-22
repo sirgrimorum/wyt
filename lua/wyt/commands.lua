@@ -74,9 +74,84 @@ function M.generate_text_command()
     })
 end
 
+function M.nav_command()
+    vim.api.nvim_create_user_command("WYTNav", function()
+        if not project.setup() then return end
+        local sep = package.config:sub(1,1)
+        local root = project.project_root
+        local files = vim.fn.glob(root .. "**/*", true, true)
+        local current_file = vim.api.nvim_buf_get_name(0)
+        local display = {}
+        for _, f in ipairs(files) do
+            local rel = f:sub(#root + 1)
+            if f == current_file then
+                table.insert(display, "→ " .. rel)
+            else
+                table.insert(display, rel)
+            end
+        end
+        vim.ui.select(display, {prompt = loc.t("nav_select")}, function(choice)
+            if not choice or choice:sub(1,2) == "→ " then return end
+            vim.cmd("e " .. root .. clean_choice)
+        end)
+    end, {
+        desc = loc.t("nav_desc"),
+    })
+end
+
+function M.goto_command()
+    vim.api.nvim_create_user_command("WYTGoto", function(args)
+        if not project.setup() then return end
+        local arg = args.fargs[1]
+        local root = project.project_root
+        local sep = package.config:sub(1,1)
+        local current_path = vim.api.nvim_buf_get_name(0)
+        local target_path = nil
+
+        if arg == "plan" then
+            target_path = project.plan_path
+        elseif arg == "config" then
+            target_path = project.config_path
+        elseif arg == "text" then
+            target_path = root .. "text.wyt.md"
+        elseif arg == "export" then
+            target_path = root .. "export.wyt.md"
+        elseif arg == "parent" then
+            local parent = root:match("^(.*"..sep..")[^"..sep.."]+"..sep.."$")
+            if parent and parent ~= "" and parent ~= root then
+                local parent_plan = parent .. "plan.wyt.md"
+                if vim.fn.filereadable(parent_plan) == 1 then
+                    target_path = parent_plan
+                else
+                    print(loc.t("goto_no_parent_plan"))
+                    return
+                end
+            else
+                print(loc.t("goto_no_parent"))
+                return
+            end
+        else
+            print(loc.t("goto_invalid_arg"))
+            return
+        end
+
+        if target_path then
+            vim.cmd("e " .. target_path)
+        end
+    end, {
+        nargs = 1,
+        complete = function(arglead)
+            return {"plan", "config", "text", "export", "parent"}
+        end,
+        desc = loc.t("goto_desc")
+    })
+end
+
 function M.setup()
     M.setup_command()
     M.generate_text_command()
+    M.nav_command()
+    M.goto_command()
 end
 
 return M
