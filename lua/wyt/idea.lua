@@ -166,4 +166,43 @@ function M.sync_group_ideas_to_ideas()
     end
 end
 
+local function find_section_bounds(lines, cursor)
+    local section_start, section_end = nil, nil
+    for i = cursor, 1, -1 do
+        if lines[i]:match("^## ") then
+            section_start = i
+            break
+        end
+    end
+    for i = cursor + 1, #lines do
+        if lines[i]:match("^## ") then
+            section_end = i - 1
+            break
+        end
+    end
+    section_end = section_end or #lines
+    return section_start, section_end
+end
+
+function M.move_idea(direction)
+    local buf = api.nvim_get_current_buf()
+    local cursor = api.nvim_win_get_cursor(0)[1]
+    local lines = api.nvim_buf_get_lines(buf, 0, -1, false)
+    local section_start, section_end = find_section_bounds(lines, cursor)
+    if not section_start or not section_end then return end
+
+    -- Busca la idea actual
+    local idx = cursor
+    if not lines[idx]:match("^%- ") then return end
+
+    local target_idx = direction == "up" and idx - 1 or idx + 1
+    if target_idx < section_start + 1 or target_idx > section_end then return end
+    if not lines[target_idx]:match("^%- ") then return end
+
+    -- Intercambia las líneas
+    lines[idx], lines[target_idx] = lines[target_idx], lines[idx]
+    api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    api.nvim_win_set_cursor(0, {target_idx, 0})
+end
+
 return M
