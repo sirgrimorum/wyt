@@ -3,6 +3,7 @@ local api = vim.api
 local loc = require("wyt.localization")
 local llm = require("wyt.llm")
 local project = require("wyt.project")
+local plan = require("wyt.plan")
 local group = require("wyt.group")
 
 local M = {}
@@ -29,10 +30,10 @@ function M.new_idea()
                 -- ToDo: final_idea = llm.improve_idea(idea_name)
             end
             local function add_idea(selected_groups)
-                plan_content = project.add_item_to_section(plan_content, "ideas_section", final_idea)
+                plan_content = plan.add_item_to_section(plan_content, "ideas_section", final_idea)
                 if selected_groups and #selected_groups > 0 then
                     for _, group_selected in ipairs(selected_groups) do
-                        plan_content = project.add_item_to_section(plan_content, project.t("group_tag") .. ": " .. group_selected, final_idea)
+                        plan_content = plan.add_item_to_section(plan_content, project.t("group_tag") .. ": " .. group_selected, final_idea)
                         plan_content = group.mark_ideas_as_grouped(plan_content, {final_idea}, group_selected)
                     end
                 end

@@ -1,6 +1,7 @@
 local api = vim.api
 local loc = require("wyt.localization")
 local project = require("wyt.project")
+local plan = require("wyt.plan")
 
 local M = {}
 
@@ -222,7 +223,7 @@ function M.new_group(line1, line2)
                 if not name or name == "" then return end
                 local updated_content = plan_content
                 for _, idea in ipairs(selected_ideas) do
-                    updated_content = project.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. name, idea)
+                    updated_content = plan.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. name, idea)
                 end
                 updated_content = M.mark_ideas_as_grouped(updated_content, selected_ideas, name)
                 project.write_file(project.plan_path, updated_content)
@@ -241,7 +242,7 @@ function M.new_group(line1, line2)
                                 local final_name = new_name and new_name ~= "" and new_name or group_name
                                 local updated_content = rename_group(plan_content, group_name, final_name)
                                 for _, idea in ipairs(selected_ideas) do
-                                    updated_content = project.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. final_name, idea)
+                                    updated_content = plan.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. final_name, idea)
                                 end
                                 updated_content = M.mark_ideas_as_grouped(updated_content, selected_ideas, final_name)
                                 project.write_file(project.plan_path, updated_content)
