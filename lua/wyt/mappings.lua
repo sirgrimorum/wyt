@@ -2,6 +2,7 @@ local api = vim.api
 local project = require("wyt.project")
 local idea = require("wyt.idea")
 local group = require("wyt.group")
+local plan = require("wyt.plan")
 local loc = require("wyt.localization")
 
 local M = {}
@@ -27,6 +28,7 @@ end
 function M.setup()
     vim.keymap.set("n", "<S-Up>", function() handle_move("up") end, {desc = loc.t("move_idea_up") .. " / Mover grupo arriba"})
     vim.keymap.set("n", "<S-Down>", function() handle_move("down") end, {desc = loc.t("move_idea_down") .. " / Mover grupo abajo"})
+    vim.keymap.set("n", "<S-Tab>", plan.goto_wyt_tab, {desc = loc.t("nav_tab_desc")})
 end
 
 return M

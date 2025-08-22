@@ -112,41 +112,6 @@ function M.commit_changes(msg)
     vim.fn.system({'git', '-C', M.project_root, 'commit', '-m', msg})
 end
 
-function M.add_item_to_section(content, section, item)
-    -- Eliminalr cualquier \n del item
-    item = item:gsub("\n", " ")
-    local section_header = "## " .. M.t(section)
-    local section_start = content:find(section_header)
-    if section_start then
-        local next_section = content:find("\n## ", section_start + #section_header)
-        local section_end = next_section and (next_section - 1) or #content
-        local before = content:sub(1, section_end)
-        local after = content:sub(section_end + 1)
-        -- Busca el último ítem en la sección
-        local last_item_pos = 0
-        for pos in before:gmatch("()\n%- [^\n]*") do
-            last_item_pos = pos
-        end
-        if last_item_pos > 0 then
-            -- Encuentra el final de la última línea de ítem
-            local last_item_end = 0
-            for pos in before:gmatch("()\n%- [^\n]*") do
-                last_item_end = pos
-            end
-            -- Busca el salto de línea después del último ítem
-            local next_newline = before:find("\n", last_item_end + 1) or (#before + 1)
-            local before_items = before:sub(1, next_newline - 1)
-            local after_items = before:sub(next_newline)
-            return before_items .. "\n- " .. item .. after_items .. after
-        else
-            -- Si no hay ítems, agrega al final de la sección
-            return before .. "\n- " .. item .. after
-        end
-    else
-        return content .. "\n\n" .. section_header .. "\n- " .. item
-    end
-end
-
 function M.new_project()
     local opts = {}
 
@@ -173,11 +138,6 @@ function M.new_project()
                                 ))
                                 M.write_file(root .. "/plan.wyt.md", "# " .. opts.name .. "\n\n" .. loc.t("plan_intro"))
                                 M.write_file(root .. "/export.wyt.md", "# " .. opts.name .. " " .. loc.t("export_intro"))
-                                if opts.sections then
-                                    mkdir(root .. "/sections")
-                                else
-                                    M.write_file(root .. "/text.wyt.md", "# " .. opts.name .. " " .. loc.t("text_intro"))
-                                end
                                 -- Inicializar git
                                 run_git_init(root)
                                 -- Abrir archivo principal
