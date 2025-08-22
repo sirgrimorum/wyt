@@ -39,7 +39,7 @@ function M.new_idea()
                 project.write_file(project.plan_path, plan_content)
                 project.commit_changes("Add idea: " .. idea_name)
                 print(loc.t("idea_added") .. final_idea)
-                vim.cmd("edit " .. project.plan_path)
+                vim.cmd("e! " .. project.plan_path)
                 -- Posiciona el cursor en la idea recién agregada
                 local idea_line = nil
                 local lines = api.nvim_buf_get_lines(0, 0, -1, false)

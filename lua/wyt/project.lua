@@ -113,17 +113,34 @@ function M.commit_changes(msg)
 end
 
 function M.add_item_to_section(content, section, item)
+    -- Eliminalr cualquier \n del item
+    item = item:gsub("\n", " ")
     local section_header = "## " .. M.t(section)
     local section_start = content:find(section_header)
     if section_start then
         local next_section = content:find("\n## ", section_start + #section_header)
-        if next_section then
-            local before = content:sub(1, next_section - 1)
-            local after = content:sub(next_section)
-            before = before .. "\n- " .. item
-            return before .. after
+        local section_end = next_section and (next_section - 1) or #content
+        local before = content:sub(1, section_end)
+        local after = content:sub(section_end + 1)
+        -- Busca el último ítem en la sección
+        local last_item_pos = 0
+        for pos in before:gmatch("()\n%- [^\n]*") do
+            last_item_pos = pos
+        end
+        if last_item_pos > 0 then
+            -- Encuentra el final de la última línea de ítem
+            local last_item_end = 0
+            for pos in before:gmatch("()\n%- [^\n]*") do
+                last_item_end = pos
+            end
+            -- Busca el salto de línea después del último ítem
+            local next_newline = before:find("\n", last_item_end + 1) or (#before + 1)
+            local before_items = before:sub(1, next_newline - 1)
+            local after_items = before:sub(next_newline)
+            return before_items .. "\n- " .. item .. after_items .. after
         else
-            return content .. "\n- " .. item
+            -- Si no hay ítems, agrega al final de la sección
+            return before .. "\n- " .. item .. after
         end
     else
         return content .. "\n\n" .. section_header .. "\n- " .. item
