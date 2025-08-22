@@ -102,6 +102,8 @@ function M.multi_select(items, opts, callback)
 end
 
 function M.new_group(line1, line2)
+    -- Guardar los cambios del buffer antes de comenzar
+    vim.cmd("write")
     local plan_content = project.read_file(project.plan_path) or ""
     local ideas = get_ideas(plan_content)
     if #ideas == 0 then
@@ -140,20 +142,20 @@ function M.new_group(line1, line2)
 
     local function proceed_group()
         local function finish(group_name)
-            -- vim.cmd("normal! <Esc>")
-            vim.cmd("edit " .. project.plan_path)
-            -- Después de vim.cmd("edit " .. project.plan_path)
-            local group_header = "## " .. project.t("group_tag") .. ": " .. group_name
-            local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-            local target_line = nil
-            for i, line in ipairs(lines) do
-                if line:find(group_header, 1, true) then
-                    target_line = i
-                    break
+            vim.cmd("e! " .. project.plan_path)
+            if group_name and group_name ~= "" then
+                local group_header = "## " .. project.t("group_tag") .. ": " .. group_name
+                local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+                local target_line = nil
+                for i, line in ipairs(lines) do
+                    if line:find(group_header, 1, true) then
+                        target_line = i
+                        break
+                    end
                 end
-            end
-            if target_line then
-                vim.api.nvim_win_set_cursor(0, {target_line, 0})
+                if target_line then
+                    vim.api.nvim_win_set_cursor(0, {target_line, 0})
+                end
             end
             vim.cmd("normal! zz")
         end
@@ -174,20 +176,24 @@ function M.new_group(line1, line2)
         if #groups > 0 then
             vim.ui.select({loc.t("add_to_existing_group"), loc.t("create_new_group")}, {prompt = loc.t("group_action")}, function(action)
                 if action == loc.t("add_to_existing_group") then
+                    -- ToDo: Revisar
                     vim.ui.select(groups, {prompt = loc.t("select_group")}, function(group_name)
-                        if not group_name then return end
-                        vim.ui.input({prompt = loc.t("edit_group_name") .. " [" .. group_name .. "]"}, function(new_name)
-                            local final_name = new_name and new_name ~= "" and new_name or group_name
-                            local updated_content = rename_group(plan_content, group_name, final_name)
-                            for _, idea in ipairs(selected_ideas) do
-                                updated_content = M.mark_ideas_as_grouped(updated_content, {idea}, final_name)
-                            end
-                            updated_content = M.mark_ideas_as_grouped(updated_content, selected_ideas, final_name)
-                            project.write_file(project.plan_path, updated_content)
-                            project.commit_changes("Grouped ideas in: " .. final_name)
-                            print(loc.t("group_updated") .. final_name)
-                            finish(final_name)
-                        end)
+                        if group_name then 
+                            vim.ui.input({prompt = loc.t("edit_group_name") .. " [" .. group_name .. "]"}, function(new_name)
+                                local final_name = new_name and new_name ~= "" and new_name or group_name
+                                local updated_content = rename_group(plan_content, group_name, final_name)
+                                for _, idea in ipairs(selected_ideas) do
+                                    updated_content = project.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. final_name, idea)
+                                end
+                                updated_content = M.mark_ideas_as_grouped(updated_content, selected_ideas, final_name)
+                                project.write_file(project.plan_path, updated_content)
+                                project.commit_changes("Grouped ideas in: " .. final_name)
+                                print(loc.t("group_updated") .. final_name)
+                                finish(final_name)
+                            end)
+                        else
+                            finish(nil)
+                        end
                     end)
                 else
                     new_group_name()
