@@ -21,7 +21,7 @@ local multi_select = require("wyt.group").multi_select
 function M.new_idea()
     local plan_content = project.read_file(project.plan_path) or ""
     plan_content = ensure_section_exists(plan_content, "ideas_section")
-    local groups = group.get_groups(plan_content)
+    local groups = project.get_groups(plan_content)
     vim.ui.input({prompt = loc.t("idea_name")}, function(idea_name)
         if not idea_name or idea_name == "" then return end
         vim.ui.select({loc.t("yes"), loc.t("no")}, {prompt = loc.t("use_llm")}, function(use_llm)
@@ -35,6 +35,9 @@ function M.new_idea()
                     for _, group_selected in ipairs(selected_groups) do
                         plan_content = plan.add_item_to_section(plan_content, project.t("group_tag") .. ": " .. group_selected, final_idea)
                         plan_content = group.mark_ideas_as_grouped(plan_content, {final_idea}, group_selected)
+                        if plan.is_group_tagged(plan_content, group_selected, "implemented") then
+                            plan_content = project.mark_group_status(plan_content, group_selected, "edited")
+                        end
                     end
                 end
                 project.write_file(project.plan_path, plan_content)
@@ -103,6 +106,7 @@ function M.sync_group_ideas_to_ideas()
             current_section = "group"
             current_group = line:match("^## " .. project.t("group_tag") .. ": (.+)")
             if current_group then
+                current_group = plan.clean_group_name(current_group)
                 groups_info[current_group] = {}
             end
         elseif line:match("^## ") then
@@ -112,7 +116,7 @@ function M.sync_group_ideas_to_ideas()
             local idea = line:match("^%- (.+)")
             if idea then
                 ideas_set[#ideas_set + 1] = clean_idea_text(idea)
-                ideas_section[clean_idea_text(idea)] = {}
+                ideas_section[clean_idea_text(idea)] = extract_groups_from_idea(idea)
             end
         elseif current_section == "group" and line:match("^%- ") and current_group then
             local idea = line:match("^%- (.+)")
@@ -123,6 +127,7 @@ function M.sync_group_ideas_to_ideas()
     end  
 
     -- Add missing ideas to the ideas section and update group tags
+    local updated_groups = {}
     local changed = false
     for group_name, ideas in pairs(groups_info) do
         for _, idea in ipairs(ideas) do
@@ -131,9 +136,23 @@ function M.sync_group_ideas_to_ideas()
                 ideas_set[#ideas_set + 1] = idea
                 ideas_section[idea] = { [group_name] = true }
                 changed = true
+                updated_groups[group_name] = true
             elseif idea and ideas_section[idea] ~= nil and not ideas_section[idea][group_name] then
                 ideas_section[idea][group_name] = true
                 changed = true
+                updated_groups[group_name] = true
+            end
+        end
+        for _, idea in ipairs(ideas_set) do
+            local groups = ideas_section[idea] or {}
+            for group_name, _ in pairs(groups) do
+                if not groups_info[group_name] or #groups_info[group_name] == 0 or not vim.tbl_contains(groups_info[group_name], idea) then
+                   ideas_section[idea][group_name] = nil
+                   changed = true
+                   if groups_info[group_name] then
+                       updated_groups[group_name] = true
+                   end
+                end
             end
         end
     end
@@ -157,6 +176,12 @@ function M.sync_group_ideas_to_ideas()
                 end
             elseif line:match("^## ") and in_ideas_section then
                 in_ideas_section = false
+                -- Revisar si es un grupo que ha cambiado y si tiene el tag "implemented" poner el tag "edited"
+                for group_name, _ in pairs(updated_groups) do
+                    if line:match("^## " .. project.t("group_tag") .. ": " .. group_name) then
+                        line = line:gsub("%s*%[[^%]]+%]", " [" .. project.t("edited") .. "]")
+                    end
+                end
                 table.insert(new_lines, line)
             elseif not in_ideas_section or not line:match("^%- ") then
                 table.insert(new_lines, line)
@@ -202,6 +227,14 @@ function M.move_idea(direction)
 
     -- Intercambia las líneas
     lines[idx], lines[target_idx] = lines[target_idx], lines[idx]
+    -- Actualiza el estado del grupo si es necesario
+    local section_line = lines[section_start]
+    if section_line and section_line:match("^## " .. project.t("group_tag") .. ": ") then
+        -- Reemplaza cualquier tag [implemented] o [edited] por el nuevo tag [edited]
+        section_line = section_line:gsub("%s*%[[^%]]+%]", " [" .. project.t("edited") .. "]")
+        lines[section_start] = section_line
+    end
+
     api.nvim_buf_set_lines(buf, 0, -1, false, lines)
     api.nvim_win_set_cursor(0, {target_idx, 0})
 end
