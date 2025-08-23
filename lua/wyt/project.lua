@@ -1,9 +1,10 @@
 local uv = vim.loop
+local api = vim.api
 local loc = require("wyt.localization")
 local M = {}
 
 local function find_project_root_from_buffer()
-    local buf_path = vim.api.nvim_buf_get_name(0)
+    local buf_path = api.nvim_buf_get_name(0)
     if buf_path == "" then return vim.fn.getcwd() end
     local sep = package.config:sub(1,1)
     local dir = buf_path:match("^(.*"..sep..")")
@@ -52,6 +53,11 @@ local function get_project_lang()
     if not config_content then return "en" end
     local lang = config_content:match("lang:%s*(%w+)")
     return lang or "en"
+end
+
+function M.get_section_dir()
+    local plan_path = api.nvim_buf_get_name(0)
+    return plan_path:match("^(.*[\\/])") or vim.fn.getcwd() .. "/"
 end
 
 function M.setup()
@@ -155,6 +161,99 @@ function M.new_project()
             end)
         end)
     end)
+end
+
+
+function M.get_ideas(plan_content, section_header)
+    local ideas = {}
+    local start = plan_content:find(section_header)
+    if not start then return ideas end
+    local next_section = plan_content:find("\n## ", start + #section_header) or #plan_content + 1
+    local ideas_block = next_section and plan_content:sub(start + #section_header, next_section - 1) or plan_content:sub(start + #section_header)
+    for idea in ideas_block:gmatch("%- ([^\n]+)") do
+        -- Elimina cualquier tag de grupo al final de la idea
+        local clean_idea = idea:gsub("%s*%[" .. M.t("group_tag") .. ": [^%]]+%]", "")
+        table.insert(ideas, clean_idea)
+    end
+    return ideas
+end
+
+-- Marca el grupo como implementado o editado en plan.wyt.md
+function M.mark_group_status(content, group_name, status)
+    if not content then 
+        return content
+    end
+    local group_pat = "## " .. M.t("group_tag") .. ": " .. group_name
+    local status_tag = "[" .. M.t(status) .. "]"
+    local new_content
+    if content:find(group_pat .. " %[") then
+        -- Ya tiene un tag, reemplaza
+        new_content = content:gsub(group_pat .. " %[.-%]", group_pat .. " " .. status_tag)
+    else
+        -- Añade el tag
+        new_content = content:gsub(group_pat, group_pat .. " " .. status_tag)
+    end
+    return new_content
+end
+
+local function update_changes_in_buffer(path, content)
+    M.write_file(path, content)
+    local buf_path = vim.api.nvim_buf_get_name(0)
+    if buf_path == (path) then
+        vim.cmd("e! " .. path)
+    end
+end
+
+function M.get_groups(plan_content)
+    local groups = {}
+    local group_header = "## " .. project.t("group_tag") .. ": "
+    for group in plan_content:gmatch(group_header .. "([^\n]+)") do
+        local clean_group = plan.clean_group_name(group)
+        table.insert(groups, clean_group)
+    end
+    return groups
+end
+
+-- Implementa el grupo: crea archivos y estructura según config
+function M.implement_group(current_plan_content, group_name, section_dir, sections_enabled)
+    local current_section_dir = M.get_section_dir()
+    local ideas = M.get_ideas(current_plan_content, "## " .. M.t("group_tag") .. ": " .. group_name)
+    if sections_enabled then
+        -- Crear carpeta de sección y archivos base
+        local slug = slugify(group_name)
+        local group_section_dir = section_dir .. slug .. "/"
+        mkdir(group_section_dir)
+        -- plan.wyt.md
+        local plan_path = group_section_dir .. "plan.wyt.md"
+        if vim.fn.filereadable(plan_path) == 0 then
+            local plan_content = "# " .. group_name .. "\n\n## " .. M.t("ideas_section") .. "\n"
+            -- Agregar ideas al contenido del plan como nuevos grupos
+            for _, idea in ipairs(ideas) do
+                plan_content = plan_content .. "\n\n## " .. M.t("group_tag") .. ": " .. idea .. "\n"
+            end
+            M.write_file(plan_path, plan_content)
+        end
+        -- config.wyt.yml
+        local config_path = group_section_dir .. "config.wyt.yml"
+        if vim.fn.filereadable(config_path) == 0 then
+            local config_content = "type: content\nsections: false\n"
+            M.write_file(config_path, config_content)
+        end
+        current_plan_content = M.mark_group_status(current_plan_content, group_name, "implemented")
+        update_changes_in_buffer(current_section_dir .. "plan.wyt.md", current_plan_content)
+    else
+        -- Crear o actualizar text.wyt.md con los párrafos base
+        local text_path = section_dir .. "text.wyt.md"
+        local text_content = vim.fn.filereadable(text_path) == 1 and M.read_file(text_path) or ""
+        text_content = text_content .. "\n\n## " .. group_name .. "\n"
+        for _, idea in ipairs(ideas) do
+            text_content = text_content .. "\n\n*".. M.t("create_paragraph") .. "[" .. idea .. "]*\n"
+        end
+        M.write_file(text_path, text_content)
+        current_plan_content = M.mark_group_status(current_plan_content, group_name, "implemented")
+        update_changes_in_buffer(current_section_dir .. "plan.wyt.md", current_plan_content)
+    end
+    M.commit_changes("Implement group: " .. group_name)   
 end
 
 return M

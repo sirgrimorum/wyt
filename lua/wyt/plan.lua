@@ -4,11 +4,6 @@ local loc = require("wyt.localization")
 
 local M = {}
 
-local function get_section_dir()
-    local plan_path = api.nvim_buf_get_name(0)
-    return plan_path:match("^(.*[\\/])") or vim.fn.getcwd() .. "/"
-end
-
 local function get_config_sections(section_dir)
     local config_path = section_dir .. "config.wyt.yml"
     local config_content = project.read_file(config_path)
@@ -16,7 +11,8 @@ local function get_config_sections(section_dir)
 end
 
 local function slugify(str)
-    return str:lower():gsub("%s+", "-"):gsub("[^%w%-]", "")
+    local new_str = str
+    return new_str:lower():gsub("%s+", "-"):gsub("[^%w%-]", "")
 end
 
 local function get_group_tags(line)
@@ -41,6 +37,29 @@ local function get_group_tag_at_cursor(line, col)
     return nil
 end
 
+-- Detecta si el grupo está marcado con un tag específico
+function M.is_group_tagged(content, group_name, tag)
+    if not content then return false end
+    local escaped_group_name = group_name:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+    local group_pat = "## " .. project.t("group_tag") .. ": " .. escaped_group_name .. "%s*%[" .. project.t(tag) .. "%]"
+    return content:match(group_pat)
+end
+
+-- Pregunta si se debe re-implementar el grupo
+local function prompt_reimplement_group(current_plan_content, group_name, section_dir, sections_enabled, section_plan)
+    vim.ui.select({loc.t("yes"), loc.t("no")}, {prompt = loc.t("the_group") .. " '" .. group_name .. "' " .. loc.t("is_edited")}, function(choice)
+        if choice == loc.t("yes") then
+            project.implement_group(current_plan_content, group_name, section_dir, sections_enabled)
+        end
+        vim.cmd("tabnew " .. section_plan)
+    end)
+end
+
+function M.clean_group_name(name)
+    -- Quitar el posible tag (edited o implemented) del final
+    return name:gsub("%s*%[" .. project.t("edited") .. "%]$", ""):gsub("%s*%[" .. project.t("implemented") .. "%]$", ""):gsub("%s*$", "")
+end
+
 function M.goto_wyt_tab()
     local buf = api.nvim_get_current_buf()
     local filename = api.nvim_buf_get_name(buf)
@@ -48,10 +67,11 @@ function M.goto_wyt_tab()
 
     local cursor = api.nvim_win_get_cursor(0)[1]
     local lines = api.nvim_buf_get_lines(buf, 0, -1, false)
+    local current_plan_content = table.concat(lines, "\n")
     local line = lines[cursor]
     if not line then return end
 
-    local current_section_dir = get_section_dir()
+    local current_section_dir = project.get_section_dir()
     local sections_enabled = get_config_sections(current_section_dir)
     local group_pat = "^## " .. project.t("group_tag") .. ": (.+)"
     local idea_pat = "^%- (.+)"
@@ -60,23 +80,33 @@ function M.goto_wyt_tab()
     local group_name = nil
 
     local function goto_group_name()
+        group_name = M.clean_group_name(group_name)
         if sections_enabled then
             local slug = slugify(group_name)
             local section_plan = current_section_dir .. slug .. "/plan.wyt.md"
-            if vim.fn.filereadable(section_plan) == 1 then
-                vim.cmd("tabnew " .. section_plan)
+            if vim.fn.filereadable(section_plan) == 0 then
+                print(loc.t("goto_no_section_plan") .. ": " .. section_plan .. "\n" .. loc.t("implementing") .. "'" .. group_name .. "'...\n")
+                project.implement_group(current_plan_content, group_name, current_section_dir, sections_enabled)
             else
-                print(loc.t("goto_no_section_plan") .. ": " .. section_plan)
+                if M.is_group_tagged(current_plan_content, group_name, "edited") then
+                    prompt_reimplement_group(current_plan_content, group_name, current_section_dir, sections_enabled, section_plan)
+                    return
+                end
             end
+            vim.cmd("tabnew " .. section_plan)
         else
             local text_path = current_section_dir .. "/text.wyt.md"
-            if vim.fn.filereadable(text_path) == 1 then
-                print("Goto group: " .. group_name .. "\n")
-                vim.cmd("tabnew " .. text_path)
-                -- Opcional: buscar el grupo o idea en el texto y mover el cursor
+            if vim.fn.filereadable(text_path) == 0 then
+                print(loc.t("goto_no_section_text") .. ": " .. text_path .. "\n" .. loc.t("implementing") .. "'" .. group_name .. "'...\n")
+                project.implement_group(current_plan_content, group_name, current_section_dir, sections_enabled)
             else
-                print(loc.t("goto_no_section_text") .. ": " .. text_path)
+                if M.is_group_tagged(current_plan_content, group_name, "edited") then
+                    prompt_reimplement_group(current_plan_content, group_name, current_section_dir, sections_enabled, text_path)
+                    return
+                end
             end
+            vim.cmd("tabnew " .. text_path)
+            -- Opcional: buscar el grupo o idea en el texto y mover el cursor
         end
     end
 

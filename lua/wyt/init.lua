@@ -6,7 +6,7 @@ local M = {}
 
 function M.setup(opts)
     if not pcall(require, "telescope") then
-        print("[WYT] Warning: telescope.nvim is required for multi-selection.\n")
+        -- print("[WYT] Warning: telescope.nvim is required for multi-selection.\n")
     end
     commands.setup()
     autocmd.setup()

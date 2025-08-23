@@ -5,30 +5,6 @@ local plan = require("wyt.plan")
 
 local M = {}
 
-local function get_ideas(plan_content)
-    local ideas = {}
-    local section_header = "## Ideas"
-    local start = plan_content:find(section_header)
-    if not start then return ideas end
-    local next_section = plan_content:find("\n## ", start + #section_header)
-    local ideas_block = next_section and plan_content:sub(start + #section_header, next_section - 1) or plan_content:sub(start + #section_header)
-    for idea in ideas_block:gmatch("%- ([^\n]+)") do
-        -- Elimina cualquier tag de grupo al final de la idea
-        local clean_idea = idea:gsub("%s*%[" .. project.t("group_tag") .. ": [^%]]+%]", "")
-        table.insert(ideas, clean_idea)
-    end
-    return ideas
-end
-
-function M.get_groups(plan_content)
-    local groups = {}
-    local group_header = "## " .. project.t("group_tag") .. ": "
-    for group in plan_content:gmatch(group_header .. "([^\n]+)") do
-        table.insert(groups, group)
-    end
-    return groups
-end
-
 local function escape_pattern(text)
     return text:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
 end
@@ -164,12 +140,12 @@ function M.new_group(line1, line2)
     -- Guardar los cambios del buffer antes de comenzar
     vim.cmd("write")
     local plan_content = project.read_file(project.plan_path) or ""
-    local ideas = get_ideas(plan_content)
+    local ideas = project.get_ideas(plan_content, "## " .. project.t("ideas_section"))
     if #ideas == 0 then
         print(loc.t("no_ideas"))
         return
     end
-    local groups = M.get_groups(plan_content)
+    local groups = project.get_groups(plan_content)
     local selected_ideas = {}
 
     local function insert_selected_idea(idea)

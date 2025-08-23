@@ -59,9 +59,15 @@ M.translations = {
         goto_no_group_name = "[WYT] Could not determine group name.",
         nav_desc = "Navigate through all files and sections of the WYT project",
         nav_select = "Select project file/section:",
+        the_group = "The group",
+        is_edited = "is edited. Re-implement?",
         group_tag = "Group",
         groups_section = "Groups",
         ideas_section = "Ideas",
+        implemented = "Implemented",
+        edited = "Edited",
+        implementing = "Implementing the group ",
+        create_paragraph = "Create a paragraph about: ",
     },
     es = {
         no_project = "[WYT] No se encontró ningún proyecto en el directorio actual. Por favor, navega a la raíz de tu proyecto.",
@@ -121,9 +127,15 @@ M.translations = {
         goto_no_group_name = "[WYT] No se pudo determinar el nombre del grupo.",
         nav_desc = "Navega entre todos los archivos y secciones del proyecto WYT",
         nav_select = "Selecciona archivo/sección del proyecto:",
+        the_group = "El grupo",
+        is_edited = "está editado. ¿Re-implementar?",
         group_tag = "Grupo",
         groups_section = "Grupos",
         ideas_section = "Ideas",
+        implemented = "Implementado",
+        edited = "Editado",
+        implementing = "Implementando el grupo ",
+        create_paragraph = "Crea un párrafo sobre: "
     }
 }
 

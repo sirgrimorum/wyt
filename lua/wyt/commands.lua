@@ -92,7 +92,7 @@ function M.nav_command()
         end
         vim.ui.select(display, {prompt = loc.t("nav_select")}, function(choice)
             if not choice or choice:sub(1,2) == "→ " then return end
-            vim.cmd("e " .. root .. clean_choice)
+            vim.cmd("e " .. root .. choice)
         end)
     end, {
         desc = loc.t("nav_desc"),
