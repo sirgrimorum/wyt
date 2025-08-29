@@ -109,9 +109,9 @@ function M.goto_command()
         local target_path = nil
 
         if arg == "plan" then
-            target_path = project.plan_path
+            target_path = project.section_plan_path
         elseif arg == "config" then
-            target_path = project.config_path
+            target_path = project.section_config_path
         elseif arg == "text" then
             target_path = root .. "text.wyt.md"
         elseif arg == "export" then

@@ -19,7 +19,7 @@ end
 local multi_select = require("wyt.group").multi_select
 
 function M.new_idea()
-    local plan_content = project.read_file(project.plan_path) or ""
+    local plan_content = project.read_file(project.section_plan_path) or ""
     plan_content = ensure_section_exists(plan_content, "ideas_section")
     local groups = project.get_groups(plan_content)
     vim.ui.input({prompt = loc.t("idea_name")}, function(idea_name)
@@ -30,20 +30,22 @@ function M.new_idea()
                 -- ToDo: final_idea = llm.improve_idea(idea_name)
             end
             local function add_idea(selected_groups)
-                plan_content = plan.add_item_to_section(plan_content, "ideas_section", final_idea)
                 if selected_groups and #selected_groups > 0 then
+                    -- No es necesario agregar la idea en sections porque al guardar se sincroniza y se agrega la idea automáticamente
                     for _, group_selected in ipairs(selected_groups) do
                         plan_content = plan.add_item_to_section(plan_content, project.t("group_tag") .. ": " .. group_selected, final_idea)
-                        plan_content = group.mark_ideas_as_grouped(plan_content, {final_idea}, group_selected)
+                        -- plan_content = group.mark_ideas_as_grouped(plan_content, {final_idea}, group_selected)
                         if plan.is_group_tagged(plan_content, group_selected, "implemented") then
                             plan_content = project.mark_group_status(plan_content, group_selected, "edited")
                         end
                     end
+                else
+                    plan_content = plan.add_item_to_section(plan_content, "ideas_section", final_idea)
                 end
-                project.write_file(project.plan_path, plan_content)
+                project.write_file(project.section_plan_path, plan_content)
                 project.commit_changes("Add idea: " .. idea_name)
                 print(loc.t("idea_added") .. final_idea)
-                vim.cmd("e! " .. project.plan_path)
+                vim.cmd("e! " .. project.section_plan_path)
                 -- Posiciona el cursor en la idea recién agregada
                 local idea_line = nil
                 local lines = api.nvim_buf_get_lines(0, 0, -1, false)
@@ -106,7 +108,7 @@ function M.sync_group_ideas_to_ideas()
             current_section = "group"
             current_group = line:match("^## " .. project.t("group_tag") .. ": (.+)")
             if current_group then
-                current_group = plan.clean_group_name(current_group)
+                current_group = project.clean_group_name(current_group)
                 groups_info[current_group] = {}
             end
         elseif line:match("^## ") then
