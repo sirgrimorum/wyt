@@ -55,11 +55,6 @@ local function prompt_reimplement_group(current_plan_content, group_name, sectio
     end)
 end
 
-function M.clean_group_name(name)
-    -- Quitar el posible tag (edited o implemented) del final
-    return name:gsub("%s*%[" .. project.t("edited") .. "%]$", ""):gsub("%s*%[" .. project.t("implemented") .. "%]$", ""):gsub("%s*$", "")
-end
-
 function M.goto_wyt_tab()
     local buf = api.nvim_get_current_buf()
     local filename = api.nvim_buf_get_name(buf)
@@ -80,7 +75,7 @@ function M.goto_wyt_tab()
     local group_name = nil
 
     local function goto_group_name()
-        group_name = M.clean_group_name(group_name)
+        group_name = project.clean_group_name(group_name)
         if sections_enabled then
             local slug = slugify(group_name)
             local section_plan = current_section_dir .. slug .. "/plan.wyt.md"
@@ -91,6 +86,9 @@ function M.goto_wyt_tab()
                 if M.is_group_tagged(current_plan_content, group_name, "edited") then
                     prompt_reimplement_group(current_plan_content, group_name, current_section_dir, sections_enabled, section_plan)
                     return
+                elseif not M.is_group_tagged(current_plan_content, group_name, "implemented") then
+                    print(loc.t("the_group") .. " '" .. group_name .. "' " .. loc.t("is_not_implemented") .. ".\n" .. loc.t("implementing") .. "'" .. group_name .. "'...\n")
+                    project.implement_group(current_plan_content, group_name, current_section_dir, sections_enabled)
                 end
             end
             vim.cmd("tabnew " .. section_plan)
@@ -103,6 +101,9 @@ function M.goto_wyt_tab()
                 if M.is_group_tagged(current_plan_content, group_name, "edited") then
                     prompt_reimplement_group(current_plan_content, group_name, current_section_dir, sections_enabled, text_path)
                     return
+                elseif not M.is_group_tagged(current_plan_content, group_name, "implemented") then
+                    print(loc.t("the_group") .. " '" .. group_name .. "' " .. loc.t("is_not_implemented") .. ".\n" .. loc.t("implementing") .. "'" .. group_name .. "'...\n")
+                    project.implement_group(current_plan_content, group_name, current_section_dir, sections_enabled)
                 end
             end
             vim.cmd("tabnew " .. text_path)
@@ -164,34 +165,33 @@ end
 
 function M.add_item_to_section(content, section, item)
     -- Eliminar cualquier \n del item
-    item = item:gsub("\n", " ")
+    item = item:gsub("\n", "")
     local section_header = "## " .. project.t(section)
     local section_start = content:find(section_header)
     if section_start then
         local next_section = content:find("\n## ", section_start + #section_header)
         local section_end = next_section and (next_section - 1) or #content
-        local before = content:sub(1, section_end)
+        local section_content = content:sub(section_start, section_end)
+        local before = content:sub(1, section_start - 1)
         local after = content:sub(section_end + 1)
         -- Busca el último ítem en la sección
         local last_item_pos = 0
-        for pos in before:gmatch("()\n%- [^\n]*") do
+        for pos in section_content:gmatch("()\n%- *") do
             last_item_pos = pos
         end
+        local before_item = ""
+        local after_item = ""
         if last_item_pos > 0 then
-            -- Encuentra el final de la última línea de ítem
-            local last_item_end = 0
-            for pos in before:gmatch("()\n%- [^\n]*") do
-                last_item_end = pos
-            end
             -- Busca el salto de línea después del último ítem
-            local next_newline = before:find("\n", last_item_end + 1) or (#before + 1)
-            local before_items = before:sub(1, next_newline - 1)
-            local after_items = before:sub(next_newline)
-            return before_items .. "\n- " .. item .. after_items .. after
+            local next_newline = section_content:find("\n", last_item_pos + 2) or (#before + 1)
+            before_item = section_content:sub(1, next_newline - 1)
+            after_item = section_content:sub(next_newline)
         else
-            -- Si no hay ítems, agrega al final de la sección
-            return before .. "\n- " .. item .. after
+            -- Si no hay ítems, agrega luego del header de section
+            before_item = section_content:sub(1, #section_header)
+            after_item = section_content:sub(#section_header + 1)
         end
+        return before .. before_item .. "\n- " .. item .. after_item .. after
     else
         return content .. "\n\n" .. section_header .. "\n- " .. item
     end

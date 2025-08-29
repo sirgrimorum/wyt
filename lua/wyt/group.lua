@@ -139,7 +139,7 @@ end
 function M.new_group(line1, line2)
     -- Guardar los cambios del buffer antes de comenzar
     vim.cmd("write")
-    local plan_content = project.read_file(project.plan_path) or ""
+    local plan_content = project.read_file(project.section_plan_path) or ""
     local ideas = project.get_ideas(plan_content, "## " .. project.t("ideas_section"))
     if #ideas == 0 then
         print(loc.t("no_ideas"))
@@ -177,7 +177,7 @@ function M.new_group(line1, line2)
 
     local function proceed_group()
         local function finish(group_name)
-            vim.cmd("e! " .. project.plan_path)
+            vim.cmd("e! " .. project.section_plan_path)
             if group_name and group_name ~= "" then
                 local group_header = "## " .. project.t("group_tag") .. ": " .. group_name
                 local lines = api.nvim_buf_get_lines(0, 0, -1, false)
@@ -202,7 +202,7 @@ function M.new_group(line1, line2)
                     updated_content = plan.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. name, idea)
                 end
                 updated_content = M.mark_ideas_as_grouped(updated_content, selected_ideas, name)
-                project.write_file(project.plan_path, updated_content)
+                project.write_file(project.section_plan_path, updated_content)
                 project.commit_changes("Created group: " .. name)
                 print(loc.t("group_created") .. name)
                 finish(name)
@@ -211,9 +211,8 @@ function M.new_group(line1, line2)
         if #groups > 0 then
             vim.ui.select({loc.t("add_to_existing_group"), loc.t("create_new_group")}, {prompt = loc.t("group_action")}, function(action)
                 if action == loc.t("add_to_existing_group") then
-                    -- ToDo: Revisar
                     vim.ui.select(groups, {prompt = loc.t("select_group")}, function(group_name)
-                        if group_name then 
+                        if group_name then
                             vim.ui.input({prompt = loc.t("edit_group_name") .. " [" .. group_name .. "]: "}, function(new_name)
                                 local final_name = new_name and new_name ~= "" and new_name or group_name
                                 local updated_content = rename_group(plan_content, group_name, final_name)
@@ -221,7 +220,7 @@ function M.new_group(line1, line2)
                                     updated_content = plan.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. final_name, idea)
                                 end
                                 updated_content = M.mark_ideas_as_grouped(updated_content, selected_ideas, final_name)
-                                project.write_file(project.plan_path, updated_content)
+                                project.write_file(project.section_plan_path, updated_content)
                                 project.commit_changes("Grouped ideas in: " .. final_name)
                                 print(loc.t("group_updated") .. final_name)
                                 finish(final_name)
