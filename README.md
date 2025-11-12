@@ -37,10 +37,54 @@ require("wyt").setup({
 })
 ```
 
+### Versión de desarrollo
+
 Si se está utilizando la versión local en desarrollo. agrega antes del `require`:
 
 ```lua
 vim.opt.runtimepath:append '[path to development root folder]/WYT/'
+```
+
+O usando una variable de entorno:
+```lua
+local wyt_path = os.getenv('WYT_PATH')
+if wyt_path then
+  vim.opt.runtimepath:append(wyt_path)
+  require('wyt').setup()
+end
+```
+
+Para definir la variable de entorno:
+
+#### Windows PowerShell
+
+```bash
+[System.Environment]::SetEnvironmentVariable("WYT_PATH", "C:\your\custom\path", "User")
+```
+
+Y luego recargar la configuración
+
+```bash
+. $PROFILE
+```
+
+O reiniciar la terminal
+
+#### MacOS
+
+Add this line to your `~/.bashrc` or `~/.zshrc`
+
+```bash
+export WYT_PATH="/your/custom/path"
+```
+
+Y luego recargar la configuración.
+
+Por ejemplo:
+
+```bash
+echo 'export WYT_PATH="/ruta/deseada"' >> ~/.zshrc
+source ~/.zshrc
 ```
 
 ## ¿Qué archivos y carpetas crea?
