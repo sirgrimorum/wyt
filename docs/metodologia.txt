@@ -1,0 +1,45 @@
+Metodología literaria:
+
+1. Cada nuevo texto literario será considerado un proyecto
+2. Cada proyecto tendrá una carpeta base y dentro de esta una estructura de carpetas y archivos definido según la metodología
+3. Los comandos de WYT deben ayudar al usuario a administrar y navegar de una manera consistente y fácil a través de todos los archivos y carpetas de un proyecto usando términos, conceptos y dinámicas de la metodología
+4. Se debe incluir version control (git) en cada proyecto y manejar los comandos de una manera assistida a través de los comandos correspondientes, abstrayendo la gestión del repositorio: el usuario no debe tener que hacerlo directamente sino que se hace automáticamente a través de los comandos de la metodología y los comandos generales como guardar.
+5. Los documentos deben usar markdown y facilitar la visualización del formato
+6. Tanto la descripción como el contenido que se genere automáticament en los archivos debe siempre estar localizado siguiendo la configuración, y la localización debe ser por proyecto
+7. Cada documento debe permitir navegar entre las secciones de manera fácil usando en lo posible comandos nativos de neovim o en su defecto comandos definidos en WYT de acuerdo a la metodología: Por ejemplo, navegar al plan de la sección correspondiente desde un grupo, navegar al parrafo correspondiente de un texto desde una idea en un plan, navegar hacia el plan padre desde un plan de una sección, navegar a hacia el texto siguiente, anterior o padre desde un texto. Tambien es importante visualizar toda la estrucura de carpetas y archivos del proyecto para navegar a ellos si es necesario, desde cualquier parte.
+8. La metodología tiene una serie de contenidos y estructura que varían de acuerdo al tipo de texto literario. Cada tipo de texto literario soportado debe tener su propio archivo de configuración en el plugin para ser usado a partir del tipo de texto de cada proyecto. Para cada tipo de texto se define:
+- Las preguntas orientadoras a usar para crear ideas, agrupar ideas, y dar nombre a los grupos en cada nivel
+- El nivel de profundidad de las secciones, hasta donde se usa content o sections
+- Si una idea en el texto genera un párrafo o si varias ideas generan un párrafo (por ejemplo para un resúmen)
+9. Debe existir un comando para crear y abrir un nuevo proyecto haciendo preguntas sencillas al usuario:
+  - Idioma
+  - Tipo de texto
+  - path
+  - nombre de la carpeta root
+6. La estructura es como sigue:
+- `config.wyt.yml`: Contiecne la configuración del proyecto para usar tanto en los comandos de WYT para implementar la metodología, como en los prompts de generación usando llm. Puede ser, entre otros:
+  - Idioma
+  - Estilo de escritura
+  - Tipo de texto literario
+    - Estructura
+  - Tipo de ideación
+  - Autor
+  - Si tiene secciones o no
+
+- `plan.wyt.md`: Contiene toda la información principal sobre el proyecto, y ayuda a guiar todo el proceso de escritura. Su contenido se va generando y transformando a medida que se avanza. Su contenido en secciones es:
+  - Nombre: inicialmente, la carpeta root del proyecto debe ser un slug de este nombre
+  - Descripción: Texto libre sobre el objetivo, el contexto y el tipo de poryecto etcétera
+  - Ideas: Una lista resultado de ejercicios de lluvia de ideas realizada por el usuario, asistidas usando preguntas orientadoras definidas por la metodología o asistidas usando llms para generar ideas a partir de las preguntas orientadoras de la metodología, la descripción y contexto adicional (prompt) entregado por el usuario. Cada idea en la lista debe ser redactada como una oración. Debe ser posible ver si una idea ya se ha agregado a un grupo o no, y debe ser posible navegar al grupo donte se usó la idea. Una idea puede usarse en más de un grupo. Debe tambien existir una forma fácil de agrupar ideas desde esta sección. Para agrupar las ideas, se puede hacer manualmente, guiado a través de una pregunta orientadora según el tipo de texto, o asistido usando LLMs con la pregunta orientadora, las ideas y un prompt de usuario.
+  - Grupos: Una serie de grupos creados a traves de unir ideas relacionadas (eliminando las repetidas), siguiendo un orden lógico. Cada grupo debe tener un nombre y se debe ver como una lista de ideas. Todas las ideas en los grupos deben existir en la sección de ideas. Si se agrega una idea a un grupo, debe agregarse automáticamente a la sección de ideas. Las ideas en el grupo deben poderse ordenar fácilmente al igual que los grupos: mover hacia arriba o hacia abajo en la lista. Puede usarse LLM para generar nombre a un grupo o para ayudar a organizar las ideas.
+- `text.wyt.md`: El texto en si. Inicialmente el texto se crea a partir de las ideas de los grupos y luego ir creando párrafos con cada idea/grupo. Dependiendo del tipo de texto, pude ser expandiendo cada idea hasta convertirla en párrafo(s) o uniendo varias ideas agrupadas para formar un párrafo. Se puede usar una guía con preguntas orientadoras, o asistido con LLM usando la pregunta orientadora, las ideas y la descripción, más un prompt de usuario.
+- `export.wyt.md`: El texto final que debe reunir todo el contenido de los `text.wyt.md` siguiendo la esturtura de secciones y subsecciones y agregando formato relativo a cada uno. Este debe ser un archivo principalmente de lectura, creado automáticamente luego de editar los `text.wyt.md`. La generación de este archivo se debe hacer bajo demanda por parte del usuario usando comandos. Debe poder usarse LLM para ajustar el estilo del texto si el usuario lo desea. Si una sección tiene un `export.wyt.md` más actualizado que el `text.wyt.md` debe usarse ese en vez del `text.wyt.md`
+
+Cada Grupo, puede convertirse en una sección nueva. En este caso, no existirá un `text.wyt.md`, sino una carpeta `sections` y dentro de ella una carpeta para cada grupo, usando una versión slug del nombre del grupo. Cambiar el nombre del grupo en `plan.wyt.md` debe cambiar el nombre de la carpeta. Dentro de cada carpeta de grupo se debe seguir la misma estructura de archivos y carpetas ya mencionada:
+- `config.wyt.yml`: Principalmente con:
+  - type: Tipo de seccion, puede ser
+	- content: Parte del contenido del proyecto, con `plan.wyt.md` completo, y `text.wyt.md` o `sections`. Si es content, se incluye su contenido en un export
+	- definition: Elementos que ayudan a crear el texto pero no hacen parte del contenido, por ejemplo, una sección de tipo definition en una novela puede ser "personajes" con información de cada personaje. El contenido de las secciones de tipo "definition" debe ser fácilmente consultable (search, ver, o usar como referencioa) desde las secciones de tipo "content". No se incluye el contenido en un export
+  - sections: boolean si tine carpeta `sections` o `text.wyt.md`
+- `plan.wyt.md`: Igual que en la sección principal pero específica para la sección. Cada una de las ideas del grupo que dió origen a la sección, debe convertirse en un grupo (el nombre sería la idea original) y se deben usar todas las ideas de la lista del grupo original, para crear la descripción de la sección.
+- `text.wyt.md` o `sections`: Al igual que la sección principal, cada grupo de ideas de una sección puede convertirse en un texto o en una serie de sub-secciones y así sucesivamente.
+- `export.wyt.md`: Debe generarse por solicitud de usuario para cada sección.
