@@ -10,11 +10,6 @@ local function get_config_sections(section_dir)
     return config_content and config_content:match("sections:%s*true") ~= nil
 end
 
-local function slugify(str)
-    local new_str = str
-    return new_str:lower():gsub("%s+", "-"):gsub("[^%w%-]", "")
-end
-
 local function get_group_tags(line)
     local tags = {}
     for tag in line:gmatch("%[" .. project.t("group_tag") .. ": ([^%]]+)%]") do
@@ -78,7 +73,7 @@ function M.goto_wyt_tab()
     local function goto_group_name()
         group_name = project.clean_group_name(group_name)
         if sections_enabled then
-            local slug = slugify(group_name)
+            local slug = project.slugify(group_name)
             local section_plan = current_section_dir .. slug .. "/plan.wyt.md"
             -- O4: fs_stat instead of vim.fn.filereadable
             if not (vim.uv or vim.loop).fs_stat(section_plan) then
@@ -119,7 +114,15 @@ function M.goto_wyt_tab()
             end
             -- F5: fnameescape
             vim.cmd("tabnew " .. vim.fn.fnameescape(text_path))
-            -- Opcional: buscar el grupo o idea en el texto y mover el cursor
+            -- P5: position cursor at the group section in text.wyt.md
+            local group_header = "## " .. project.t("group_tag") .. ": " .. group_name
+            for i, tline in ipairs(api.nvim_buf_get_lines(0, 0, -1, false)) do
+                if tline:find(group_header, 1, true) then
+                    api.nvim_win_set_cursor(0, {i, 0})
+                    vim.cmd("normal! zz")
+                    break
+                end
+            end
         end
     end
 
@@ -163,23 +166,43 @@ function M.goto_wyt_tab()
         -- Si no hay grupo y no hay secciones, navega al texto
         if not sections_enabled then
             local text_path = current_section_dir .. "text.wyt.md"
-            -- O4: fs_stat instead of vim.fn.filereadable; O6: vim.notify instead of print
+            -- O4: fs_stat; O6: vim.notify
             if (vim.uv or vim.loop).fs_stat(text_path) then
-                vim.notify("Goto idea: " .. line:sub(3), vim.log.levels.INFO)
                 -- F5: fnameescape
                 vim.cmd("tabnew " .. vim.fn.fnameescape(text_path))
+                -- P5: position cursor at the idea placeholder in text.wyt.md
+                local idea_text = line:sub(3)  -- strip "- " prefix
+                for i, tline in ipairs(api.nvim_buf_get_lines(0, 0, -1, false)) do
+                    if tline:find(idea_text, 1, true) then
+                        api.nvim_win_set_cursor(0, {i, 0})
+                        vim.cmd("normal! zz")
+                        break
+                    end
+                end
             else
                 vim.notify(loc.t("goto_no_section_text") .. ": " .. text_path, vim.log.levels.WARN)
             end
         end
         return
     end
+
+    -- P6: on the document title (# heading), navigate to the parent plan if one exists
+    if line:match("^# ") then
+        local parent = current_section_dir:match("^(.*[\\/])[^\\/]+[\\/]$")
+        if parent then
+            local parent_plan = parent .. "plan.wyt.md"
+            if (vim.uv or vim.loop).fs_stat(parent_plan) then
+                vim.cmd("tabnew " .. vim.fn.fnameescape(parent_plan))
+            end
+        end
+    end
 end
 
 function M.add_item_to_section(content, section, item)
     -- Eliminar cualquier \n del item
     item = item:gsub("\n", "")
-    local section_header = "## " .. project.t(section)
+    -- F10: `section` is now raw header text (already translated by caller), not a translation key
+    local section_header = "## " .. section
     local section_start = content:find(section_header)
     if section_start then
         local next_section = content:find("\n## ", section_start + #section_header)

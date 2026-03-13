@@ -36,9 +36,12 @@ M.section_config_path = ""
 M.section_plan_path = ""
 M.lang = "en"
 
-local function slugify(str)
+-- Exported so other modules (group.lua) can slugify consistently
+function M.slugify(str)
     return str:lower():gsub("%s+", "-"):gsub("[^%w%-]", "")
 end
+
+local slugify = M.slugify  -- local alias for internal use
 
 function M.read_file(path)
     local fd = uv.fs_open(path, "r", 438)

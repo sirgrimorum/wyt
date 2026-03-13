@@ -3,7 +3,7 @@ local loc = require("wyt.localization")
 
 local M = {}
 
--- O3: debounce timer — sync runs 300ms after the last keystroke, not on every change
+-- O3: debounce timer — sync fires 300ms after the last keystroke, not on every change
 local _sync_timer = nil
 local function debounced_sync()
     if _sync_timer then
@@ -25,11 +25,13 @@ function M.setup()
     api.nvim_create_autocmd("BufEnter", {
         group = group,
         pattern = "plan.wyt.md",
-        callback = function()
+        callback = function(ev)
             local project = require("wyt.project")
             if not project.setup() then return end
-            -- F9: apply project language to localization module
+            -- F9: apply project language to the localization module
             loc.set_lang(project.lang)
+            -- F8: buffer-local keymaps — only active in this plan.wyt.md buffer
+            require("wyt.mappings").setup_buf(ev.buf)
         end,
         desc = loc.t("set_lang_on_enter")
     })
@@ -37,9 +39,21 @@ function M.setup()
     api.nvim_create_autocmd({"TextChanged", "TextChangedP", "InsertLeave"}, {
         group = group,
         pattern = "*plan.wyt.md",
-        -- O3: debounced — was firing on every keystroke
+        -- O3: debounced — was firing the full sync on every single keystroke
         callback = debounced_sync,
         desc = loc.t("sync_group_ideas_desc")
+    })
+
+    -- P11: auto-commit on write for wyt content files
+    api.nvim_create_autocmd("BufWritePost", {
+        group = group,
+        pattern = {"*plan.wyt.md", "*text.wyt.md"},
+        callback = function()
+            local project = require("wyt.project")
+            if not project.setup() then return end
+            project.commit_changes("Save: " .. vim.fn.expand("%:t"))
+        end,
+        desc = "WYT: auto-commit on write",
     })
 end
 

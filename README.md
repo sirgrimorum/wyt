@@ -4,37 +4,66 @@ Plugin de Neovim para la gestión de proyectos literarios siguiendo la metodolog
 
 ## Instalación
 
-**Requisito:**  
+**Requisito:**
 Este plugin requiere que tengas instalado [`telescope.nvim`](https://github.com/nvim-telescope/telescope.nvim).
 
-Agrega a tu configuración de Neovim (por ejemplo, usando `lazy.nvim` o `packer.nvim`):
+> **Importante:** WYT no se auto-inicializa. Debes llamar `require("wyt").setup(...)` en tu
+> configuración de Neovim. Sin esta llamada, ningún comando ni mapping estará disponible.
+
+### lazy.nvim (recomendado)
+
+```lua
+{
+  "tu_usuario/wyt.nvim",
+  dependencies = { "nvim-telescope/telescope.nvim" },
+  config = function()
+    require("wyt").setup({
+      llm_provider = "claude",  -- "openai" | "claude"
+      api_key = "sk-...",
+    })
+  end,
+}
+```
+
+### packer.nvim
 
 ```lua
 use({
-  'tu_usuario/WYT.nvim',
-  requires = { 'nvim-telescope/telescope.nvim' },
+  "tu_usuario/wyt.nvim",
+  requires = { "nvim-telescope/telescope.nvim" },
   config = function()
-    require("wyt").setup()
-  end
+    require("wyt").setup({
+      llm_provider = "claude",
+      api_key = "sk-...",
+    })
+  end,
 })
+```
+
+### Sin plugin manager
+
+En tu `init.lua`, antes del `require`:
+
+```lua
+vim.opt.runtimepath:append("/ruta/a/wyt.nvim")
+require("wyt").setup()
 ```
 
 ## Configuración
 
-No es necesario configurar nada adicional para comenzar. El plugin se inicializa automáticamente.
-
-En tu archivo de configuración de Neovim (`init.lua` o similar), agrega:
-
-```lua
-require("wyt").setup()
-```
-
-Si deseas personalizar opciones, puedes pasar un objeto de configuración:
+Todas las opciones se pasan a `setup()`. Los valores por defecto son:
 
 ```lua
 require("wyt").setup({
-  -- tus opciones aquí
+  llm_provider = "openai",  -- proveedor LLM: "openai" | "claude"
+  api_key = "",             -- API key del proveedor
 })
+```
+
+También puedes cambiar el proveedor en cualquier momento con el comando:
+
+```
+:WYTConfig claude sk-...
 ```
 
 ### Versión de desarrollo
