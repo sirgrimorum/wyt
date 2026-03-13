@@ -42,7 +42,8 @@ function M.new_idea()
                         end
                     end
                 else
-                    plan_content = plan.add_item_to_section(plan_content, "ideas_section", final_idea)
+                    -- F10: pass translated text, not a key
+                    plan_content = plan.add_item_to_section(plan_content, project.t("ideas_section"), final_idea)
                 end
                 project.write_file(project.section_plan_path, plan_content)
                 project.commit_changes("Add idea: " .. idea_name)

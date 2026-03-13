@@ -523,15 +523,50 @@ After implementing a group into `text.wyt.md`, each idea becomes a `*Create a pa
 
 ---
 
-## Priority Summary
+## Status
 
-| Priority | Items |
-|----------|-------|
-| Critical bugs | F1, F3, F11 (crash/global leak) |
-| High impact | F2, F4, F5, F8, F9 (correctness) |
-| Medium fixes | F6, F7, F10, F12, F13 |
-| Quick wins | O2, O5, O6 (one-liners) |
-| Refactors | O1, O3, O4, O7, O8, O9, O10 |
-| Core features | P1, P2, P3, P8, P11 |
-| UX features | P4, P5, P6, P7, P10, P14, P15 |
-| Infrastructure | P12, P13 |
+### Completed
+| Item | Description |
+|------|-------------|
+| O1 | Lazy requires in commands.lua |
+| O2 | `vim.uv` instead of deprecated `vim.loop` |
+| O3 | Debounced sync (300ms) |
+| O4 | `vim.uv.fs_stat` instead of `vim.fn.filereadable` |
+| O5 | `vim.tbl_deep_extend` in config.lua |
+| O6 | `vim.notify` instead of `print` throughout |
+| O7 | Removed forced buffer write in `group.new_group` |
+| O8 | Extracted `swap_line_blocks` helper in `group.lua` |
+| O10 | Per-buffer project root cache |
+| F1 | Undefined `config_path`/`plan_path` in `set_section_data` |
+| F2 | Stale project root cache when switching projects |
+| F3 | Undeclared global `col` in plan.lua |
+| F4 | No augroup → duplicate autocmds on re-setup |
+| F5 | Path injection via unescaped `vim.cmd("e " .. path)` |
+| F6 | Double slash in `current_section_dir .. "/text.wyt.md"` |
+| F7 | `assert(uv.fs_open())` crash on unwritable paths |
+| F8 | Global keymaps now buffer-local (only on plan.wyt.md buffers) |
+| F9 | Language from config now applied to localization module |
+| F10 | `add_item_to_section` API — accepts raw header text, not mixed key/string |
+| F11 | `set_root_data`/`set_section_data` were globals, now `local` |
+| F12 | Module-level telescope require in `idea.lua` moved inside function |
+| F13 | Covered by F5 (path escaping + arrow guard already correct) |
+| P4 | Section folder renamed when group is renamed |
+| P5 | Cursor positioned in `text.wyt.md` after navigation |
+| P6 | `<S-Tab>` on `# ` title navigates to parent plan |
+| P8 | `:WYTGenerate` inserts text at cursor instead of just notifying |
+| P9 | `:WYTSetLang` persists language to `config.wyt.yml` |
+| P11 | Auto-commit on `:w` for plan.wyt.md and text.wyt.md |
+| P12 | `:checkhealth wyt` module added |
+| P13 | Test infrastructure + first spec file (`tests/plan_spec.lua`) |
+
+### Pending (requires design / significant scope)
+| Item | Description |
+|------|-------------|
+| O9 | `plugin/` directory — decided to keep explicit `setup()`, documented in README |
+| P1 | Real LLM API calls (OpenAI / Claude HTTP) |
+| P2 | `:WYTExport` — assemble `export.wyt.md` from section tree |
+| P3 | Per-text-type behavior (novel vs essay vs summary) |
+| P7 | Definition sections — searchable reference from content sections |
+| P10 | `:WYTNav` — hierarchical tree view instead of flat file list |
+| P14 | Guided questions per text type and section level |
+| P15 | Paragraph expansion workflow in `text.wyt.md` |

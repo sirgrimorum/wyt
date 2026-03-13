@@ -223,6 +223,16 @@ function M.new_group(line1, line2)
                             vim.ui.input({prompt = loc.t("edit_group_name") .. " [" .. group_name .. "]: "}, function(new_name)
                                 local final_name = new_name and new_name ~= "" and new_name or group_name
                                 local updated_content = rename_group(plan_content, group_name, final_name)
+                                -- P4: rename section folder when group name changes
+                                if final_name ~= group_name then
+                                    local uv = vim.uv or vim.loop
+                                    local old_dir = project.current_section_dir .. project.slugify(group_name)
+                                    local new_dir = project.current_section_dir .. project.slugify(final_name)
+                                    if uv.fs_stat(old_dir) and project.slugify(group_name) ~= project.slugify(final_name) then
+                                        vim.fn.rename(old_dir, new_dir)
+                                        vim.notify("[WYT] Renamed section folder: " .. project.slugify(group_name) .. " → " .. project.slugify(final_name), vim.log.levels.INFO)
+                                    end
+                                end
                                 for _, idea in ipairs(selected_ideas) do
                                     updated_content = plan.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. final_name, idea)
                                 end

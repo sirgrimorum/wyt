@@ -28,11 +28,24 @@ function M.setup_command()
     })
 
     vim.api.nvim_create_user_command("WYTSetLang", function(args)
-        -- O1: lazy require
         local lang_loc = require("wyt.localization")
+        local project = require("wyt.project")
         local lang = args.fargs[1]
         lang_loc.set_lang(lang)
-        vim.notify("[WYT] Language set to: " .. lang, vim.log.levels.INFO)
+        -- P9: persist language to config.wyt.yml so it survives session restarts
+        if project.setup() then
+            local config_content = project.read_file(project.config_path) or ""
+            if config_content:match("lang:%s*%w+") then
+                config_content = config_content:gsub("lang:%s*%w+", "lang: " .. lang)
+            else
+                config_content = config_content .. "lang: " .. lang .. "\n"
+            end
+            project.write_file(project.config_path, config_content)
+            project.commit_changes("Set language to: " .. lang)
+            vim.notify("[WYT] Language set to " .. lang .. " and saved to project config", vim.log.levels.INFO)
+        else
+            vim.notify("[WYT] Language set to: " .. lang .. " (session only — no project found)", vim.log.levels.INFO)
+        end
     end, {
         nargs = 1,
         complete = function(arglead)
@@ -75,12 +88,14 @@ end
 
 function M.generate_text_command()
     vim.api.nvim_create_user_command("WYTGenerate", function(args)
-        -- O1: lazy requires
         local llm = require("wyt.llm")
         local prompt = args.args
         local result = llm.generate_text(prompt)
-        -- O6: vim.notify instead of print
-        vim.notify(loc.t("result") .. result, vim.log.levels.INFO)
+        -- P8: insert result at cursor position instead of just notifying
+        local row = vim.api.nvim_win_get_cursor(0)[1]
+        local result_lines = vim.split(result, "\n", { plain = true })
+        vim.api.nvim_buf_set_lines(0, row, row, false, result_lines)
+        vim.notify("[WYT] Text generated and inserted at cursor", vim.log.levels.INFO)
     end, {
         nargs = "?",
         desc = loc.t("generate_text")
