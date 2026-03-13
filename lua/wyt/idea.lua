@@ -1,4 +1,3 @@
-local uv = vim.loop
 local api = vim.api
 local loc = require("wyt.localization")
 local llm = require("wyt.llm")
@@ -16,7 +15,10 @@ local function ensure_section_exists(content, section)
     return content
 end
 
-local multi_select = require("wyt.group").multi_select
+-- F12: was a module-level require (side effect at load time, crashed if telescope missing)
+local function multi_select(...)
+    return require("wyt.group").multi_select(...)
+end
 
 function M.new_idea()
     local plan_content = project.read_file(project.section_plan_path) or ""
@@ -44,8 +46,9 @@ function M.new_idea()
                 end
                 project.write_file(project.section_plan_path, plan_content)
                 project.commit_changes("Add idea: " .. idea_name)
-                print(loc.t("idea_added") .. final_idea)
-                vim.cmd("e! " .. project.section_plan_path)
+                -- O6: vim.notify instead of print
+                vim.notify(loc.t("idea_added") .. final_idea, vim.log.levels.INFO)
+                vim.cmd("e! " .. vim.fn.fnameescape(project.section_plan_path))
                 -- Posiciona el cursor en la idea recién agregada
                 local idea_line = nil
                 local lines = api.nvim_buf_get_lines(0, 0, -1, false)
@@ -190,7 +193,8 @@ function M.sync_group_ideas_to_ideas()
             end
         end
         api.nvim_buf_set_lines(buf, 0, -1, false, new_lines)
-        print(loc.t("sync_complete"))
+        -- O6: vim.notify instead of print
+        vim.notify(loc.t("sync_complete"), vim.log.levels.INFO)
     end
 end
 

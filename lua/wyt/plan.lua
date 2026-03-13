@@ -51,7 +51,8 @@ local function prompt_reimplement_group(current_plan_content, group_name, sectio
         if choice == loc.t("yes") then
             project.implement_group(current_plan_content, group_name, section_dir, sections_enabled)
         end
-        vim.cmd("tabnew " .. section_plan)
+        -- F5: fnameescape
+        vim.cmd("tabnew " .. vim.fn.fnameescape(section_plan))
     end)
 end
 
@@ -79,34 +80,45 @@ function M.goto_wyt_tab()
         if sections_enabled then
             local slug = slugify(group_name)
             local section_plan = current_section_dir .. slug .. "/plan.wyt.md"
-            if vim.fn.filereadable(section_plan) == 0 then
-                print(loc.t("goto_no_section_plan") .. ": " .. section_plan .. "\n" .. loc.t("implementing") .. "'" .. group_name .. "'...\n")
+            -- O4: fs_stat instead of vim.fn.filereadable
+            if not (vim.uv or vim.loop).fs_stat(section_plan) then
+                -- O6: vim.notify instead of print
+                vim.notify(loc.t("goto_no_section_plan") .. ": " .. section_plan, vim.log.levels.INFO)
+                vim.notify(loc.t("implementing") .. "'" .. group_name .. "'...", vim.log.levels.INFO)
                 project.implement_group(current_plan_content, group_name, current_section_dir, sections_enabled)
             else
                 if M.is_group_tagged(current_plan_content, group_name, "edited") then
                     prompt_reimplement_group(current_plan_content, group_name, current_section_dir, sections_enabled, section_plan)
                     return
                 elseif not M.is_group_tagged(current_plan_content, group_name, "implemented") then
-                    print(loc.t("the_group") .. " '" .. group_name .. "' " .. loc.t("is_not_implemented") .. ".\n" .. loc.t("implementing") .. "'" .. group_name .. "'...\n")
+                    vim.notify(loc.t("the_group") .. " '" .. group_name .. "' " .. loc.t("is_not_implemented"), vim.log.levels.INFO)
+                    vim.notify(loc.t("implementing") .. "'" .. group_name .. "'...", vim.log.levels.INFO)
                     project.implement_group(current_plan_content, group_name, current_section_dir, sections_enabled)
                 end
             end
-            vim.cmd("tabnew " .. section_plan)
+            -- F5: fnameescape
+            vim.cmd("tabnew " .. vim.fn.fnameescape(section_plan))
         else
-            local text_path = current_section_dir .. "/text.wyt.md"
-            if vim.fn.filereadable(text_path) == 0 then
-                print(loc.t("goto_no_section_text") .. ": " .. text_path .. "\n" .. loc.t("implementing") .. "'" .. group_name .. "'...\n")
+            -- F6: removed extra leading slash (current_section_dir already ends with /)
+            local text_path = current_section_dir .. "text.wyt.md"
+            -- O4: fs_stat instead of vim.fn.filereadable
+            if not (vim.uv or vim.loop).fs_stat(text_path) then
+                -- O6: vim.notify instead of print
+                vim.notify(loc.t("goto_no_section_text") .. ": " .. text_path, vim.log.levels.INFO)
+                vim.notify(loc.t("implementing") .. "'" .. group_name .. "'...", vim.log.levels.INFO)
                 project.implement_group(current_plan_content, group_name, current_section_dir, sections_enabled)
             else
                 if M.is_group_tagged(current_plan_content, group_name, "edited") then
                     prompt_reimplement_group(current_plan_content, group_name, current_section_dir, sections_enabled, text_path)
                     return
                 elseif not M.is_group_tagged(current_plan_content, group_name, "implemented") then
-                    print(loc.t("the_group") .. " '" .. group_name .. "' " .. loc.t("is_not_implemented") .. ".\n" .. loc.t("implementing") .. "'" .. group_name .. "'...\n")
+                    vim.notify(loc.t("the_group") .. " '" .. group_name .. "' " .. loc.t("is_not_implemented"), vim.log.levels.INFO)
+                    vim.notify(loc.t("implementing") .. "'" .. group_name .. "'...", vim.log.levels.INFO)
                     project.implement_group(current_plan_content, group_name, current_section_dir, sections_enabled)
                 end
             end
-            vim.cmd("tabnew " .. text_path)
+            -- F5: fnameescape
+            vim.cmd("tabnew " .. vim.fn.fnameescape(text_path))
             -- Opcional: buscar el grupo o idea en el texto y mover el cursor
         end
     end
@@ -142,7 +154,7 @@ function M.goto_wyt_tab()
     -- Si es una idea en la sección de ideas
     local idea_name = find_header_name_above(lines, cursor, "^## " .. project.t("ideas_section"))
     if line:match(idea_pat) and idea_name then
-        col = api.nvim_win_get_cursor(0)[2] + 1 -- Lua 1-based indexing
+        local col = api.nvim_win_get_cursor(0)[2] + 1 -- F3: was undeclared global
         group_name = get_group_tag_at_cursor(line, col)
         if group_name then
             goto_group_name()
@@ -151,12 +163,13 @@ function M.goto_wyt_tab()
         -- Si no hay grupo y no hay secciones, navega al texto
         if not sections_enabled then
             local text_path = current_section_dir .. "text.wyt.md"
-            if vim.fn.filereadable(text_path) == 1 then
-                print("Goto idea: " .. line:sub(3) .. "\n")
-                vim.cmd("tabnew " .. text_path)
-                -- Opcional: buscar la idea en el texto
+            -- O4: fs_stat instead of vim.fn.filereadable; O6: vim.notify instead of print
+            if (vim.uv or vim.loop).fs_stat(text_path) then
+                vim.notify("Goto idea: " .. line:sub(3), vim.log.levels.INFO)
+                -- F5: fnameescape
+                vim.cmd("tabnew " .. vim.fn.fnameescape(text_path))
             else
-                print(loc.t("goto_no_section_text") .. ": " .. text_path)
+                vim.notify(loc.t("goto_no_section_text") .. ": " .. text_path, vim.log.levels.WARN)
             end
         end
         return

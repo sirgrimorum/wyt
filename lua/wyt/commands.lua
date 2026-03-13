@@ -1,44 +1,53 @@
-local config = require("wyt.config")
-local llm = require("wyt.llm")
+-- O1: only lightweight localization required at top (needed for `desc` fields at command creation time)
+-- all other modules are required lazily inside callbacks
 local loc = require("wyt.localization")
-local project = require("wyt.project")
-local idea = require("wyt.idea")
-local group = require("wyt.group")
 
 local M = {}
 
--- Comando para configurar el proveedor y la API Key
 function M.setup_command()
     vim.api.nvim_create_user_command("WYTConfig", function(args)
+        -- O1: lazy require
+        local config = require("wyt.config")
         if #args.fargs ~= 2 then
-            print(loc.t("config_usage") or "[WYT] Usage: :WYTConfig <provider> <api_key>")
+            -- O6: vim.notify instead of print
+            vim.notify(loc.t("config_usage") or "[WYT] Usage: :WYTConfig <provider> <api_key>", vim.log.levels.WARN)
             return
         end
         local provider = args.fargs[1]
         local key = args.fargs[2]
         config.setup({ llm_provider = provider, api_key = key })
-        print(loc.t("config_updated") .. provider)
+        vim.notify(loc.t("config_updated") .. provider, vim.log.levels.INFO)
     end, {
-        nargs = "+", -- acepta uno o más argumentos
+        nargs = "+",
         complete = function(arglead)
-            return {"openai", "claude"}
+            return vim.tbl_filter(function(v)
+                return v:find(arglead, 1, true) == 1
+            end, {"openai", "claude"})
         end,
         desc = loc.t("set_provider")
     })
 
     vim.api.nvim_create_user_command("WYTSetLang", function(args)
+        -- O1: lazy require
+        local lang_loc = require("wyt.localization")
         local lang = args.fargs[1]
-        loc.set_lang(lang)
-        print("[WYT] Language set to: " .. lang)
+        lang_loc.set_lang(lang)
+        vim.notify("[WYT] Language set to: " .. lang, vim.log.levels.INFO)
     end, {
         nargs = 1,
         complete = function(arglead)
-            return {"en", "es"}
+            return vim.tbl_filter(function(v)
+                return v:find(arglead, 1, true) == 1
+            end, {"en", "es"})
         end,
         desc = "Set plugin language (en/es)"
     })
 
     vim.api.nvim_create_user_command("WYTNew", function(args)
+        -- O1: lazy requires
+        local project = require("wyt.project")
+        local idea = require("wyt.idea")
+        local group = require("wyt.group")
         if args.fargs[1] == "g" then
             if project.setup() then
                 group.new_group(args.line1, args.line2)
@@ -50,24 +59,28 @@ function M.setup_command()
                 idea.new_idea()
             end
         else
-            print(loc.t("new_usage"))
+            vim.notify(loc.t("new_usage"), vim.log.levels.WARN)
         end
     end, {
         nargs = 1,
         range = true,
         complete = function(arglead)
-            return {"p", "i", "g"}
+            return vim.tbl_filter(function(v)
+                return v:find(arglead, 1, true) == 1
+            end, {"p", "i", "g"})
         end,
         desc = loc.t("new_desc")
     })
 end
 
--- Comando para generar texto literario usando la metodología propia
 function M.generate_text_command()
     vim.api.nvim_create_user_command("WYTGenerate", function(args)
+        -- O1: lazy requires
+        local llm = require("wyt.llm")
         local prompt = args.args
         local result = llm.generate_text(prompt)
-        print(loc.t("result") .. result)
+        -- O6: vim.notify instead of print
+        vim.notify(loc.t("result") .. result, vim.log.levels.INFO)
     end, {
         nargs = "?",
         desc = loc.t("generate_text")
@@ -76,8 +89,9 @@ end
 
 function M.nav_command()
     vim.api.nvim_create_user_command("WYTNav", function()
+        -- O1: lazy require
+        local project = require("wyt.project")
         if not project.setup() then return end
-        local sep = package.config:sub(1,1)
         local root = project.project_root
         local files = vim.fn.glob(root .. "**/*", true, true)
         local current_file = vim.api.nvim_buf_get_name(0)
@@ -92,7 +106,8 @@ function M.nav_command()
         end
         vim.ui.select(display, {prompt = loc.t("nav_select")}, function(choice)
             if not choice or choice:sub(1,2) == "→ " then return end
-            vim.cmd("e " .. root .. choice)
+            -- F5: fnameescape prevents path injection
+            vim.cmd("edit " .. vim.fn.fnameescape(root .. choice))
         end)
     end, {
         desc = loc.t("nav_desc"),
@@ -101,11 +116,12 @@ end
 
 function M.goto_command()
     vim.api.nvim_create_user_command("WYTGoto", function(args)
+        -- O1: lazy require
+        local project = require("wyt.project")
         if not project.setup() then return end
         local arg = args.fargs[1]
         local root = project.project_root
         local sep = package.config:sub(1,1)
-        local current_path = vim.api.nvim_buf_get_name(0)
         local target_path = nil
 
         if arg == "plan" then
@@ -120,28 +136,32 @@ function M.goto_command()
             local parent = root:match("^(.*"..sep..")[^"..sep.."]+"..sep.."$")
             if parent and parent ~= "" and parent ~= root then
                 local parent_plan = parent .. "plan.wyt.md"
-                if vim.fn.filereadable(parent_plan) == 1 then
+                -- O4: fs_stat instead of vim.fn.filereadable
+                if (vim.uv or vim.loop).fs_stat(parent_plan) then
                     target_path = parent_plan
                 else
-                    print(loc.t("goto_no_parent_plan"))
+                    vim.notify(loc.t("goto_no_parent_plan"), vim.log.levels.WARN)
                     return
                 end
             else
-                print(loc.t("goto_no_parent"))
+                vim.notify(loc.t("goto_no_parent"), vim.log.levels.WARN)
                 return
             end
         else
-            print(loc.t("goto_invalid_arg"))
+            vim.notify(loc.t("goto_invalid_arg"), vim.log.levels.WARN)
             return
         end
 
         if target_path then
-            vim.cmd("e " .. target_path)
+            -- F5: fnameescape prevents path injection
+            vim.cmd("edit " .. vim.fn.fnameescape(target_path))
         end
     end, {
         nargs = 1,
         complete = function(arglead)
-            return {"plan", "config", "text", "export", "parent"}
+            return vim.tbl_filter(function(v)
+                return v:find(arglead, 1, true) == 1
+            end, {"plan", "config", "text", "export", "parent"})
         end,
         desc = loc.t("goto_desc")
     })

@@ -1,34 +1,44 @@
 local api = vim.api
-local project = require("wyt.project")
 local loc = require("wyt.localization")
-local idea = require("wyt.idea")
 
 local M = {}
 
-
+-- O3: debounce timer — sync runs 300ms after the last keystroke, not on every change
+local _sync_timer = nil
+local function debounced_sync()
+    if _sync_timer then
+        _sync_timer:stop()
+        _sync_timer:close()
+        _sync_timer = nil
+    end
+    _sync_timer = (vim.uv or vim.loop).new_timer()
+    _sync_timer:start(300, 0, vim.schedule_wrap(function()
+        _sync_timer = nil
+        require("wyt.idea").sync_group_ideas_to_ideas()
+    end))
+end
 
 function M.setup()
-    -- ToDo: Define if we want to use it after a write
-    -- api.nvim_create_autocmd("BufWritePost", {
-    --     pattern = "plan.wyt.md",
-    --     callback = idea.sync_group_ideas_to_ideas,
-    --     desc = loc.t("sync_group_ideas_desc")
-    -- })
+    -- F4: named augroup with clear=true prevents duplicate autocmds on re-setup
+    local group = api.nvim_create_augroup("WYT_Plugin", { clear = true })
 
     api.nvim_create_autocmd("BufEnter", {
+        group = group,
         pattern = "plan.wyt.md",
         callback = function()
+            local project = require("wyt.project")
             if not project.setup() then return end
-            local lang = project.lang
-            -- loc.set_lang(lang)
-            -- print(loc.t("current_lang") .. lang)
+            -- F9: apply project language to localization module
+            loc.set_lang(project.lang)
         end,
         desc = loc.t("set_lang_on_enter")
     })
 
     api.nvim_create_autocmd({"TextChanged", "TextChangedP", "InsertLeave"}, {
+        group = group,
         pattern = "*plan.wyt.md",
-        callback = idea.sync_group_ideas_to_ideas,
+        -- O3: debounced — was firing on every keystroke
+        callback = debounced_sync,
         desc = loc.t("sync_group_ideas_desc")
     })
 end

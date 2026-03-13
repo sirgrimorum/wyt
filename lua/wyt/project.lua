@@ -1,27 +1,31 @@
-local uv = vim.loop
+local uv = vim.uv or vim.loop  -- O2: vim.loop is deprecated in Neovim 0.10+
 local api = vim.api
 local loc = require("wyt.localization")
 local M = {}
 
+-- O10: per-buffer root cache; avoids re-walking the directory tree on every command
+local _root_cache = {}
+
 local function find_project_root_from_buffer()
     local buf_path = api.nvim_buf_get_name(0)
     if buf_path == "" then return vim.fn.getcwd() end
+    if _root_cache[buf_path] then return _root_cache[buf_path] end  -- O10: cache hit
+
     local sep = package.config:sub(1,1)
     local dir = buf_path:match("^(.*"..sep..")")
     local last_valid = nil
     while dir and dir ~= "" do
-        local config_path = dir .. "config.wyt.yml"
-        local plan_path = dir .. "plan.wyt.md"
-        if vim.fn.filereadable(config_path) == 1 and vim.fn.filereadable(plan_path) == 1 then
+        -- O4: vim.uv.fs_stat is faster than vim.fn.filereadable (no Vimscript call)
+        if uv.fs_stat(dir .. "config.wyt.yml") and uv.fs_stat(dir .. "plan.wyt.md") then
             last_valid = dir
         else
-            if last_valid then
-                return last_valid
-            end
+            if last_valid then break end
         end
         dir = dir:match("^(.*"..sep..")[^"..sep.."]+"..sep.."$")
     end
-    return last_valid or vim.fn.getcwd()
+    local result = last_valid or vim.fn.getcwd()
+    _root_cache[buf_path] = result  -- O10: populate cache
+    return result
 end
 
 M.project_root = ""
@@ -46,9 +50,15 @@ function M.read_file(path)
 end
 
 function M.write_file(path, content)
-    local fd = assert(uv.fs_open(path, "w", 438))
+    -- F7: removed assert() which crashed on unwritable paths
+    local fd = uv.fs_open(path, "w", 438)
+    if not fd then
+        vim.notify("[WYT] Cannot write to: " .. path, vim.log.levels.ERROR)
+        return false
+    end
     uv.fs_write(fd, content, -1)
     uv.fs_close(fd)
+    return true
 end
 
 local function get_project_lang()
@@ -63,14 +73,15 @@ function M.get_section_dir()
     return plan_path:match("^(.*[\\/])") or vim.fn.getcwd() .. "/"
 end
 
-function set_root_data()
-    if M.project_root ~= "" and M.config_path ~= "" and M.plan_path ~= "" then
-        return true
-    end
+-- F11: was missing `local` — leaked as globals
+local function set_root_data()
+    -- F2/O10: always re-detect from current buffer (uses per-buffer cache internally)
+    -- removed early return that caused stale root when switching projects
     M.project_root = find_project_root_from_buffer()
     local config_path = M.project_root .. "config.wyt.yml"
     local plan_path = M.project_root .. "plan.wyt.md"
-    if vim.fn.filereadable(config_path) == 1 and vim.fn.filereadable(plan_path) == 1 then
+    -- O4: vim.uv.fs_stat instead of vim.fn.filereadable
+    if uv.fs_stat(config_path) and uv.fs_stat(plan_path) then
         M.config_path = config_path
         M.plan_path = plan_path
         M.lang = get_project_lang()
@@ -79,26 +90,28 @@ function set_root_data()
     return false
 end
 
-function set_section_data()
+-- F11: was missing `local`
+local function set_section_data()
     local buf_path = api.nvim_buf_get_name(0)
     M.current_section_dir = buf_path:match("^(.*[\\/])") or vim.fn.getcwd() .. "/"
-    if vim.fn.filereadable(M.current_section_dir .. "config.wyt.yml") == 1 then
+    -- O4: fs_stat; F1: fallback to M.config_path/M.plan_path (were undefined `config_path`/`plan_path`)
+    if uv.fs_stat(M.current_section_dir .. "config.wyt.yml") then
         M.section_config_path = M.current_section_dir .. "config.wyt.yml"
     else
-        M.section_config_path = config_path
+        M.section_config_path = M.config_path
     end
-    if vim.fn.filereadable(M.current_section_dir .. "plan.wyt.md") == 1 then
+    if uv.fs_stat(M.current_section_dir .. "plan.wyt.md") then
         M.section_plan_path = M.current_section_dir .. "plan.wyt.md"
     else
-        M.section_plan_path = plan_path
+        M.section_plan_path = M.plan_path
     end
 end
 
 function M.setup()
     local project_found = set_root_data()
     if not project_found then
-        print(loc.t("no_project"))
-        print(" [WYT] Project root: " .. M.project_root)
+        -- O6: vim.notify instead of print
+        vim.notify(loc.t("no_project"), vim.log.levels.WARN)
         return false
     end
     set_section_data()
@@ -112,9 +125,7 @@ end
 local function mkdir(path)
     local sep = package.config:sub(1,1)
     local parts = {}
-    -- Normaliza los separadores
     path = path:gsub("[/\\]", sep)
-    -- Si la ruta es absoluta, conserva la raíz (ej: "d:\")
     local root = ""
     if path:match("^%a:"..sep) then
         root = path:sub(1,3)
@@ -161,7 +172,6 @@ function M.new_project()
                         vim.ui.select({loc.t("yes"), loc.t("no")}, {prompt = loc.t("has_sections")}, function(has_sections)
                             opts.sections = has_sections == loc.t("yes")
                             vim.ui.select({loc.t("same_window"), loc.t("new_window")}, {prompt = loc.t("open_where")}, function(open_where)
-                                -- Crear estructura
                                 local root = opts.base_path .. "/" .. opts.slug
                                 mkdir(root)
                                 M.write_file(root .. "/config.wyt.yml", string.format(
@@ -170,16 +180,16 @@ function M.new_project()
                                 ))
                                 M.write_file(root .. "/plan.wyt.md", "# " .. opts.name .. "\n\n" .. loc.t("plan_intro"))
                                 M.write_file(root .. "/export.wyt.md", "# " .. opts.name .. " " .. loc.t("export_intro"))
-                                -- Inicializar git
                                 run_git_init(root)
-                                -- Abrir archivo principal
                                 local file_to_open = root .. "/plan.wyt.md"
+                                -- F5: fnameescape prevents path injection for names with spaces/special chars
                                 if open_where == loc.t("new_window") then
-                                    vim.cmd("tabnew " .. file_to_open)
+                                    vim.cmd("tabnew " .. vim.fn.fnameescape(file_to_open))
                                 else
-                                    vim.cmd("edit " .. file_to_open)
+                                    vim.cmd("edit " .. vim.fn.fnameescape(file_to_open))
                                 end
-                                print(loc.t("project_created") .. root)
+                                -- O6: vim.notify instead of print
+                                vim.notify(loc.t("project_created") .. root, vim.log.levels.INFO)
                             end)
                         end)
                     end)
@@ -197,26 +207,22 @@ function M.get_ideas(plan_content, section_header)
     local next_section = plan_content:find("\n## ", start + #section_header) or #plan_content + 1
     local ideas_block = next_section and plan_content:sub(start + #section_header, next_section - 1) or plan_content:sub(start + #section_header)
     for idea in ideas_block:gmatch("%- ([^\n]+)") do
-        -- Elimina cualquier tag de grupo al final de la idea
         local clean_idea = idea:gsub("%s*%[" .. M.t("group_tag") .. ": [^%]]+%]", "")
         table.insert(ideas, clean_idea)
     end
     return ideas
 end
 
--- Marca el grupo como implementado o editado en plan.wyt.md
 function M.mark_group_status(content, group_name, status)
-    if not content then 
+    if not content then
         return content
     end
     local group_pat = "## " .. M.t("group_tag") .. ": " .. group_name
     local status_tag = "[" .. M.t(status) .. "]"
     local new_content
     if content:find(group_pat .. " %[") then
-        -- Ya tiene un tag, reemplaza
         new_content = content:gsub(group_pat .. " %[.-%]", group_pat .. " " .. status_tag)
     else
-        -- Añade el tag
         new_content = content:gsub(group_pat, group_pat .. " " .. status_tag)
     end
     return new_content
@@ -226,13 +232,12 @@ local function update_changes_in_buffer(path, content)
     M.write_file(path, content)
     local buf_path = vim.api.nvim_buf_get_name(0)
     if buf_path == (path) then
-        vim.cmd("e! " .. path)
+        vim.cmd("e! " .. vim.fn.fnameescape(path))  -- F5: fnameescape
     end
 end
 
 
 function M.clean_group_name(name)
-    -- Quitar el posible tag (edited o implemented) del final
     return name:gsub("%s*%[" .. M.t("edited") .. "%]$", ""):gsub("%s*%[" .. M.t("implemented") .. "%]$", ""):gsub("%s*$", "")
 end
 
@@ -246,48 +251,39 @@ function M.get_groups(plan_content)
     return groups
 end
 
--- Implementa el grupo: crea archivos y estructura según config
 function M.implement_group(current_plan_content, group_name, section_dir, sections_enabled)
     local current_section_dir = M.get_section_dir()
     local ideas = M.get_ideas(current_plan_content, "## " .. M.t("group_tag") .. ": " .. group_name)
     if sections_enabled then
-        -- Crear carpeta de sección y archivos base
         local slug = slugify(group_name)
         local group_section_dir = section_dir .. slug .. "/"
         mkdir(group_section_dir)
-        -- plan.wyt.md
         local plan_path = group_section_dir .. "plan.wyt.md"
-        if vim.fn.filereadable(plan_path) ~= 0 then
-            -- Plan existe, vamos a renombrarlo como old para crear uno nuevo
-            -- Si ya hay un old, sobreescribimos
-            if vim.fn.filereadable(group_section_dir .. "plan.old.wyt.md") ~= 0 then
+        -- O4: fs_stat instead of vim.fn.filereadable
+        if uv.fs_stat(plan_path) then
+            if uv.fs_stat(group_section_dir .. "plan.old.wyt.md") then
                 vim.fn.delete(group_section_dir .. "plan.old.wyt.md")
             end
             vim.fn.rename(plan_path, group_section_dir .. "plan.old.wyt.md")
         end
-        -- Esta comprobación puede no ser necesaria
-        if vim.fn.filereadable(plan_path) == 0 then
+        if not uv.fs_stat(plan_path) then
             local plan_content = "# " .. group_name .. "\n\n## " .. M.t("ideas_section") .. "\n"
-            -- Agregar ideas al contenido del plan como nuevos grupos
             for _, idea in ipairs(ideas) do
                 plan_content = plan_content .. "\n\n## " .. M.t("group_tag") .. ": " .. idea .. "\n"
             end
             M.write_file(plan_path, plan_content)
         end
-        -- config.wyt.yml
         local config_path = group_section_dir .. "config.wyt.yml"
-        if vim.fn.filereadable(config_path) == 0 then
-            local config_content = "type: content\nsections: false\n"
-            M.write_file(config_path, config_content)
+        if not uv.fs_stat(config_path) then
+            M.write_file(config_path, "type: content\nsections: false\n")
         end
         current_plan_content = M.mark_group_status(current_plan_content, group_name, "implemented")
         update_changes_in_buffer(current_section_dir .. "plan.wyt.md", current_plan_content)
     else
         local text_path = section_dir .. "text.wyt.md"
-        local text_content = vim.fn.filereadable(text_path) == 1 and M.read_file(text_path) or ""
-        -- Extraer todos los grupos del plan en orden
+        -- O4: fs_stat instead of vim.fn.filereadable
+        local text_content = uv.fs_stat(text_path) and M.read_file(text_path) or ""
         local group_order = M.get_groups(current_plan_content)
-        -- Extraer todos los bloques de grupos del texto actual
         local blocks = {}
         local previous_content = ""
         local next_content = ""
@@ -295,13 +291,11 @@ function M.implement_group(current_plan_content, group_name, section_dir, sectio
         local last_end = 1
         local group_blocks = {}
         local first_start = 0
-        -- Encuentra todos los bloques de grupo en el texto
         for s, gname in text_content:gmatch(pattern) do
             if first_start == 0 then
                 first_start = s
             end
             if s > last_end then
-                -- Hay contenido entre el último bloque y este
                 next_content = next_content .. text_content:sub(last_end, s - 1)
             end
             local e = text_content:find("\n## ", s + 2)
@@ -315,31 +309,25 @@ function M.implement_group(current_plan_content, group_name, section_dir, sectio
             group_blocks[M.clean_group_name(gname)] = block
             last_end = e
         end
-        -- Añade el contenido fuera de los bloques de grupo (antes del primer grupo)
         if first_start > 0 then
             previous_content = text_content:sub(1, first_start - 1)
             next_content = last_end <= #text_content and text_content:sub(last_end) or ""
         else
             previous_content = text_content
         end
-        -- Genera el bloque para el grupo que se está implementando
         local new_block = "\n\n## " .. M.t("group_tag") .. ": " .. group_name .. "\n"
         for _, idea in ipairs(ideas) do
             new_block = new_block .. "\n\n*" .. M.t("create_paragraph") .. "[" .. idea .. "]*\n"
         end
-        -- Reconstruye el texto siguiendo el orden del plan
         local new_text = previous_content
         for _, gname in ipairs(group_order) do
             if gname == group_name then
                 new_text = new_text .. new_block
-                -- Dejar el grupo viejo
-                -- group_blocks[gname] = nil
             elseif group_blocks[gname] then
                 new_text = new_text .. group_blocks[gname]
                 group_blocks[gname] = nil
             end
         end
-        -- Añade los grupos que estaban en el texto pero no en el plan (al final)
         for gname, block in pairs(group_blocks) do
             new_text = new_text .. "```old\n" .. block .. "\n```"
         end
@@ -348,7 +336,7 @@ function M.implement_group(current_plan_content, group_name, section_dir, sectio
         current_plan_content = M.mark_group_status(current_plan_content, group_name, "implemented")
         update_changes_in_buffer(current_section_dir .. "plan.wyt.md", current_plan_content)
     end
-    M.commit_changes("Implement group: " .. group_name)   
+    M.commit_changes("Implement group: " .. group_name)
 end
 
 return M
