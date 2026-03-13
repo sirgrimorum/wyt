@@ -125,6 +125,12 @@ function M.t(key)
     return loc.t(key, M.lang)
 end
 
+function M.get_project_type()
+    local config_content = M.read_file(M.config_path)
+    if not config_content then return "essay" end
+    return config_content:match("type:%s*(%w+)") or "essay"
+end
+
 local function mkdir(path)
     local sep = package.config:sub(1,1)
     local parts = {}

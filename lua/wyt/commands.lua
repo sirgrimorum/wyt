@@ -90,12 +90,19 @@ function M.generate_text_command()
     vim.api.nvim_create_user_command("WYTGenerate", function(args)
         local llm = require("wyt.llm")
         local prompt = args.args
-        local result = llm.generate_text(prompt)
-        -- P8: insert result at cursor position instead of just notifying
+        -- P8: async — insert result at cursor once the callback fires
+        local buf = vim.api.nvim_get_current_buf()
         local row = vim.api.nvim_win_get_cursor(0)[1]
-        local result_lines = vim.split(result, "\n", { plain = true })
-        vim.api.nvim_buf_set_lines(0, row, row, false, result_lines)
-        vim.notify("[WYT] Text generated and inserted at cursor", vim.log.levels.INFO)
+        vim.notify(loc.t("llm_generating"), vim.log.levels.INFO)
+        llm.generate_text(prompt, function(result, err)
+            if err or not result then
+                vim.notify(loc.t("llm_error") .. (err or ""), vim.log.levels.WARN)
+                return
+            end
+            local result_lines = vim.split(result, "\n", { plain = true })
+            vim.api.nvim_buf_set_lines(buf, row, row, false, result_lines)
+            vim.notify("[WYT] Text generated and inserted at cursor", vim.log.levels.INFO)
+        end)
     end, {
         nargs = "?",
         desc = loc.t("generate_text")
@@ -104,26 +111,10 @@ end
 
 function M.nav_command()
     vim.api.nvim_create_user_command("WYTNav", function()
-        -- O1: lazy require
+        -- P10: hierarchical tree navigation via nav.lua
         local project = require("wyt.project")
         if not project.setup() then return end
-        local root = project.project_root
-        local files = vim.fn.glob(root .. "**/*", true, true)
-        local current_file = vim.api.nvim_buf_get_name(0)
-        local display = {}
-        for _, f in ipairs(files) do
-            local rel = f:sub(#root + 1)
-            if f == current_file then
-                table.insert(display, "→ " .. rel)
-            else
-                table.insert(display, rel)
-            end
-        end
-        vim.ui.select(display, {prompt = loc.t("nav_select")}, function(choice)
-            if not choice or choice:sub(1,2) == "→ " then return end
-            -- F5: fnameescape prevents path injection
-            vim.cmd("edit " .. vim.fn.fnameescape(root .. choice))
-        end)
+        require("wyt.nav").navigate()
     end, {
         desc = loc.t("nav_desc"),
     })
@@ -182,11 +173,50 @@ function M.goto_command()
     })
 end
 
+function M.export_command()
+    vim.api.nvim_create_user_command("WYTExport", function()
+        require("wyt.export").export()
+    end, { desc = loc.t("export_desc") })
+end
+
+function M.expand_command()
+    -- P15: expand placeholders in text.wyt.md
+    vim.api.nvim_create_user_command("WYTExpand", function(args)
+        local text = require("wyt.text")
+        local sub = args.fargs[1]
+        if sub == "next" then
+            text.expand_next()
+        elseif sub == "prev" then
+            text.expand_prev()
+        else
+            text.expand_at_cursor()
+        end
+    end, {
+        nargs = "?",
+        complete = function(arglead)
+            return vim.tbl_filter(function(v)
+                return v:find(arglead, 1, true) == 1
+            end, { "next", "prev" })
+        end,
+        desc = loc.t("expand_desc"),
+    })
+end
+
+function M.search_command()
+    -- P7: search in definition sections
+    vim.api.nvim_create_user_command("WYTSearch", function()
+        require("wyt.search").search()
+    end, { desc = loc.t("search_desc") })
+end
+
 function M.setup()
     M.setup_command()
     M.generate_text_command()
     M.nav_command()
     M.goto_command()
+    M.export_command()
+    M.expand_command()
+    M.search_command()
 end
 
 return M

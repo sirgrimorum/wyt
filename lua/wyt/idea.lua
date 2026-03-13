@@ -20,56 +20,132 @@ local function multi_select(...)
     return require("wyt.group").multi_select(...)
 end
 
+-- P14: show guided questions for the project type, then ask how to brainstorm
+local function show_guided_questions_and_proceed(callback)
+    local types_mod = require("wyt.types")
+    local project_type = project.get_project_type()
+    local questions = types_mod.idea_questions(project_type, project.lang)
+
+    -- Show questions as a hint notification
+    if #questions > 0 then
+        local hint = loc.t("guided_questions_title") .. project_type .. ":\n"
+        for i, q in ipairs(questions) do
+            hint = hint .. "  " .. i .. ". " .. q .. "\n"
+        end
+        vim.notify(hint, vim.log.levels.INFO)
+    end
+
+    -- Ask whether to enter free idea or answer questions one by one
+    vim.ui.select(
+        { loc.t("free_idea"), loc.t("answer_questions") },
+        { prompt = loc.t("brainstorm_mode") },
+        function(choice)
+            if choice == loc.t("answer_questions") then
+                -- Collect one idea per answered question
+                local collected = {}
+                local function ask_next(i)
+                    if i > #questions then
+                        callback(collected)
+                        return
+                    end
+                    vim.ui.input({ prompt = questions[i] .. "\n" .. loc.t("question_prompt") }, function(answer)
+                        if answer and answer ~= "" then
+                            table.insert(collected, answer)
+                        end
+                        ask_next(i + 1)
+                    end)
+                end
+                ask_next(1)
+            else
+                -- Free-form: single idea
+                vim.ui.input({ prompt = loc.t("idea_name") }, function(idea_name)
+                    if idea_name and idea_name ~= "" then
+                        callback({ idea_name })
+                    end
+                end)
+            end
+        end
+    )
+end
+
 function M.new_idea()
     local plan_content = project.read_file(project.section_plan_path) or ""
     plan_content = ensure_section_exists(plan_content, "ideas_section")
     local groups = project.get_groups(plan_content)
-    vim.ui.input({prompt = loc.t("idea_name")}, function(idea_name)
-        if not idea_name or idea_name == "" then return end
-        vim.ui.select({loc.t("yes"), loc.t("no")}, {prompt = loc.t("use_llm")}, function(use_llm)
-            local final_idea = idea_name
-            if use_llm == loc.t("yes") then
-                -- ToDo: final_idea = llm.improve_idea(idea_name)
+
+    -- P14: guided questions flow; callback receives list of idea strings
+    show_guided_questions_and_proceed(function(idea_names)
+        if not idea_names or #idea_names == 0 then return end
+
+        local function process_idea(idea_name, use_llm_improve, on_done)
+            if use_llm_improve then
+                vim.notify(loc.t("llm_generating"), vim.log.levels.INFO)
+                llm.improve_idea(idea_name, project.lang, function(result, err)
+                    if err or not result then
+                        vim.notify(loc.t("llm_error") .. (err or ""), vim.log.levels.WARN)
+                        on_done(idea_name)
+                    else
+                        on_done(result)
+                    end
+                end)
+            else
+                on_done(idea_name)
             end
-            local function add_idea(selected_groups)
+        end
+
+        -- For each collected idea, optionally improve and add
+        local function add_ideas_batch(ideas_list, selected_groups)
+            for _, idea_name in ipairs(ideas_list) do
                 if selected_groups and #selected_groups > 0 then
-                    -- No es necesario agregar la idea en sections porque al guardar se sincroniza y se agrega la idea automáticamente
                     for _, group_selected in ipairs(selected_groups) do
-                        plan_content = plan.add_item_to_section(plan_content, project.t("group_tag") .. ": " .. group_selected, final_idea)
-                        -- plan_content = group.mark_ideas_as_grouped(plan_content, {final_idea}, group_selected)
+                        plan_content = plan.add_item_to_section(plan_content, project.t("group_tag") .. ": " .. group_selected, idea_name)
                         if plan.is_group_tagged(plan_content, group_selected, "implemented") then
                             plan_content = project.mark_group_status(plan_content, group_selected, "edited")
                         end
                     end
                 else
-                    -- F10: pass translated text, not a key
-                    plan_content = plan.add_item_to_section(plan_content, project.t("ideas_section"), final_idea)
+                    plan_content = plan.add_item_to_section(plan_content, project.t("ideas_section"), idea_name)
                 end
-                project.write_file(project.section_plan_path, plan_content)
-                project.commit_changes("Add idea: " .. idea_name)
-                -- O6: vim.notify instead of print
-                vim.notify(loc.t("idea_added") .. final_idea, vim.log.levels.INFO)
-                vim.cmd("e! " .. vim.fn.fnameescape(project.section_plan_path))
-                -- Posiciona el cursor en la idea recién agregada
-                local idea_line = nil
-                local lines = api.nvim_buf_get_lines(0, 0, -1, false)
-                for i, line in ipairs(lines) do
-                    if line:find(final_idea, 1, true) then
-                        idea_line = i
-                        break
-                    end
-                end
-                if idea_line then
-                    api.nvim_win_set_cursor(0, {idea_line, 0})
-                end
-                vim.cmd("normal! zz")
             end
-            if #groups > 0 then
-                multi_select(groups, {prompt = loc.t("add_to_group")}, function(selected)
-                    add_idea(selected)
+            project.write_file(project.section_plan_path, plan_content)
+            project.commit_changes("Add ideas: " .. table.concat(ideas_list, ", "))
+            vim.notify(loc.t("idea_added") .. table.concat(ideas_list, ", "), vim.log.levels.INFO)
+            vim.cmd("e! " .. vim.fn.fnameescape(project.section_plan_path))
+            -- Position cursor at last added idea
+            local last_idea = ideas_list[#ideas_list]
+            local lines = api.nvim_buf_get_lines(0, 0, -1, false)
+            for i, line in ipairs(lines) do
+                if line:find(last_idea, 1, true) then
+                    api.nvim_win_set_cursor(0, {i, 0})
+                    break
+                end
+            end
+            vim.cmd("normal! zz")
+        end
+
+        -- Ask LLM improvement once for the whole batch
+        vim.ui.select({ loc.t("yes"), loc.t("no") }, { prompt = loc.t("use_llm") }, function(use_llm)
+            local improve = use_llm == loc.t("yes")
+            if improve and #idea_names == 1 then
+                process_idea(idea_names[1], true, function(final_idea)
+                    local function add_idea(selected_groups)
+                        add_ideas_batch({ final_idea }, selected_groups)
+                    end
+                    if #groups > 0 then
+                        multi_select(groups, { prompt = loc.t("add_to_group") }, add_idea)
+                    else
+                        add_idea({})
+                    end
                 end)
             else
-                add_idea({})
+                local function add_idea(selected_groups)
+                    add_ideas_batch(idea_names, selected_groups)
+                end
+                if #groups > 0 then
+                    multi_select(groups, { prompt = loc.t("add_to_group") }, add_idea)
+                else
+                    add_idea({})
+                end
             end
         end)
     end)

@@ -558,15 +558,11 @@ After implementing a group into `text.wyt.md`, each idea becomes a `*Create a pa
 | P11 | Auto-commit on `:w` for plan.wyt.md and text.wyt.md |
 | P12 | `:checkhealth wyt` module added |
 | P13 | Test infrastructure + first spec file (`tests/plan_spec.lua`) |
-
-### Pending (requires design / significant scope)
-| Item | Description |
-|------|-------------|
-| O9 | `plugin/` directory — decided to keep explicit `setup()`, documented in README |
-| P1 | Real LLM API calls (OpenAI / Claude HTTP) |
-| P2 | `:WYTExport` — assemble `export.wyt.md` from section tree |
-| P3 | Per-text-type behavior (novel vs essay vs summary) |
-| P7 | Definition sections — searchable reference from content sections |
-| P10 | `:WYTNav` — hierarchical tree view instead of flat file list |
-| P14 | Guided questions per text type and section level |
-| P15 | Paragraph expansion workflow in `text.wyt.md` |
+| P1 | Real async LLM API calls via `vim.system(curl)` — OpenAI + Claude |
+| P2 | `:WYTExport` — recursive section-tree export to `export.wyt.md` |
+| P3 | `types.lua` — per-type questions/behavior (novel, essay, summary, short_story) |
+| P7 | `:WYTSearch` — definition sections full-text search |
+| P10 | `:WYTNav` — hierarchical tree display with indented entries |
+| P14 | Guided questions for idea creation (idea.lua) and group naming (group.lua) |
+| P15 | `:WYTExpand` / buffer keymaps — placeholder expansion with manual or LLM |
+| O9 | `plugin/` directory — kept explicit `setup()`, documented in README |

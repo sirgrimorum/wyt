@@ -201,18 +201,65 @@ function M.new_group(line1, line2)
             vim.cmd("normal! zz")
         end
         local function new_group_name()
-            vim.ui.input({prompt = loc.t("new_group_name")}, function(name)
-                if not name or name == "" then return end
-                local updated_content = plan_content
-                for _, idea in ipairs(selected_ideas) do
-                    updated_content = plan.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. name, idea)
+            -- P14: show guided questions for group naming
+            local types_mod = require("wyt.types")
+            local project_type = project.get_project_type()
+            local questions = types_mod.group_questions(project_type, project.lang)
+            if #questions > 0 then
+                local hint = loc.t("guided_questions_title") .. project_type .. ":\n"
+                for i, q in ipairs(questions) do
+                    hint = hint .. "  " .. i .. ". " .. q .. "\n"
                 end
-                updated_content = M.mark_ideas_as_grouped(updated_content, selected_ideas, name)
-                project.write_file(project.section_plan_path, updated_content)
-                project.commit_changes("Created group: " .. name)
-                -- O6: vim.notify instead of print
-                vim.notify(loc.t("group_created") .. name, vim.log.levels.INFO)
-                finish(name)
+                vim.notify(hint, vim.log.levels.INFO)
+            end
+            local name_hint = types_mod.group_name_hint(project_type, project.lang)
+            vim.ui.select({ loc.t("yes"), loc.t("no") }, { prompt = loc.t("use_llm") }, function(use_llm)
+                if use_llm == loc.t("yes") and #selected_ideas > 0 then
+                    vim.notify(loc.t("llm_generating"), vim.log.levels.INFO)
+                    require("wyt.llm").suggest_group_name(selected_ideas, project_type, project.lang, function(suggested, err)
+                        if err or not suggested or suggested == "" then
+                            if err then vim.notify(loc.t("llm_error") .. err, vim.log.levels.WARN) end
+                            vim.ui.input({ prompt = name_hint }, function(name)
+                                if not name or name == "" then return end
+                                local updated_content = plan_content
+                                for _, idea in ipairs(selected_ideas) do
+                                    updated_content = plan.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. name, idea)
+                                end
+                                updated_content = M.mark_ideas_as_grouped(updated_content, selected_ideas, name)
+                                project.write_file(project.section_plan_path, updated_content)
+                                project.commit_changes("Created group: " .. name)
+                                vim.notify(loc.t("group_created") .. name, vim.log.levels.INFO)
+                                finish(name)
+                            end)
+                        else
+                            vim.ui.input({ prompt = name_hint, default = suggested }, function(name)
+                                if not name or name == "" then name = suggested end
+                                local updated_content = plan_content
+                                for _, idea in ipairs(selected_ideas) do
+                                    updated_content = plan.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. name, idea)
+                                end
+                                updated_content = M.mark_ideas_as_grouped(updated_content, selected_ideas, name)
+                                project.write_file(project.section_plan_path, updated_content)
+                                project.commit_changes("Created group: " .. name)
+                                vim.notify(loc.t("group_created") .. name, vim.log.levels.INFO)
+                                finish(name)
+                            end)
+                        end
+                    end)
+                else
+                    vim.ui.input({ prompt = name_hint }, function(name)
+                        if not name or name == "" then return end
+                        local updated_content = plan_content
+                        for _, idea in ipairs(selected_ideas) do
+                            updated_content = plan.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. name, idea)
+                        end
+                        updated_content = M.mark_ideas_as_grouped(updated_content, selected_ideas, name)
+                        project.write_file(project.section_plan_path, updated_content)
+                        project.commit_changes("Created group: " .. name)
+                        vim.notify(loc.t("group_created") .. name, vim.log.levels.INFO)
+                        finish(name)
+                    end)
+                end
             end)
         end
         if #groups > 0 then
