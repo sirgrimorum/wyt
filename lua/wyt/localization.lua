@@ -69,6 +69,38 @@ M.translations = {
         edited = "Edited",
         implementing = "Implementing the group ",
         create_paragraph = "Create a paragraph about: ",
+        set_lang_on_enter = "WYT: set language on buffer enter",
+        nav_tab_desc = "WYT: navigate to related file",
+        -- P1: LLM
+        llm_generating = "[WYT] Generating text...",
+        llm_no_api_key = "[WYT] API key not set. Use :WYTConfig <provider> <api_key>",
+        llm_error = "[WYT] Generation failed: ",
+        -- P3/P14: guided questions
+        brainstorm_mode = "How would you like to brainstorm?",
+        free_idea = "Enter a free-form idea",
+        answer_questions = "Answer guided questions (each answer becomes an idea)",
+        question_prompt = "Your answer (leave blank to skip):",
+        guided_questions_title = "Guiding questions for your ",
+        -- P2: export
+        export_generating = "[WYT] Generating export...",
+        export_generated = "[WYT] Export generated at: ",
+        export_desc = "Generate export.wyt.md from all section content",
+        -- P7: definition search
+        search_desc = "Search in definition sections",
+        search_query_prompt = "Search definition sections:",
+        no_definitions_found = "[WYT] No definition sections found in this project",
+        search_no_results = "[WYT] No results found for: ",
+        -- P10: nav tree
+        nav_tree_select = "Navigate project:",
+        -- P15: paragraph expansion
+        expand_how = "How to expand this placeholder?",
+        expand_manually = "Write manually",
+        expand_with_llm = "Generate with LLM",
+        placeholder_expanded = "[WYT] Placeholder expanded",
+        no_placeholder_at_cursor = "[WYT] No placeholder at cursor line",
+        no_placeholder_below = "[WYT] No more placeholders below",
+        no_placeholder_above = "[WYT] No more placeholders above",
+        expand_desc = "Expand placeholder at cursor in text.wyt.md",
     },
     es = {
         no_project = "[WYT] No se encontró ningún proyecto en el directorio actual. Por favor, navega a la raíz de tu proyecto.",
@@ -137,7 +169,39 @@ M.translations = {
         implemented = "Implementado",
         edited = "Editado",
         implementing = "Implementando el grupo ",
-        create_paragraph = "Crea un párrafo sobre: "
+        create_paragraph = "Crea un párrafo sobre: ",
+        set_lang_on_enter = "WYT: establecer idioma al entrar al buffer",
+        nav_tab_desc = "WYT: navegar al archivo relacionado",
+        -- P1: LLM
+        llm_generating = "[WYT] Generando texto...",
+        llm_no_api_key = "[WYT] API key no configurada. Usa :WYTConfig <proveedor> <api_key>",
+        llm_error = "[WYT] Error al generar: ",
+        -- P3/P14: preguntas orientadoras
+        brainstorm_mode = "¿Cómo quieres generar ideas?",
+        free_idea = "Ingresar una idea libre",
+        answer_questions = "Responder preguntas orientadoras (cada respuesta se convierte en idea)",
+        question_prompt = "Tu respuesta (deja en blanco para saltar):",
+        guided_questions_title = "Preguntas orientadoras para tu ",
+        -- P2: exportar
+        export_generating = "[WYT] Generando exportación...",
+        export_generated = "[WYT] Exportación generada en: ",
+        export_desc = "Generar export.wyt.md con todo el contenido del proyecto",
+        -- P7: búsqueda en secciones de definición
+        search_desc = "Buscar en secciones de definición",
+        search_query_prompt = "Buscar en secciones de definición:",
+        no_definitions_found = "[WYT] No se encontraron secciones de tipo definición",
+        search_no_results = "[WYT] No se encontraron resultados para: ",
+        -- P10: árbol de navegación
+        nav_tree_select = "Navegar por el proyecto:",
+        -- P15: expansión de párrafos
+        expand_how = "¿Cómo expandir este marcador?",
+        expand_manually = "Escribir manualmente",
+        expand_with_llm = "Generar con LLM",
+        placeholder_expanded = "[WYT] Marcador expandido",
+        no_placeholder_at_cursor = "[WYT] No hay marcador en la línea actual",
+        no_placeholder_below = "[WYT] No hay más marcadores abajo",
+        no_placeholder_above = "[WYT] No hay más marcadores arriba",
+        expand_desc = "Expandir marcador de párrafo en text.wyt.md",
     }
 }
 

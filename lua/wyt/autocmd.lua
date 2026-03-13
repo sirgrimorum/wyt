@@ -36,6 +36,19 @@ function M.setup()
         desc = loc.t("set_lang_on_enter")
     })
 
+    -- P15: buffer-local keymaps for text.wyt.md placeholder expansion
+    api.nvim_create_autocmd("BufEnter", {
+        group = group,
+        pattern = "text.wyt.md",
+        callback = function(ev)
+            local project = require("wyt.project")
+            if not project.setup() then return end
+            loc.set_lang(project.lang)
+            require("wyt.mappings").setup_text_buf(ev.buf)
+        end,
+        desc = "WYT: set up text buffer keymaps",
+    })
+
     api.nvim_create_autocmd({"TextChanged", "TextChangedP", "InsertLeave"}, {
         group = group,
         pattern = "*plan.wyt.md",

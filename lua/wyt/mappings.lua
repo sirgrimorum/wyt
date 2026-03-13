@@ -37,6 +37,19 @@ function M.setup_buf(buf)
     })
 end
 
+-- P15: buffer-local keymaps for text.wyt.md placeholder expansion
+function M.setup_text_buf(buf)
+    vim.keymap.set("n", "<leader>we", function()
+        require("wyt.text").expand_at_cursor()
+    end, { buffer = buf, desc = loc.t("expand_desc") })
+    vim.keymap.set("n", "]w", function()
+        require("wyt.text").expand_next()
+    end, { buffer = buf, desc = loc.t("no_placeholder_below"):gsub("%[WYT%] ", "") })
+    vim.keymap.set("n", "[w", function()
+        require("wyt.text").expand_prev()
+    end, { buffer = buf, desc = loc.t("no_placeholder_above"):gsub("%[WYT%] ", "") })
+end
+
 function M.setup()
     -- F8: keymaps are now buffer-local, registered from autocmd.lua via setup_buf()
     -- Nothing to do here; kept for API compatibility
