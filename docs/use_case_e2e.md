@@ -1,0 +1,667 @@
+# WYT — End-to-End Use Case
+
+A complete walkthrough of the WYT methodology using every command, keymap, and option.
+The example project is a **short essay** titled *"The Silence of Cities"*.
+
+---
+
+## 0. Prerequisites
+
+```vim
+" In your Neovim config (init.lua / lazy.nvim):
+{
+  "your/wyt",
+  config = function()
+    require("wyt").setup()
+  end
+}
+```
+
+Verify the plugin is healthy before starting:
+
+```vim
+:checkhealth wyt
+```
+
+Expected output:
+- Neovim >= 0.9 ✓
+- `telescope.nvim` installed ✓
+- `git` executable found ✓
+- (optional) current buffer is a WYT project
+
+---
+
+## 1. Configure LLM Provider
+
+Before using AI-assisted features, set your provider and API key:
+
+```vim
+:WYTConfig openai sk-proj-...your-key...
+" or
+:WYTConfig claude sk-ant-...your-key...
+```
+
+This saves the provider and key to the global plugin config. Only needs to be done once per Neovim session (or persisted via your own config).
+
+---
+
+## 2. Create a New Project
+
+```vim
+:WYTNew p
+```
+
+Interactive wizard prompts:
+
+| Prompt | Example answer |
+|--------|----------------|
+| Language | `es` |
+| Text type | `essay` |
+| Path | `/home/user/writing` |
+| Root folder name | `the-silence-of-cities` |
+| Content type | `content` |
+| Has sections? | `y` |
+
+What happens automatically:
+- `/home/user/writing/the-silence-of-cities/` directory is created
+- `config.wyt.yml` is written with language, type, content_type, sections
+- `plan.wyt.md` is created with the project name, empty Description, Ideas, and Groups sections
+- `export.wyt.md` is created (empty placeholder)
+- `git init` runs and an initial commit is made
+- `plan.wyt.md` opens in the current buffer
+
+**Resulting `config.wyt.yml`:**
+```yaml
+lang: es
+type: essay
+content_type: content
+sections: true
+```
+
+**Resulting `plan.wyt.md`:**
+```markdown
+# The Silence of Cities
+
+## Descripción
+
+## Ideas
+
+## Grupos
+```
+
+---
+
+## 3. Write the Project Description
+
+With `plan.wyt.md` open, fill in the Description section manually:
+
+```markdown
+## Descripción
+
+Un ensayo sobre cómo el ruido constante de las ciudades modernas ha silenciado
+la capacidad de reflexión individual. Explora el contraste entre el ruido
+exterior y el silencio interior necesario para pensar.
+```
+
+Save the file:
+```vim
+:w
+```
+
+The `BufWritePost` autocmd fires automatically:
+- `git add . && git commit -m "Save: plan.wyt.md"` runs in the background
+- No user action required
+
+---
+
+## 4. Brainstorm Ideas
+
+### 4a. Manual idea
+
+```vim
+:WYTNew i
+```
+
+Flow:
+1. Plugin shows guided question for `essay` type:
+   *"¿Qué argumento o perspectiva quieres explorar en este ensayo?"*
+2. User types: `El ruido urbano suprime la capacidad de escuchar el propio pensamiento`
+3. Plugin asks: **Improve with LLM? [y/N]**
+4. User types `y` — LLM refines the sentence, shows result
+5. Plugin asks: **Add to group? [y/N]**  — User types `n` (no group yet)
+6. Idea is appended to `## Ideas`
+
+### 4b. More ideas (repeat `:WYTNew i`)
+
+Add several more ideas the same way:
+
+- `La arquitectura urbana moderna elimina espacios para la contemplación`
+- `El smartphone es una extensión del ruido urbano dentro del hogar`
+- `Las ciudades medievales tenían plazas diseñadas para el silencio y la reflexión`
+- `El silencio es condición necesaria para la creatividad según múltiples estudios`
+- `El capitalismo de atención explota la incapacidad de estar en silencio`
+- `Las personas en ciudades duermen peor que en zonas rurales`
+- `Movimientos slow-living como respuesta al exceso de ruido`
+
+After each save, the auto-commit fires silently.
+
+**`plan.wyt.md` Ideas section now looks like:**
+```markdown
+## Ideas
+
+- El ruido urbano suprime la capacidad de escuchar el propio pensamiento
+- La arquitectura urbana moderna elimina espacios para la contemplación
+- El smartphone es una extensión del ruido urbano dentro del hogar
+- Las ciudades medievales tenían plazas diseñadas para el silencio
+- El silencio es condición necesaria para la creatividad
+- El capitalismo de atención explota la incapacidad de estar en silencio
+- Las personas en ciudades duermen peor que en zonas rurales
+- Movimientos slow-living como respuesta al exceso de ruido
+```
+
+---
+
+## 5. Group Ideas
+
+### 5a. Create first group
+
+```vim
+:WYTNew g
+```
+
+Flow:
+1. Telescope picker opens showing all ideas with checkboxes
+2. User selects (with `<Tab>` to toggle, `<CR>` to confirm):
+   - `El ruido urbano suprime la capacidad de escuchar el propio pensamiento`
+   - `La arquitectura urbana moderna elimina espacios para la contemplación`
+   - `Las ciudades medievales tenían plazas diseñadas para el silencio`
+3. Plugin shows guided question for `essay`:
+   *"¿Cuál es el argumento central que une estas ideas?"*
+4. Plugin asks: **Suggest group name with LLM? [y/N]**
+5. User types `y` → LLM suggests: `"El espacio urbano como destructor del silencio"`
+6. User accepts or edits the name
+7. Group is written to plan.wyt.md
+
+**Group section added:**
+```markdown
+## Grupo: El espacio urbano como destructor del silencio
+
+- El ruido urbano suprime la capacidad de escuchar el propio pensamiento
+- La arquitectura urbana moderna elimina espacios para la contemplación
+- Las ciudades medievales tenían plazas diseñadas para el silencio
+```
+
+Ideas in the Ideas section are automatically tagged:
+```markdown
+- El ruido urbano suprime la capacidad de escuchar el propio pensamiento [Grupo: El espacio urbano...]
+- La arquitectura urbana moderna... [Grupo: El espacio urbano...]
+```
+
+### 5b. Create second group
+
+```vim
+:WYTNew g
+```
+
+Select:
+- `El smartphone es una extensión del ruido urbano dentro del hogar`
+- `El capitalismo de atención explota la incapacidad de estar en silencio`
+
+LLM suggests: `"La economía de la atención como amplificador del ruido"`
+
+### 5c. Create third group
+
+```vim
+:WYTNew g
+```
+
+Select:
+- `El silencio es condición necesaria para la creatividad`
+- `Las personas en ciudades duermen peor que en zonas rurales`
+- `Movimientos slow-living como respuesta al exceso de ruido`
+
+LLM suggests: `"Recuperar el silencio: salud, creatividad y movimientos alternativos"`
+
+---
+
+## 6. Reorder Groups and Ideas
+
+With `plan.wyt.md` open (the BufEnter autocmd has set up buffer-local keymaps):
+
+### Move a group
+
+Position cursor anywhere inside `## Grupo: La economía de la atención...`:
+
+```
+<S-Down>    " move this group one position down
+<S-Up>      " move it back up
+```
+
+The entire group block (header + all ideas) moves as a unit.
+
+### Move an idea within a group
+
+Position cursor on an idea line inside a group:
+
+```
+<S-Down>    " move idea one line down within the group
+<S-Up>      " move idea one line up within the group
+```
+
+Ideas cannot cross group boundaries.
+
+---
+
+## 7. Implement a Group into a Section
+
+Position cursor on the group header line:
+
+```
+## Grupo: El espacio urbano como destructor del silencio
+```
+
+Press `<S-Tab>`.
+
+Since this group has no section yet, the plugin asks:
+**Implement as section? [y/N]**
+
+User types `y`.
+
+What happens automatically:
+- Directory `sections/el-espacio-urbano-como-destructor-del-silencio/` is created
+- `config.wyt.yml` written (type: content, sections: false)
+- `plan.wyt.md` created with:
+  - Title = group name
+  - Description = ideas from the group (joined as description text)
+  - Each idea from the group becomes a `## Grupo: [idea]` with sub-ideas pre-populated
+- Group in root plan is tagged `[Implemented]`
+- Auto-commit fires
+
+### 7b. Navigate into the section
+
+Cursor is now on the group header (now `[Implemented]`). Press `<S-Tab>` again.
+
+This time the section exists → `plan.wyt.md` of that section opens in a new tab.
+
+```
+sections/el-espacio-urbano-como-destructor-del-silencio/plan.wyt.md
+```
+
+---
+
+## 8. Work on a Section Plan
+
+You are now inside the section's `plan.wyt.md`.
+
+### Add more ideas to this section
+
+```vim
+:WYTNew i
+```
+
+Guided question now applies at subsection level for `essay`:
+*"¿Qué evidencia o ejemplo ilustra mejor esta parte?"*
+
+Add: `Ejemplo de Haussmann demoliendo el Paris medieval para crear bulevares`
+
+### Group section ideas
+
+```vim
+:WYTNew g
+```
+
+Select the relevant ideas → group them.
+
+### Navigate back to parent plan
+
+Press `<S-Tab>` while cursor is on the title line (`# El espacio urbano...`):
+
+```
+# El espacio urbano como destructor del silencio   ← cursor here
+```
+
+`<S-Tab>` detects the `#` title → opens parent `plan.wyt.md` in a new tab.
+
+---
+
+## 9. Implement Groups to Text
+
+Back in the section's `plan.wyt.md`, position cursor on a group that is ready to write:
+
+```
+## Grupo: Las ciudades medievales tenían plazas...
+```
+
+Press `<S-Tab>`.
+
+Since `sections: false` in this section's config, the plugin implements to `text.wyt.md`:
+- `text.wyt.md` is created/updated with group header and one placeholder per idea:
+
+```markdown
+## El espacio urbano como destructor del silencio
+
+*Create a paragraph about: El ruido urbano suprime la capacidad...*
+
+*Create a paragraph about: La arquitectura urbana moderna elimina espacios...*
+
+*Create a paragraph about: Las ciudades medievales tenían plazas...*
+```
+
+Group is tagged `[Implemented]` in plan. Auto-commit fires.
+
+---
+
+## 10. Expand Placeholders in text.wyt.md
+
+Navigate to the section's `text.wyt.md`:
+
+```vim
+:WYTGoto text
+```
+
+Opens `text.wyt.md` in the current section.
+
+The BufEnter autocmd sets buffer-local keymaps for text files.
+
+### Jump to first placeholder and expand
+
+```
+]w
+```
+
+Cursor jumps to first `*Create a paragraph about: ...*` placeholder.
+
+Plugin prompts: **Expand with LLM or manual? [l/m]**
+
+- `l` → calls `llm.expand_idea(idea_text, context, lang, callback)` asynchronously with OpenAI/Claude
+  - While generating, cursor stays in buffer
+  - On completion, placeholder is replaced with generated paragraph
+- `m` → opens a small input prompt, user types the paragraph manually
+
+### Expand placeholder at cursor manually
+
+Position cursor on any placeholder:
+
+```
+<leader>we    " expand at cursor
+```
+
+### Navigate between unexpanded placeholders
+
+```
+]w    " jump to next placeholder (and expand it)
+[w    " jump to previous placeholder (and expand it)
+```
+
+### Expand with explicit command
+
+```vim
+:WYTExpand          " expand placeholder at cursor
+:WYTExpand next     " find and expand next placeholder
+:WYTExpand prev     " find and expand previous placeholder
+```
+
+Save after expanding:
+
+```vim
+:w
+```
+
+Auto-commit fires: `"Save: text.wyt.md"`
+
+---
+
+## 11. Use WYTGenerate for Free-Form Text
+
+With `text.wyt.md` open and cursor positioned where you want to insert text:
+
+```vim
+:WYTGenerate escribe una transición entre los dos párrafos anteriores
+```
+
+The LLM is called asynchronously with your prompt + project context (description, type, language). Generated text is inserted at cursor position when ready.
+
+```vim
+:WYTGenerate    " without arguments → uses a default creative prompt
+```
+
+---
+
+## 12. Change Language Mid-Project
+
+```vim
+:WYTSetLang en
+```
+
+- Updates `localization` module in memory
+- Persists `lang: en` to the current project's `config.wyt.yml`
+- Auto-commit fires with the config change
+
+All subsequent UI strings, guided questions, and LLM prompts use English.
+
+---
+
+## 13. Definitions Section (e.g. "Key Concepts")
+
+For essay projects, you may want a non-content reference section.
+
+In the root `plan.wyt.md`, create a group called `Key Concepts`:
+
+```vim
+:WYTNew g
+```
+
+Select ideas related to definitions → name the group `Key Concepts`.
+
+Position cursor on that group header, press `<S-Tab>` → implement as section.
+
+When prompted for content type, choose `definition`.
+
+The section's `config.wyt.yml` will have `type: definition`.
+
+### Search across definition sections
+
+From anywhere in the project:
+
+```vim
+:WYTSearch
+```
+
+A Telescope picker opens with all content from `definition`-type sections.
+Type to filter → `<CR>` to jump to the matching line in the relevant file.
+
+Definition sections are **excluded from export** but always searchable.
+
+---
+
+## 14. Navigate the Full Project Tree
+
+```vim
+:WYTNav
+```
+
+Opens a Telescope picker showing the hierarchical project tree, indented by depth:
+
+```
+plan.wyt.md
+  sections/el-espacio-urbano.../plan.wyt.md
+  sections/el-espacio-urbano.../text.wyt.md
+  sections/la-economia-de-la-atencion.../plan.wyt.md
+  sections/la-economia-de-la-atencion.../text.wyt.md
+  sections/recuperar-el-silencio.../plan.wyt.md
+  sections/recuperar-el-silencio.../text.wyt.md
+  sections/key-concepts.../plan.wyt.md
+export.wyt.md
+config.wyt.yml
+```
+
+Select any entry → opens that file in the current buffer.
+
+---
+
+## 15. Jump to Specific Files
+
+```vim
+:WYTGoto plan      " open current section's plan.wyt.md
+:WYTGoto text      " open current section's text.wyt.md
+:WYTGoto config    " open current section's config.wyt.yml
+:WYTGoto export    " open the root export.wyt.md
+:WYTGoto parent    " open the parent section's plan.wyt.md
+```
+
+`WYTGoto parent` from inside a section → opens root `plan.wyt.md`.
+`WYTGoto parent` from root → notifies "already at root".
+
+---
+
+## 16. Rename a Group / Section
+
+In `plan.wyt.md`, edit the group header text directly:
+
+```markdown
+## Grupo: El espacio urbano como destructor del silencio
+" →
+## Grupo: El espacio urbano y la destrucción del silencio
+```
+
+Save (`:w`).
+
+The auto-commit fires. On next `<S-Tab>` navigation to this group, the plugin detects the folder name mismatch and renames the `sections/` folder to the new slug automatically.
+
+---
+
+## 17. Generate the Export
+
+Once all sections have their `text.wyt.md` written:
+
+```vim
+:WYTExport
+```
+
+The plugin:
+1. Reads root `plan.wyt.md` to get section order
+2. For each section in order:
+   - If `type: definition` → skipped
+   - If `export.wyt.md` is newer than `text.wyt.md` → uses `export.wyt.md`
+   - Otherwise → uses `text.wyt.md`
+   - Strips unexpanded `*Create a paragraph about: ...*` placeholders
+3. Applies formatting per section type
+4. Writes root `export.wyt.md`
+5. Auto-commit fires
+
+Open the result:
+
+```vim
+:WYTGoto export
+```
+
+---
+
+## 18. Full Command Reference
+
+| Command | Description |
+|---------|-------------|
+| `:WYTNew p` | Create new project (wizard) |
+| `:WYTNew i` | Add a new idea to current plan |
+| `:WYTNew g` | Create a group from selected ideas |
+| `:WYTConfig <provider> <key>` | Set LLM provider and API key |
+| `:WYTSetLang <en\|es>` | Change language (persists to config) |
+| `:WYTNav` | Hierarchical project file browser |
+| `:WYTGoto <plan\|config\|text\|export\|parent>` | Jump to project file |
+| `:WYTGenerate [prompt]` | Insert LLM-generated text at cursor |
+| `:WYTExpand` | Expand placeholder at cursor |
+| `:WYTExpand next` | Find and expand next placeholder |
+| `:WYTExpand prev` | Find and expand previous placeholder |
+| `:WYTSearch` | Search across definition sections |
+| `:WYTExport` | Assemble all sections into export.wyt.md |
+| `:checkhealth wyt` | Verify plugin dependencies |
+
+---
+
+## 19. Full Keymap Reference
+
+| Key | Buffer | Action |
+|-----|--------|--------|
+| `<S-Tab>` | `plan.wyt.md` | Context-aware navigation: implement group → section, navigate to section, navigate to parent plan |
+| `<S-Up>` | `plan.wyt.md` | Move current idea or entire group up |
+| `<S-Down>` | `plan.wyt.md` | Move current idea or entire group down |
+| `<leader>we` | `text.wyt.md` | Expand placeholder at cursor |
+| `]w` | `text.wyt.md` | Jump to next placeholder and expand |
+| `[w` | `text.wyt.md` | Jump to previous placeholder and expand |
+
+All keymaps are **buffer-local** — they only activate in WYT files and do not override keys in other buffers.
+
+---
+
+## 20. Autocmd Behaviors (Transparent)
+
+These fire automatically without user action:
+
+| Trigger | File | Effect |
+|---------|------|--------|
+| `BufEnter` | `plan.wyt.md` | Reads project lang from config, applies to localization, sets buffer-local keymaps |
+| `BufEnter` | `text.wyt.md` | Same as above, sets text-file keymaps |
+| `TextChanged`, `InsertLeave` | `*plan.wyt.md` | Debounced 300ms sync: ideas in groups are mirrored to `## Ideas` section |
+| `BufWritePost` | `*plan.wyt.md` | Auto git commit: `"Save: plan.wyt.md"` |
+| `BufWritePost` | `*text.wyt.md` | Auto git commit: `"Save: text.wyt.md"` |
+
+---
+
+## 21. Supported Project Types
+
+| Type | Guided questions | Paragraph logic | Max depth |
+|------|-----------------|-----------------|-----------|
+| `novel` | Story-arc, character, scene questions | 1 idea → 1 paragraph | 3 levels |
+| `short_story` | Narrative focus, tone questions | 1 idea → 1 paragraph | 2 levels |
+| `essay` | Argument, evidence, perspective questions | 1 idea → 1 paragraph | 2 levels |
+| `summary` | Key point, synthesis questions | Multiple ideas → 1 paragraph | 1 level |
+
+---
+
+## 22. Full Project Directory After Completion
+
+```
+the-silence-of-cities/
+├── config.wyt.yml
+├── plan.wyt.md                          ← root plan, all groups [Implemented]
+├── export.wyt.md                        ← assembled final text
+└── sections/
+    ├── el-espacio-urbano.../
+    │   ├── config.wyt.yml
+    │   ├── plan.wyt.md
+    │   └── text.wyt.md
+    ├── la-economia-de-la-atencion.../
+    │   ├── config.wyt.yml
+    │   ├── plan.wyt.md
+    │   └── text.wyt.md
+    ├── recuperar-el-silencio.../
+    │   ├── config.wyt.yml
+    │   ├── plan.wyt.md
+    │   └── text.wyt.md
+    └── key-concepts/                    ← definition type, excluded from export
+        ├── config.wyt.yml
+        └── plan.wyt.md
+```
+
+---
+
+## Summary of the Methodological Flow
+
+```
+:WYTNew p          → create project + git init
+:WYTNew i (×N)    → brainstorm ideas
+:WYTNew g (×N)    → group related ideas
+<S-Up>/<S-Down>   → reorder groups and ideas
+<S-Tab>           → implement group as section
+<S-Tab>           → enter section plan
+:WYTNew i/g       → refine ideas at section level
+<S-Tab>           → implement to text.wyt.md
+]w / [w           → expand placeholders (manual or LLM)
+:WYTGenerate      → insert free-form AI text
+:WYTSearch        → look up definitions while writing
+:WYTNav           → browse full project tree
+:WYTGoto parent   → return to parent plan
+:WYTExport        → assemble final export.wyt.md
+```
+
+Every save (`:w`) commits automatically. The user never needs to touch git directly.
