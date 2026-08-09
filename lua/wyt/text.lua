@@ -1,5 +1,6 @@
 -- P15: paragraph placeholder expansion workflow for text.wyt.md
 local api = vim.api
+local ui = require("wyt.ui")
 local M = {}
 
 local function placeholder_pattern(project_mod)
@@ -43,7 +44,12 @@ local function do_expand(buf, line_nr, idea_name, project_mod, loc)
                     vim.notify(loc.t("placeholder_expanded"), vim.log.levels.INFO)
                 end)
             else
-                vim.ui.input({ prompt = loc.pad(idea_name .. ":") }, function(text)
+                -- The placeholder holds a whole idea, so it rarely fits a prompt
+                -- line; the panel shows it in full while the writer types.
+                ui.ask_input({
+                    title = loc.t("paragraph_text"),
+                    question = idea_name .. ":",
+                }, function(text)
                     if not text or text == "" then return end
                     local new_lines = vim.split(text, "\n", { plain = true })
                     api.nvim_buf_set_lines(buf, line_nr - 1, line_nr, false, new_lines)

@@ -2,7 +2,15 @@
 -- vim.ui.select renders its `prompt` as a single line, so a generated sentence
 -- passed as the prompt is cut off. The text goes in a panel above the menu and
 -- the prompt keeps a short, fixed title.
+local loc = require("wyt.localization")
+
 local M = {}
+
+-- A prompt is drawn as a title: on the command line by the built-in pickers, as
+-- a window title by dressing/telescope/snacks, where the window is sized to its
+-- items and not to the question. Past this many cells a question stops being a
+-- title and has to become a description.
+local TITLE_BUDGET = 48
 
 --- Shorten `str` to `width` display cells, ellipsis included.
 function M.truncate(str, width)
@@ -79,6 +87,49 @@ function M.close(win)
     if win and vim.api.nvim_win_is_valid(win) then
         pcall(vim.api.nvim_win_close, win, true)
     end
+end
+
+--- True when `text` is too long, or too many lines, to be read as a prompt.
+function M.needs_panel(text)
+    if text:find("\n", 1, true) then return true end
+    local budget = math.min(TITLE_BUDGET, math.max(20, vim.o.columns - 8))
+    return vim.fn.strdisplaywidth(text) > budget
+end
+
+--- Decide where `q.question` is shown. Returns the panel, if one was opened, and
+--- the prompt to use with it: the question itself while it still fits, the short
+--- `q.title` (or `q.prompt`, when the menu has to ask something the title does
+--- not) once the panel carries the text, and the question labelled with the title
+--- when no float could be opened (headless, tiny screen).
+local function place(q)
+    if not M.needs_panel(q.question) then return nil, q.question end
+    local panel = M.preview(q.title, q.question)
+    if panel then return panel, q.prompt or q.title end
+    return nil, q.title .. ": " .. (q.question:gsub("%s*\n%s*", " "))
+end
+
+--- Ask `q.question`, answered by picking one of `items`.
+--- A question short enough to read as a title is the prompt, as before. A longer
+--- one moves into a panel titled `q.title`, so the menu is never handed a
+--- sentence it would cut off.
+--- `q` is { title = short label, question = full text, prompt = menu prompt when
+--- the panel is showing, defaults to the title }.
+function M.ask_select(q, items, on_choice)
+    local panel, prompt = place(q)
+    vim.ui.select(items, { prompt = prompt }, function(choice)
+        M.close(panel)
+        on_choice(choice)
+    end)
+end
+
+--- Same, for a question answered by typing. `q.default` pre-fills the answer.
+--- The prompt is padded here, so callers pass raw text.
+function M.ask_input(q, on_input)
+    local panel, prompt = place(q)
+    vim.ui.input({ prompt = loc.pad(prompt), default = q.default }, function(answer)
+        M.close(panel)
+        on_input(answer)
+    end)
 end
 
 return M

@@ -210,10 +210,10 @@ function M.new_group(line1, line2)
             -- P14: one orienting question, used as the prompt for the name.
             -- The numbered list of group questions made no sense here: the
             -- writer names one group, they do not answer each question in turn.
-            local prompt = loc.pad(
-                types_mod.group_prompt(project_type, project.lang)
-                    or types_mod.group_name_hint(project_type, project.lang)
-            )
+            -- Raw, not padded: ui.ask_input pads whichever of the question or
+            -- the short title ends up on the prompt line.
+            local question = types_mod.group_prompt(project_type, project.lang)
+                or types_mod.group_name_hint(project_type, project.lang)
 
             local function create_with(name)
                 name = name and vim.trim(name) or ""
@@ -232,7 +232,11 @@ function M.new_group(line1, line2)
             -- Both branches ask the same question; the LLM one only pre-fills
             -- the answer, so the suggestion is edited in place or accepted.
             local function ask_name(suggested)
-                vim.ui.input({ prompt = prompt, default = suggested }, function(name)
+                ui.ask_input({
+                    title = loc.t("group_name_title"),
+                    question = question,
+                    default = suggested,
+                }, function(name)
                     if (not name or vim.trim(name) == "") and suggested then
                         name = suggested
                     end
@@ -262,7 +266,11 @@ function M.new_group(line1, line2)
                 if action == loc.t("add_to_existing_group") then
                     vim.ui.select(groups, {prompt = loc.t("select_group")}, function(group_name)
                         if group_name then
-                            vim.ui.input({prompt = loc.pad(loc.t("edit_group_name") .. " [" .. group_name .. "]:")}, function(new_name)
+                            local rename_q = loc.t("edit_group_name") .. " [" .. group_name .. "]:"
+                            ui.ask_input({
+                                title = loc.t("group_name_title"),
+                                question = rename_q,
+                            }, function(new_name)
                                 local final_name = new_name and new_name ~= "" and new_name or group_name
                                 local updated_content = rename_group(plan_content, group_name, final_name)
                                 -- P4: rename section folder when group name changes

@@ -66,6 +66,13 @@ M.translations = {
         the_group = "The group",
         is_edited = "is edited. Re-implement?",
         is_not_implemented = "is not implemented.",
+        -- Short titles: a prompt too long to read as one moves into a panel
+        -- under these, and the panel's title becomes the prompt.
+        group_edited_title = "Edited group",
+        reimplement = "Re-implement?",
+        group_name_title = "Group name",
+        answer_prompt = "Answer",
+        paragraph_text = "Paragraph text",
         group_tag = "Group",
         groups_section = "Groups",
         ideas_section = "Ideas",
@@ -184,6 +191,13 @@ M.translations = {
         the_group = "El grupo",
         is_edited = "está editado. ¿Re-implementar?",
         is_not_implemented = "no está implementado.",
+        -- Títulos cortos: un prompt demasiado largo para leerse como título pasa
+        -- a un panel bajo estos, y el título del panel se vuelve el prompt.
+        group_edited_title = "Grupo editado",
+        reimplement = "¿Re-implementar?",
+        group_name_title = "Nombre del grupo",
+        answer_prompt = "Respuesta",
+        paragraph_text = "Texto del párrafo",
         group_tag = "Grupo",
         groups_section = "Grupos",
         ideas_section = "Ideas",
