@@ -2,15 +2,18 @@
 
 Plugin de Neovim para la gestión de proyectos literarios siguiendo la metodología WYT.
 
+## Requisitos
+
+- Neovim >= 0.9
+- [`telescope.nvim`](https://github.com/nvim-telescope/telescope.nvim)
+- `git` y `curl` en el PATH
+
+WYT no se auto-inicializa. Sin una llamada a `require("wyt").setup(...)` no se registra ningún
+comando ni mapping.
+
 ## Instalación
 
-**Requisito:**
-Este plugin requiere que tengas instalado [`telescope.nvim`](https://github.com/nvim-telescope/telescope.nvim).
-
-> **Importante:** WYT no se auto-inicializa. Debes llamar `require("wyt").setup(...)` en tu
-> configuración de Neovim. Sin esta llamada, ningún comando ni mapping estará disponible.
-
-### lazy.nvim (recomendado)
+### lazy.nvim
 
 ```lua
 {
@@ -19,8 +22,6 @@ Este plugin requiere que tengas instalado [`telescope.nvim`](https://github.com/
   config = function()
     require("wyt").setup({
       llm_provider = "claude",  -- "openai" | "claude"
-      -- Resolver perezoso: lee la key del almacén de credenciales del sistema
-      -- en la primera petición. Ver "API key" más abajo.
       api_key = require("wyt.secret").os_store(),
     })
   end,
@@ -35,7 +36,7 @@ use({
   requires = { "nvim-telescope/telescope.nvim" },
   config = function()
     require("wyt").setup({
-      llm_provider = "claude",
+      llm_provider = "claude",  -- "openai" | "claude"
       api_key = require("wyt.secret").os_store(),
     })
   end,
@@ -44,51 +45,49 @@ use({
 
 ### Sin plugin manager
 
-En tu `init.lua`, antes del `require`:
-
 ```lua
 vim.opt.runtimepath:append("/ruta/a/wyt.nvim")
-require("wyt").setup()
+require("wyt").setup({
+  llm_provider = "claude",  -- "openai" | "claude"
+  api_key = require("wyt.secret").os_store(),
+})
 ```
+
+Si además usas lazy.nvim, este bloque va **después** de `require('lazy').setup(...)`.
+Ver [Desarrollo local](#desarrollo-local).
 
 ## Configuración
 
-Todas las opciones se pasan a `setup()`. Los valores por defecto son:
-
 ```lua
 require("wyt").setup({
-  llm_provider = "openai",  -- proveedor LLM: "openai" | "claude"
+  llm_provider = "openai",  -- "openai" | "claude"
   api_key = "",             -- string | function(): string
 })
 ```
 
 ## API key
 
-`api_key` acepta **un string o una función**. Si le pasas una función, WYT no la ejecuta al
-arrancar: la llama la primera vez que realmente hace una petición al LLM, y guarda el resultado
-en memoria para el resto de la sesión. Así la key nunca se escribe en tu configuración ni queda
-disponible para otros procesos.
+`api_key` acepta un string o una función. Si le pasas una función, WYT la llama en la primera
+petición al LLM, no al arrancar, y guarda el resultado en memoria para el resto de la sesión.
+La key nunca queda escrita en tu configuración.
 
-El módulo `wyt.secret` trae resolvers listos para los almacenes nativos de cada sistema:
+El módulo `wyt.secret` trae resolvers listos:
 
-```lua
-local secret = require("wyt.secret")
+| Resolver | De dónde lee la key |
+| --- | --- |
+| `secret.os_store()` | Almacén nativo del sistema. Recomendado. |
+| `secret.dpapi()` | Windows, archivo cifrado con DPAPI |
+| `secret.keychain("wyt")` | macOS Keychain |
+| `secret.libsecret("wyt")` | Linux, libsecret o gnome-keyring |
+| `secret.prompt()` | Pregunta una vez por sesión. No toca el disco. |
+| `secret.file("~/.wyt-key")` | Archivo plano. Usa permisos 600. |
+| `secret.command({ "pass", "show", "anthropic" })` | Salida de cualquier comando |
+| `secret.env("ANTHROPIC_API_KEY")` | Variable de entorno. Ver [abajo](#por-qué-no-una-variable-de-entorno). |
 
-api_key = secret.os_store()          -- elige el almacén nativo según el SO (recomendado)
-api_key = secret.dpapi()             -- Windows: archivo cifrado con DPAPI
-api_key = secret.keychain("wyt")     -- macOS: Keychain
-api_key = secret.libsecret("wyt")    -- Linux: libsecret / gnome-keyring
-api_key = secret.prompt()            -- pregunta una vez por sesión, no toca el disco
-api_key = secret.file("~/.wyt-key")  -- archivo plano (usa permisos 600)
-api_key = secret.command({ "pass", "show", "anthropic" })  -- cualquier comando externo
-api_key = secret.env("ANTHROPIC_API_KEY")  -- variable de entorno (ver advertencia abajo)
-```
+### Guardar la key
 
-### Cómo guardar la key
-
-**Windows (DPAPI).** El texto cifrado queda ligado a tu cuenta de usuario y a esta máquina:
-copiarlo a otro equipo no sirve de nada. `Read-Host` evita que la key entre al historial de
-PowerShell:
+**Windows (DPAPI).** El cifrado queda ligado a tu usuario y a esta máquina, así que el archivo
+no sirve en otro equipo. `Read-Host` mantiene la key fuera del historial de PowerShell.
 
 ```powershell
 $dir = "$env:LOCALAPPDATA\nvim-data\wyt"
@@ -97,127 +96,106 @@ Read-Host -AsSecureString "API key" | ConvertFrom-SecureString |
   Set-Content -LiteralPath "$dir\api_key.dpapi"
 ```
 
-**macOS (Keychain).** Sin `-w <valor>`, `security` pide la key de forma interactiva:
+**macOS (Keychain).** Sin `-w <valor>`, `security` pide la key de forma interactiva.
 
 ```bash
 security add-generic-password -s wyt -a "$USER" -w
 ```
 
-**Linux (libsecret).** `secret-tool store` lee la key desde stdin:
+**Linux (libsecret).** `secret-tool store` lee la key desde stdin.
 
 ```bash
 secret-tool store --label="WYT" service wyt account default
 ```
 
-### Por qué no una variable de entorno
-
-Una variable de entorno de usuario la hereda **todo** proceso que lances: servidores LSP,
-formateadores, scripts de build, jobs de terminal. Además aparece en volcados de fallo y en la
-salida de `env`, que es lo primero que la gente pega en un issue. Un resolver se consulta solo
-cuando WYT lo necesita, y solo WYT lo consulta.
-
-Nada de esto protege contra malware que ya corre con tu usuario — ese código también puede leer
-tu keychain. Lo que se gana es que la key deja de estar **disponible de forma ambiental** para
-procesos que no tienen nada que ver con WYT.
-
-### Cambiar de proveedor en caliente
+### Cambiar de proveedor
 
 ```
 :WYTConfig claude
 ```
 
-Sin el segundo argumento, WYT pide la key con `inputsecret` (sin eco, y sin pasar por `:history`).
-Si la escribes en la línea de comandos, WYT avisa y borra la entrada del historial — pero para
-entonces ya pasó por tu pantalla, así que prefiere el prompt.
+Sin segundo argumento, WYT pide la key con `inputsecret`, sin eco y sin pasar por `:history`.
+Si la escribes en la línea de comandos, WYT avisa y borra la entrada del historial, pero para
+entonces ya estuvo en pantalla. Usa el prompt.
 
-### Versión de desarrollo
+### Por qué no una variable de entorno
 
-Si se está utilizando la versión local en desarrollo, agrega antes del `require`:
+Una variable de entorno de usuario la hereda todo proceso que lances: servidores LSP,
+formateadores, scripts de build, jobs de terminal. También aparece en volcados de fallo y en la
+salida de `env`. Un resolver se consulta solo cuando WYT lo necesita.
 
-```lua
-vim.opt.runtimepath:append '[path to development root folder]/WYT/'
-```
+Esto no protege contra malware que ya corre con tu usuario, porque ese código también puede leer
+tu keychain. Lo que evita es que la key esté disponible de forma ambiental para procesos que no
+tienen nada que ver con WYT.
 
-Usando una variable de entorno para la ruta:
+## Desarrollo local
+
+Para usar un checkout local en vez de la versión instalada, agrega la ruta al `runtimepath` y
+llama a `setup()`:
+
 ```lua
 require('lazy').setup({
   -- ... tus plugins ...
 })
 
--- [[ WYT (checkout local de desarrollo) ]]
--- Debe ir DESPUÉS de lazy.setup(): lazy reconstruye el 'runtimepath'.
+-- Va DESPUÉS de lazy.setup(): lazy reconstruye el 'runtimepath' y descarta
+-- cualquier ruta agregada antes de esa llamada.
 local wyt_path = os.getenv('WYT_PATH')
 if wyt_path then
   vim.opt.runtimepath:append(wyt_path)
   require('wyt').setup({
-    llm_provider = 'claude',
+    llm_provider = 'claude',  -- "openai" | "claude"
     api_key = require('wyt.secret').os_store(),
   })
 end
 ```
 
-> **No escribas la API key literal en `init.lua`.** Ese archivo suele estar versionado en git
-> (por ejemplo, un fork de kickstart.nvim con remote público), y una key en texto plano ahí
-> termina publicada. Usa un resolver de [`wyt.secret`](#api-key).
+Si el bloque corre antes de `lazy.setup()`, los comandos igual aparecen (el módulo queda cacheado
+por `require`), pero el `runtimepath` pierde la ruta y no se carga nada de `plugin/`, `doc/` ni
+`after/`. Para comprobarlo:
 
-#### Prueba rápida en una sesión de Neovim en curso
+```vim
+:lua print(vim.o.runtimepath:find('WYT') ~= nil)
+```
 
-Si no quieres editar `init.lua` todavía y solo quieres probar el plugin en la sesión actual,
-ejecuta estos comandos directamente en el prompt `:` de Neovim:
+No escribas la API key literal en `init.lua`. Ese archivo suele estar versionado en git, y una
+key en texto plano ahí termina publicada. Usa un resolver de [`wyt.secret`](#api-key).
+
+### Prueba rápida sin editar init.lua
 
 ```vim
 :lua vim.opt.runtimepath:append("D:/WYT"); require("wyt").setup()
 ```
 
-Notas:
-- Usa **barras hacia adelante** (`D:/WYT`) en Windows; las barras invertidas se interpretan como
-  caracteres de escape dentro del string de Lua.
-- El cambio es **solo para la sesión actual** — al cerrar Neovim se pierde. Para que sea
-  permanente, agrega las mismas dos líneas a tu `init.lua`.
+Usa barras hacia adelante en Windows: las invertidas son escapes dentro de un string de Lua.
+El cambio dura solo la sesión actual.
 
-Verifica que el plugin quedó cargado:
+### Definir WYT_PATH
+
+Solo la ruta del checkout va en una variable de entorno. La API key no.
+
+Windows PowerShell:
+
+```powershell
+[System.Environment]::SetEnvironmentVariable("WYT_PATH", "C:\tu\ruta", "User")
+```
+
+macOS y Linux, en `~/.bashrc` o `~/.zshrc`:
+
+```bash
+export WYT_PATH="/tu/ruta"
+```
+
+En ambos casos, reinicia la terminal o recarga el perfil.
+
+## Verificar la instalación
 
 ```vim
 :checkhealth wyt
 ```
 
-Debes ver la sección `wyt:` con los chequeos de Neovim, telescope, git y `setup()`.
-
-#### Variable de entorno `WYT_PATH`
-
-Solo la **ruta** del checkout va en una variable de entorno; la API key no (ver
-[API key](#api-key)).
-
-#### Windows PowerShell
-
-```powershell
-[System.Environment]::SetEnvironmentVariable("WYT_PATH", "C:\your\custom\path", "User")
-```
-
-Y luego recargar la configuración
-
-```powershell
-. $PROFILE
-```
-
-O reiniciar la terminal
-
-#### MacOS
-
-Add this line to your `~/.bashrc` or `~/.zshrc`
-
-```bash
-export WYT_PATH="/your/custom/path"
-```
-
-Y luego recargar la configuración.
-
-Por ejemplo:
-
-```bash
-echo 'export WYT_PATH="/ruta/deseada"' >> ~/.zshrc
-source ~/.zshrc
-```
+Reporta versión de Neovim, telescope, git, el proveedor LLM y de dónde sale la API key. Nunca
+imprime la key.
 
 ## ¿Qué archivos y carpetas crea?
 
@@ -229,20 +207,19 @@ source ~/.zshrc
 
 ## ¿Qué archivos debo modificar?
 
-- No modifiques directamente los archivos internos del plugin.
-- Puedes editar los archivos de tu proyecto (`plan.wyt.md`, `text.wyt.md`, etc.) usando Neovim y los comandos/mappings del plugin.
+No modifiques los archivos internos del plugin. Edita los archivos de tu proyecto
+(`plan.wyt.md`, `text.wyt.md`, etc.) con Neovim y los comandos del plugin.
 
 ## Uso básico
 
 1. Ejecuta `:WYTNewProject` para crear un nuevo proyecto literario.
-2. Navega y administra tu proyecto usando los comandos y mappings proporcionados.
+2. Navega y administra tu proyecto con los comandos y mappings.
 3. Edita y organiza tus ideas, grupos y textos desde los archivos generados.
-
----
 
 ## Guía de comandos y mappings
 
-Consulta la [Guía de Comandos y Mappings](./USER_GUIDE.md) para ver la lista completa de comandos, atajos de teclado y ejemplos de uso.
+Consulta la [Guía de Comandos y Mappings](./USER_GUIDE.md) para la lista completa de comandos,
+atajos de teclado y ejemplos de uso.
 
 ---
 
