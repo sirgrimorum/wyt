@@ -150,9 +150,16 @@ Flow:
 6. Plugin asks: **Add to group? [y/N]**  — User types `n` (no group yet)
 7. Idea is appended to `## Ideas`
 
-The second mode, **Answer guided questions**, lists every question for the type
-and turns each answer into its own idea. With LLM improvement on, each collected
-idea is refined and reviewed in turn.
+### The guided questions mode
+
+The second mode, **Answer guided questions**, starts with a short note saying
+how many questions are coming, that each answer becomes its own idea, that a
+blank answer skips one, and that `<Esc>` stops early and keeps whatever you have
+answered. The questions then come one at a time, each labelled with its
+position, for example `(2/4) ¿Qué evidencia o ejemplo la ilustra?`.
+
+With LLM improvement on, each collected idea is refined and reviewed in turn,
+and the run ends on a single confirmation line.
 
 ### If the model needs a clarification
 

@@ -324,6 +324,13 @@ function M.improve_idea(idea_text, lang, callback, opts)
                 return
             end
         end
+        -- A reply that opens like JSON but does not parse is a broken
+        -- structured answer, not prose; storing its braces would be worse
+        -- than reporting it.
+        if not data and vim.trim(raw):sub(1, 1) == "{" then
+            callback({ kind = "unusable" })
+            return
+        end
         local text = M.to_single_line(data and data.idea or raw)
         if text == "" then
             callback(nil, "empty response")
