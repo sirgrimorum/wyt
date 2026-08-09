@@ -12,6 +12,9 @@ M.translations = {
         choose_type = "Choose literary text type:",
         choose_path = "Enter base path for the project:",
         choose_name = "Enter project name:",
+        choose_folder = 'Root folder name ("." = use the base path itself):',
+        wizard_cancelled = "[WYT] Project creation cancelled.",
+        project_exists = "[WYT] A WYT project already exists at: ",
         choose_content_type = "Choose main section content type:",
         content = "Content",
         definition = "Definition",
@@ -114,6 +117,9 @@ M.translations = {
         choose_type = "Elige el tipo de texto literario:",
         choose_path = "Ingresa la ruta base para el proyecto:",
         choose_name = "Ingresa el nombre del proyecto:",
+        choose_folder = 'Nombre de la carpeta raíz ("." = usar la ruta base tal cual):',
+        wizard_cancelled = "[WYT] Creación del proyecto cancelada.",
+        project_exists = "[WYT] Ya existe un proyecto WYT en: ",
         choose_content_type = "Elige el tipo de contenido de la sección principal:",
         content = "Contenido",
         definition = "Definición",
@@ -218,6 +224,18 @@ end
 function M.t(key, lang)
     lang = lang or M.lang
     return M.translations[lang][key] or key
+end
+
+--- Normalise any string used as a `vim.ui.input` prompt: exactly one trailing
+--- space, so the cursor never sits flush against the colon. Use for prompts the
+--- caller assembled itself (question text, type hints, interpolated names).
+function M.pad(str)
+    return (tostring(str):gsub("%s*$", "")) .. " "
+end
+
+--- Translated string ready to be used as a `vim.ui.input` prompt.
+function M.prompt(key, lang)
+    return M.pad(M.t(key, lang))
 end
 
 

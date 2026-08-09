@@ -46,7 +46,7 @@ function M.search()
         return
     end
 
-    vim.ui.input({ prompt = loc.t("search_query_prompt") }, function(query)
+    vim.ui.input({ prompt = loc.prompt("search_query_prompt") }, function(query)
         if not query or query == "" then return end
         local query_lower = query:lower()
 

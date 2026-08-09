@@ -43,7 +43,7 @@ local function do_expand(buf, line_nr, idea_name, project_mod, loc)
                     vim.notify(loc.t("placeholder_expanded"), vim.log.levels.INFO)
                 end)
             else
-                vim.ui.input({ prompt = idea_name .. ":" }, function(text)
+                vim.ui.input({ prompt = loc.pad(idea_name .. ":") }, function(text)
                     if not text or text == "" then return end
                     local new_lines = vim.split(text, "\n", { plain = true })
                     api.nvim_buf_set_lines(buf, line_nr - 1, line_nr, false, new_lines)

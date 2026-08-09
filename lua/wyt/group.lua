@@ -212,7 +212,7 @@ function M.new_group(line1, line2)
                 end
                 vim.notify(hint, vim.log.levels.INFO)
             end
-            local name_hint = types_mod.group_name_hint(project_type, project.lang)
+            local name_hint = loc.pad(types_mod.group_name_hint(project_type, project.lang))
             vim.ui.select({ loc.t("yes"), loc.t("no") }, { prompt = loc.t("use_llm") }, function(use_llm)
                 if use_llm == loc.t("yes") and #selected_ideas > 0 then
                     vim.notify(loc.t("llm_generating"), vim.log.levels.INFO)
@@ -267,7 +267,7 @@ function M.new_group(line1, line2)
                 if action == loc.t("add_to_existing_group") then
                     vim.ui.select(groups, {prompt = loc.t("select_group")}, function(group_name)
                         if group_name then
-                            vim.ui.input({prompt = loc.t("edit_group_name") .. " [" .. group_name .. "]: "}, function(new_name)
+                            vim.ui.input({prompt = loc.pad(loc.t("edit_group_name") .. " [" .. group_name .. "]:")}, function(new_name)
                                 local final_name = new_name and new_name ~= "" and new_name or group_name
                                 local updated_content = rename_group(plan_content, group_name, final_name)
                                 -- P4: rename section folder when group name changes

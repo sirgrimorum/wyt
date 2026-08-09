@@ -164,48 +164,86 @@ function M.commit_changes(msg)
     vim.fn.system({'git', '-C', M.project_root, 'commit', '-m', msg})
 end
 
+-- Absolute, separator-normalised path with no trailing slash.
+-- Empty input means "the current working directory"; `~`, `$VARS` and relative
+-- paths (`.`, `../foo`) are all expanded.
+local function normalize_path(p)
+    p = vim.trim(p or "")
+    if p == "" then p = vim.fn.getcwd() end
+    p = vim.fn.expand(p)
+    p = vim.fn.fnamemodify(p, ":p")
+    p = p:gsub("[\\/]+$", "")
+    return (p:gsub("\\", "/"))
+end
+
 function M.new_project()
     local opts = {}
+    -- F12: every prompt after the language step must speak the chosen language,
+    -- so the wizard uses its own `t` instead of the module-wide loc.t default.
+    local t = function(key) return loc.t(key, opts.lang or loc.get_lang()) end
+    local p = function(key) return loc.pad(t(key)) end
+    local cancelled = function()
+        vim.notify(t("wizard_cancelled"), vim.log.levels.INFO)
+    end
 
     vim.ui.select({"en", "es"}, {prompt = loc.t("choose_lang")}, function(lang)
-        opts.lang = lang or "en"
-        vim.ui.select({"novel", "short_story", "essay", "summary"}, {prompt = loc.t("choose_type")}, function(type)
-            opts.type = type or "novel"
-            vim.ui.input({prompt = loc.t("choose_path")}, function(base_path)
-                opts.base_path = base_path or vim.fn.getcwd()
-                vim.ui.input({prompt = loc.t("choose_name")}, function(name)
-                    opts.name = name or "my_project"
-                    opts.slug = slugify(opts.name)
-                    vim.ui.select({loc.t("content"), loc.t("definition")}, {prompt = loc.t("choose_content_type")}, function(content_type)
-                        opts.content_type = content_type == loc.t("content") and "content" or "definition"
-                        vim.ui.select({loc.t("yes"), loc.t("no")}, {prompt = loc.t("has_sections")}, function(has_sections)
-                            opts.sections = has_sections == loc.t("yes")
-                            vim.ui.select({loc.t("same_window"), loc.t("new_window")}, {prompt = loc.t("open_where")}, function(open_where)
-                                local root = opts.base_path .. "/" .. opts.slug
-                                mkdir(root)
-                                M.write_file(root .. "/config.wyt.yml", string.format(
-                                    "lang: %s\ntype: %s\ncontent_type: %s\nsections: %s\nname: %s\n",
-                                    opts.lang, opts.type, opts.content_type, tostring(opts.sections), opts.name
-                                ))
-                                local plan_template = string.format(
-                                    "# %s\n\n## %s\n\n## %s\n\n## %s\n",
-                                    opts.name,
-                                    loc.t("description_section", opts.lang),
-                                    loc.t("ideas_section", opts.lang),
-                                    loc.t("groups_section", opts.lang)
-                                )
-                                M.write_file(root .. "/plan.wyt.md", plan_template)
-                                M.write_file(root .. "/export.wyt.md", "")
-                                run_git_init(root)
-                                local file_to_open = root .. "/plan.wyt.md"
-                                -- F5: fnameescape prevents path injection for names with spaces/special chars
-                                if open_where == loc.t("new_window") then
-                                    vim.cmd("tabnew " .. vim.fn.fnameescape(file_to_open))
-                                else
-                                    vim.cmd("edit " .. vim.fn.fnameescape(file_to_open))
-                                end
-                                -- O6: vim.notify instead of print
-                                vim.notify(loc.t("project_created") .. root, vim.log.levels.INFO)
+        if not lang then return cancelled() end
+        opts.lang = lang
+        vim.ui.select({"novel", "short_story", "essay", "summary"}, {prompt = t("choose_type")}, function(type)
+            if not type then return cancelled() end
+            opts.type = type
+            vim.ui.input({prompt = p("choose_path"), default = vim.fn.getcwd()}, function(base_path)
+                if not base_path then return cancelled() end
+                opts.base_path = normalize_path(base_path)
+                vim.ui.input({prompt = p("choose_name")}, function(name)
+                    if not name or vim.trim(name) == "" then return cancelled() end
+                    opts.name = vim.trim(name)
+                    vim.ui.input({prompt = p("choose_folder"), default = slugify(opts.name)}, function(folder)
+                        if not folder then return cancelled() end
+                        folder = vim.trim(folder)
+                        -- "." (or an empty answer) keeps the base path as the project root
+                        opts.slug = (folder == "" or folder == "." or folder == "./") and "" or slugify(folder)
+                        local root = opts.slug == "" and opts.base_path
+                            or (opts.base_path .. "/" .. opts.slug)
+                        if uv.fs_stat(root .. "/config.wyt.yml") then
+                            vim.notify(t("project_exists") .. root, vim.log.levels.ERROR)
+                            return
+                        end
+                        vim.ui.select({t("content"), t("definition")}, {prompt = t("choose_content_type")}, function(content_type)
+                            if not content_type then return cancelled() end
+                            opts.content_type = content_type == t("content") and "content" or "definition"
+                            vim.ui.select({t("yes"), t("no")}, {prompt = t("has_sections")}, function(has_sections)
+                                if not has_sections then return cancelled() end
+                                opts.sections = has_sections == t("yes")
+                                vim.ui.select({t("same_window"), t("new_window")}, {prompt = t("open_where")}, function(open_where)
+                                    if not open_where then return cancelled() end
+                                    mkdir(root)
+                                    M.write_file(root .. "/config.wyt.yml", string.format(
+                                        "lang: %s\ntype: %s\ncontent_type: %s\nsections: %s\nname: %s\n",
+                                        opts.lang, opts.type, opts.content_type, tostring(opts.sections), opts.name
+                                    ))
+                                    local plan_template = string.format(
+                                        "# %s\n\n## %s\n\n## %s\n\n## %s\n",
+                                        opts.name,
+                                        loc.t("description_section", opts.lang),
+                                        loc.t("ideas_section", opts.lang),
+                                        loc.t("groups_section", opts.lang)
+                                    )
+                                    M.write_file(root .. "/plan.wyt.md", plan_template)
+                                    M.write_file(root .. "/export.wyt.md", "")
+                                    run_git_init(root)
+                                    -- the rest of the session now speaks the project language
+                                    loc.set_lang(opts.lang)
+                                    local file_to_open = root .. "/plan.wyt.md"
+                                    -- F5: fnameescape prevents path injection for names with spaces/special chars
+                                    if open_where == t("new_window") then
+                                        vim.cmd("tabnew " .. vim.fn.fnameescape(file_to_open))
+                                    else
+                                        vim.cmd("edit " .. vim.fn.fnameescape(file_to_open))
+                                    end
+                                    -- O6: vim.notify instead of print
+                                    vim.notify(t("project_created") .. root, vim.log.levels.INFO)
+                                end)
                             end)
                         end)
                     end)

@@ -48,7 +48,7 @@ local function show_guided_questions_and_proceed(callback)
                         callback(collected)
                         return
                     end
-                    vim.ui.input({ prompt = questions[i] .. "\n" .. loc.t("question_prompt") }, function(answer)
+                    vim.ui.input({ prompt = loc.pad(questions[i] .. "\n" .. loc.t("question_prompt")) }, function(answer)
                         if answer and answer ~= "" then
                             table.insert(collected, answer)
                         end
@@ -58,7 +58,7 @@ local function show_guided_questions_and_proceed(callback)
                 ask_next(1)
             else
                 -- Free-form: single idea
-                vim.ui.input({ prompt = loc.t("idea_name") }, function(idea_name)
+                vim.ui.input({ prompt = loc.prompt("idea_name") }, function(idea_name)
                     if idea_name and idea_name ~= "" then
                         callback({ idea_name })
                     end
