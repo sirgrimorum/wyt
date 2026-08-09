@@ -56,6 +56,60 @@ M.configs = {
         section_depth = 3,
     },
 
+    -- A long novel is a novel with one more level between the book and the
+    -- scene: parts or books, then chapters, then scenes.
+    long_novel = {
+        idea_prompt = {
+            en = "What thread or event moves the whole story forward?",
+            es = "¿Qué hilo o suceso hace avanzar toda la historia?",
+        },
+        subsection_idea_prompt = {
+            en = "What moment or turn belongs to this part?",
+            es = "¿Qué momento o giro pertenece a esta parte?",
+        },
+        idea_questions = {
+            en = {
+                "What is the through-line the whole book follows?",
+                "What part or book does this belong to?",
+                "Which subplot does this feed, and where does it rejoin the main one?",
+                "Which characters change here, and how far along are they?",
+                "When does this happen relative to what came before?",
+                "What does the reader learn here that they could not learn earlier?",
+            },
+            es = {
+                "¿Cuál es el hilo conductor que sigue todo el libro?",
+                "¿A qué parte o libro pertenece esto?",
+                "¿Qué trama secundaria alimenta, y dónde vuelve a la principal?",
+                "¿Qué personajes cambian aquí, y cuánto han avanzado ya?",
+                "¿Cuándo ocurre esto respecto a lo anterior?",
+                "¿Qué descubre aquí el lector que no podía descubrir antes?",
+            },
+        },
+        group_prompt = {
+            en = "What part, chapter or arc do these ideas form?",
+            es = "¿Qué parte, capítulo o arco forman estas ideas?",
+        },
+        group_questions = {
+            en = {
+                "What part or book do these ideas belong to?",
+                "What arc do they complete within it?",
+                "What has to be true before this can happen?",
+            },
+            es = {
+                "¿A qué parte o libro pertenecen estas ideas?",
+                "¿Qué arco completan dentro de ella?",
+                "¿Qué debe ser cierto antes de que esto ocurra?",
+            },
+        },
+        group_name_hint = {
+            en = "Part, chapter or arc title:",
+            es = "Título de la parte, capítulo o arco:",
+        },
+        -- one idea → one paragraph
+        multi_idea_paragraph = false,
+        section_depth = 4,
+    },
+
     short_story = {
         idea_prompt = {
             en = "What moment or image do you want to capture?",
@@ -230,8 +284,22 @@ function M.group_name_hint(type_name, lang)
     return cfg.group_name_hint[lang] or cfg.group_name_hint.en
 end
 
+--- True when the type gathers a whole group into one paragraph instead of one
+--- paragraph per idea. Read when a group is implemented into `text.wyt.md`.
 function M.multi_idea_paragraph(type_name)
     return M.get(type_name).multi_idea_paragraph
+end
+
+--- How many plan levels the type allows, counting the project root as level 1.
+--- A section at a level below the limit may hold sub-sections; one at the limit
+--- writes its groups straight to `text.wyt.md`.
+function M.section_depth(type_name)
+    return M.get(type_name).section_depth or 1
+end
+
+--- Type names the project wizard offers, in the order it offers them.
+function M.names()
+    return { "novel", "long_novel", "short_story", "essay", "summary" }
 end
 
 return M

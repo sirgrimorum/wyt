@@ -64,6 +64,11 @@ Interactive wizard prompts:
 | Has sections? | `y` |
 | Open in | `Same window` |
 
+The text types offered are `novel`, `long_novel`, `short_story`, `essay` and
+`summary`. **Has sections?** is only asked for a type that allows more than one
+plan level (see §21): `short_story` and `summary` are single-level, so the
+wizard writes `sections: false` without asking.
+
 Every prompt after the Language step is shown in the language you picked, and
 `<Esc>` at any step cancels the wizard without creating anything.
 
@@ -306,14 +311,14 @@ Position cursor on the group header line:
 
 Press `<S-Tab>`.
 
-Since this group has no section yet, the plugin asks:
-**Implement as section? [y/N]**
-
-User types `y`.
+Since this group has no section yet, the plugin asks what the section will
+hold: **Content** or **Definition**. Pick *Content* here; §13 covers the other
+answer. `<Esc>` cancels and nothing is created.
 
 What happens automatically:
 - Directory `sections/el-espacio-urbano-como-destructor-del-silencio/` is created
-- `config.wyt.yml` written (type: content, sections: false)
+- `config.wyt.yml` written: `type` inherited from the project (`essay`),
+  `content_type` from your answer, `sections: false`
 - `plan.wyt.md` created with:
   - Title = group name
   - Description = ideas from the group (joined as description text)
@@ -499,9 +504,11 @@ Select ideas related to definitions → name the group `Key Concepts`.
 
 Position cursor on that group header, press `<S-Tab>` → implement as section.
 
-When prompted for content type, choose `definition`.
+The section is new, so WYT asks what it will hold. Choose **Definition**.
 
-The section's `config.wyt.yml` will have `type: definition`.
+The section's `config.wyt.yml` will have `content_type: definition`, while
+`type` stays the project's literary type. The answer is asked once, when the
+section is created; re-implementing the group later keeps it.
 
 ### Search across definition sections
 
@@ -585,7 +592,7 @@ Once all sections have their `text.wyt.md` written:
 The plugin:
 1. Reads root `plan.wyt.md` to get section order
 2. For each section in order:
-   - If `type: definition` → skipped
+   - If `content_type: definition` → skipped
    - If `export.wyt.md` is newer than `text.wyt.md` → uses `export.wyt.md`
    - Otherwise → uses `text.wyt.md`
    - Strips unexpanded `*Create a paragraph about: ...*` placeholders
@@ -656,9 +663,22 @@ These fire automatically without user action:
 | Type | Guided questions | Paragraph logic | Max depth |
 |------|-----------------|-----------------|-----------|
 | `novel` | Story-arc, character, scene questions | 1 idea → 1 paragraph | 3 levels |
-| `short_story` | Narrative focus, tone questions | 1 idea → 1 paragraph | 2 levels |
+| `long_novel` | Through-line, part, subplot, timeline questions | 1 idea → 1 paragraph | 4 levels |
+| `short_story` | Narrative focus, tone questions | 1 idea → 1 paragraph | 1 level |
 | `essay` | Argument, evidence, perspective questions | 1 idea → 1 paragraph | 2 levels |
 | `summary` | Key point, synthesis questions | Multiple ideas → 1 paragraph | 1 level |
+
+**Max depth** counts plan levels, the root plan being level 1. A section created
+with `<S-Tab>` gets `sections: true` while it is still above the limit, so its
+own groups become sections in turn; at the limit it gets `sections: false` and
+its groups implement straight to `text.wyt.md`. An `essay` therefore nests one
+level of sections under the root, a `novel` two, a `long_novel` three, and
+`short_story` and `summary` none: their groups go straight to text.
+
+**Paragraph logic** decides what `<S-Tab>` writes into `text.wyt.md`. Every type
+but `summary` writes one placeholder per idea. `summary` condenses, so a group
+becomes a single placeholder listing all of its ideas, separated by `;`, and
+expanding it produces one paragraph that folds them together.
 
 ---
 

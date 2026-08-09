@@ -4,11 +4,6 @@ local M = {}
 local uv_ref = nil
 local function uv() uv_ref = uv_ref or (vim.uv or vim.loop); return uv_ref end
 
-local function is_definition(config_path, project_mod)
-    local cfg = project_mod.read_file(config_path) or ""
-    return cfg:match("content_type:%s*definition") ~= nil
-end
-
 -- Collect all definition text.wyt.md files under `dir` recursively.
 local function collect_definition_files(project_mod, dir, results)
     results = results or {}
@@ -16,7 +11,7 @@ local function collect_definition_files(project_mod, dir, results)
     local text_path   = dir .. "text.wyt.md"
     local plan_path   = dir .. "plan.wyt.md"
 
-    if uv().fs_stat(text_path) and uv().fs_stat(config_path) and is_definition(config_path, project_mod) then
+    if uv().fs_stat(text_path) and uv().fs_stat(config_path) and project_mod.is_definition_section(dir) then
         table.insert(results, text_path)
     end
 
