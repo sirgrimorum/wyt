@@ -330,7 +330,9 @@ What happens automatically:
 
 Cursor is now on the group header (now `[Implemented]`). Press `<S-Tab>` again.
 
-This time the section exists → `plan.wyt.md` of that section opens in a new tab.
+This time the section exists → `plan.wyt.md` of that section opens in its own
+tab. If that file is already open, WYT jumps to its tab instead of opening a
+second copy of it.
 
 ```
 sections/el-espacio-urbano-como-destructor-del-silencio/plan.wyt.md
@@ -369,7 +371,8 @@ Press `<S-Tab>` while cursor is on the title line (`# El espacio urbano...`):
 # El espacio urbano como destructor del silencio   ← cursor here
 ```
 
-`<S-Tab>` detects the `#` title → opens parent `plan.wyt.md` in a new tab.
+`<S-Tab>` detects the `#` title → jumps to the parent `plan.wyt.md`, in the tab
+that already holds it or in a new one.
 
 ---
 
@@ -546,7 +549,8 @@ export.wyt.md
 config.wyt.yml
 ```
 
-Select any entry → opens that file in the current buffer.
+Select any entry → opens that file in the current window, or jumps to the
+window that already shows it.
 
 ---
 
@@ -641,6 +645,12 @@ Open the result:
 | `[w` | `text.wyt.md` | Jump to previous placeholder and expand |
 
 All keymaps are **buffer-local** — they only activate in WYT files and do not override keys in other buffers.
+
+Every WYT navigation, by keymap or by command, does two things first: it writes
+the current file if it has unsaved changes, which also fires the auto-commit, and
+it looks for a window that already shows the target. So work is never lost to a
+move, and moving back and forth between a plan and its section reuses the two
+tabs instead of piling up copies.
 
 ---
 

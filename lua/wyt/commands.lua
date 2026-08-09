@@ -181,8 +181,7 @@ function M.goto_command()
         end
 
         if target_path then
-            -- F5: fnameescape prevents path injection
-            vim.cmd("edit " .. vim.fn.fnameescape(target_path))
+            require("wyt.ui").edit_file(target_path)
         end
     end, {
         nargs = 1,

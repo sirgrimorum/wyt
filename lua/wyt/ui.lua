@@ -89,6 +89,60 @@ function M.close(win)
     end
 end
 
+-- Windows hands the same file back with either separator, and its filesystem
+-- does not care about case, so paths are compared through this.
+local function canonical(path)
+    local full = vim.fn.fnamemodify(path, ":p"):gsub("\\", "/")
+    if vim.fn.has("win32") == 1 then full = full:lower() end
+    return full
+end
+
+--- Write the current buffer if it has unsaved changes.
+--- Navigation moves between files of one project, and an edit that was never
+--- written is lost to the move. Writing also fires the auto-commit, so the step
+--- is recorded like any other save.
+function M.save_current()
+    local buf = vim.api.nvim_get_current_buf()
+    if vim.bo[buf].buftype ~= "" then return end
+    if not vim.bo[buf].modified or vim.bo[buf].readonly then return end
+    if vim.api.nvim_buf_get_name(buf) == "" then return end
+    pcall(vim.cmd, "silent write")
+end
+
+--- Jump to the window already showing `path`, in any tab. True when it found one.
+local function focus_existing(path)
+    local target = canonical(path)
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+        local name = vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(win))
+        if name ~= "" and canonical(name) == target then
+            vim.fn.win_gotoid(win)
+            -- The file may have been rewritten on disk while it sat in that tab
+            vim.cmd("silent! checktime")
+            return true
+        end
+    end
+    return false
+end
+
+--- Open `path` in a tab of its own, saving the current buffer first.
+--- A file already on screen is jumped to rather than opened again: navigating
+--- back and forth between a plan and its section used to leave a new tab behind
+--- every time. Only a file that is nowhere yet gets a new tab.
+function M.open_file(path)
+    M.save_current()
+    if focus_existing(path) then return end
+    vim.cmd("tabnew " .. vim.fn.fnameescape(path))
+end
+
+--- Open `path` in the current window, saving what is there first.
+--- Still prefers a window that already shows the file, so a command cannot put
+--- the same file on screen twice.
+function M.edit_file(path)
+    M.save_current()
+    if focus_existing(path) then return end
+    vim.cmd("edit " .. vim.fn.fnameescape(path))
+end
+
 --- True when `text` is too long, or too many lines, to be read as a prompt.
 function M.needs_panel(text)
     if text:find("\n", 1, true) then return true end

@@ -51,9 +51,8 @@ local function prompt_reimplement_group(current_plan_content, group_name, sectio
         question = question,
         prompt = loc.t("reimplement"),
     }, { loc.t("yes"), loc.t("no") }, function(choice)
-        -- F5: fnameescape
         local function open()
-            vim.cmd("tabnew " .. vim.fn.fnameescape(section_plan))
+            ui.open_file(section_plan)
         end
         if choice == loc.t("yes") then
             -- A fresh section asks what it holds, so the file is only there to
@@ -89,9 +88,8 @@ function M.goto_wyt_tab()
         if sections_enabled then
             local slug = project.slugify(group_name)
             local section_plan = current_section_dir .. slug .. "/plan.wyt.md"
-            -- F5: fnameescape
             local function open()
-                vim.cmd("tabnew " .. vim.fn.fnameescape(section_plan))
+                ui.open_file(section_plan)
             end
             -- O4: fs_stat instead of vim.fn.filereadable
             if not (vim.uv or vim.loop).fs_stat(section_plan) then
@@ -117,8 +115,7 @@ function M.goto_wyt_tab()
             -- F6: removed extra leading slash (current_section_dir already ends with /)
             local text_path = current_section_dir .. "text.wyt.md"
             local function open()
-                -- F5: fnameescape
-                vim.cmd("tabnew " .. vim.fn.fnameescape(text_path))
+                ui.open_file(text_path)
                 -- P5: position cursor at the group section in text.wyt.md
                 local group_header = "## " .. project.t("group_tag") .. ": " .. group_name
                 for i, tline in ipairs(api.nvim_buf_get_lines(0, 0, -1, false)) do
@@ -192,8 +189,7 @@ function M.goto_wyt_tab()
             local text_path = current_section_dir .. "text.wyt.md"
             -- O4: fs_stat; O6: vim.notify
             if (vim.uv or vim.loop).fs_stat(text_path) then
-                -- F5: fnameescape
-                vim.cmd("tabnew " .. vim.fn.fnameescape(text_path))
+                ui.open_file(text_path)
                 -- P5: position cursor at the idea placeholder in text.wyt.md
                 local idea_text = line:sub(3)  -- strip "- " prefix
                 for i, tline in ipairs(api.nvim_buf_get_lines(0, 0, -1, false)) do
@@ -216,7 +212,7 @@ function M.goto_wyt_tab()
         if parent then
             local parent_plan = parent .. "plan.wyt.md"
             if (vim.uv or vim.loop).fs_stat(parent_plan) then
-                vim.cmd("tabnew " .. vim.fn.fnameescape(parent_plan))
+                ui.open_file(parent_plan)
             end
         end
     end
