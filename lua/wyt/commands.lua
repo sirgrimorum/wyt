@@ -143,7 +143,10 @@ function M.goto_command()
         if not project.setup() then return end
         local arg = args.fargs[1]
         local root = project.project_root
-        local sep = package.config:sub(1,1)
+        -- F14: plan/config/text/parent are all relative to the *current section*;
+        -- only export is a root-level file. `text` and `parent` were resolving
+        -- against the root, so from a section they hit the wrong file.
+        local section = project.current_section_dir
         local target_path = nil
 
         if arg == "plan" then
@@ -151,12 +154,15 @@ function M.goto_command()
         elseif arg == "config" then
             target_path = project.section_config_path
         elseif arg == "text" then
-            target_path = root .. "text.wyt.md"
+            target_path = section .. "text.wyt.md"
         elseif arg == "export" then
             target_path = root .. "export.wyt.md"
         elseif arg == "parent" then
-            local parent = root:match("^(.*"..sep..")[^"..sep.."]+"..sep.."$")
-            if parent and parent ~= "" and parent ~= root then
+            -- F13: match either separator; package.config's "\" never matched a
+            -- forward-slash root on Windows, so parent lookup always failed
+            local parent = section:match("^(.*[\\/])[^\\/]+[\\/]$")
+            if section == root then parent = nil end  -- already at the project root
+            if parent and parent ~= "" and parent ~= section then
                 local parent_plan = parent .. "plan.wyt.md"
                 -- O4: fs_stat instead of vim.fn.filereadable
                 if (vim.uv or vim.loop).fs_stat(parent_plan) then

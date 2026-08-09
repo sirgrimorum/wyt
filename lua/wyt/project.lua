@@ -6,26 +6,39 @@ local M = {}
 -- O10: per-buffer root cache; avoids re-walking the directory tree on every command
 local _root_cache = {}
 
+-- F13: every path this module builds is `dir .. "config.wyt.yml"`, so a root
+-- without its trailing separator silently produces "D:\WYTconfig.wyt.yml".
+local function ensure_trailing_sep(path)
+    if path:match("[\\/]$") then return path end
+    return path .. "/"
+end
+
 local function find_project_root_from_buffer()
     local buf_path = api.nvim_buf_get_name(0)
-    if buf_path == "" then return vim.fn.getcwd() end
+    local cwd = ensure_trailing_sep(vim.fn.getcwd())
+    if buf_path == "" then return cwd end
     if _root_cache[buf_path] then return _root_cache[buf_path] end  -- O10: cache hit
 
-    local sep = package.config:sub(1,1)
-    local dir = buf_path:match("^(.*"..sep..")")
+    -- F13: match either separator. On Windows package.config reports "\" while
+    -- the buffer name commonly uses "/", which made every walk-up fail and fall
+    -- back to the cwd — the "no project found" report from :WYTNav/:WYTSearch.
+    local dir = buf_path:match("^(.*[\\/])")
     local last_valid = nil
     while dir and dir ~= "" do
         -- O4: vim.uv.fs_stat is faster than vim.fn.filereadable (no Vimscript call)
         if uv.fs_stat(dir .. "config.wyt.yml") and uv.fs_stat(dir .. "plan.wyt.md") then
             last_valid = dir
-        else
-            if last_valid then break end
+        elseif last_valid then
+            break
         end
-        dir = dir:match("^(.*"..sep..")[^"..sep.."]+"..sep.."$")
+        local parent = dir:match("^(.*[\\/])[^\\/]+[\\/]$")
+        if parent == dir then break end  -- defensive: never spin on a fixed point
+        dir = parent
     end
-    local result = last_valid or vim.fn.getcwd()
-    _root_cache[buf_path] = result  -- O10: populate cache
-    return result
+    -- O10: cache confirmed roots only; caching the cwd fallback would pin a
+    -- failed lookup for the lifetime of the buffer.
+    if last_valid then _root_cache[buf_path] = last_valid end
+    return last_valid or cwd
 end
 
 M.project_root = ""
