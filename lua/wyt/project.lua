@@ -187,8 +187,15 @@ function M.new_project()
                                     "lang: %s\ntype: %s\ncontent_type: %s\nsections: %s\nname: %s\n",
                                     opts.lang, opts.type, opts.content_type, tostring(opts.sections), opts.name
                                 ))
-                                M.write_file(root .. "/plan.wyt.md", "# " .. opts.name .. "\n\n" .. loc.t("plan_intro"))
-                                M.write_file(root .. "/export.wyt.md", "# " .. opts.name .. " " .. loc.t("export_intro"))
+                                local plan_template = string.format(
+                                    "# %s\n\n## %s\n\n## %s\n\n## %s\n",
+                                    opts.name,
+                                    loc.t("description_section", opts.lang),
+                                    loc.t("ideas_section", opts.lang),
+                                    loc.t("groups_section", opts.lang)
+                                )
+                                M.write_file(root .. "/plan.wyt.md", plan_template)
+                                M.write_file(root .. "/export.wyt.md", "")
                                 run_git_init(root)
                                 local file_to_open = root .. "/plan.wyt.md"
                                 -- F5: fnameescape prevents path injection for names with spaces/special chars
