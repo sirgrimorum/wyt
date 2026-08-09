@@ -99,28 +99,87 @@ function M.new_idea()
     show_guided_questions_and_proceed(function(idea_names)
         if not idea_names or #idea_names == 0 then return end
 
-        -- Improve one idea and hand the result back for review. Any failure
-        -- mode falls back to what the user wrote, never to a chatty reply.
+        -- Improve one idea. The generated version is never applied silently:
+        -- it is offered as a menu, and a genuine ambiguity comes back as a
+        -- pickable question. Any failure mode falls back to the user's text.
+        local MAX_QUESTIONS = 2
         local function improve_with_review(idea_name, on_done)
-            vim.notify(loc.t("llm_generating"), vim.log.levels.INFO)
-            llm.improve_idea(idea_name, project.lang, function(result, err)
-                if err or not result or result == "" then
-                    vim.notify(loc.t("llm_error") .. (err or ""), vim.log.levels.WARN)
-                    on_done(idea_name)
-                    return
-                end
-                -- The model has no one to ask, so a clarifying question would
-                -- otherwise be stored verbatim as the idea.
-                if llm.looks_like_question(result) and not llm.looks_like_question(idea_name) then
-                    vim.notify(loc.t("llm_returned_question"), vim.log.levels.WARN)
-                    on_done(idea_name)
-                    return
-                end
-                vim.ui.input({ prompt = loc.prompt("llm_review_idea"), default = result }, function(edited)
-                    edited = edited and vim.trim(edited) or ""
-                    on_done(edited ~= "" and edited or idea_name)
+            local answers = {}
+            local no_more_questions = false
+            local request
+
+            local function present(text)
+                local keep  = loc.t("keep_result")
+                local edit  = loc.t("edit_result")
+                local again = loc.t("try_again")
+                local mine  = loc.t("keep_mine")
+                vim.ui.select({ keep, edit, again, mine },
+                    { prompt = loc.t("llm_result_prompt") .. text },
+                    function(choice)
+                        if choice == keep then
+                            on_done(text)
+                        elseif choice == edit then
+                            vim.ui.input({ prompt = loc.prompt("llm_review_idea"), default = text }, function(edited)
+                                edited = edited and vim.trim(edited) or ""
+                                on_done(edited ~= "" and edited or text)
+                            end)
+                        elseif choice == again then
+                            request({ avoid = text })
+                        else
+                            -- "keep mine", or cancelled with <Esc>
+                            on_done(idea_name)
+                        end
+                    end)
+            end
+
+            local function ask(question, options)
+                local skip = loc.t("llm_skip_question")
+                local items = vim.list_extend(vim.deepcopy(options), { skip })
+                vim.ui.select(items, { prompt = question }, function(answer)
+                    if not answer or answer == skip then
+                        -- nothing more to tell it; demand an answer this time
+                        no_more_questions = true
+                        request({})
+                        return
+                    end
+                    answers[#answers + 1] = { question = question, answer = answer }
+                    request({})
                 end)
-            end, project_context(plan_content))
+            end
+
+            request = function(extra)
+                vim.notify(loc.t("llm_generating"), vim.log.levels.INFO)
+                llm.improve_idea(idea_name, project.lang, function(res, err)
+                    if err or not res then
+                        vim.notify(loc.t("llm_error") .. (err or ""), vim.log.levels.WARN)
+                        on_done(idea_name)
+                        return
+                    end
+                    if res.kind == "question" then
+                        ask(res.question, res.options)
+                        return
+                    end
+                    if res.kind == "unusable" then
+                        vim.notify(loc.t("llm_unusable_reply"), vim.log.levels.WARN)
+                        on_done(idea_name)
+                        return
+                    end
+                    -- Unstructured reply that is still a question: unanswerable
+                    if llm.looks_like_question(res.text) and not llm.looks_like_question(idea_name) then
+                        vim.notify(loc.t("llm_returned_question"), vim.log.levels.WARN)
+                        on_done(idea_name)
+                        return
+                    end
+                    present(res.text)
+                end, {
+                    context = project_context(plan_content),
+                    answers = answers,
+                    avoid = extra.avoid,
+                    no_questions = no_more_questions or #answers >= MAX_QUESTIONS,
+                })
+            end
+
+            request({})
         end
 
         -- Sequential: the review prompt for idea N must close before N+1 starts
