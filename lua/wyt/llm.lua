@@ -135,12 +135,75 @@ function M.generate_text(prompt, callback)
     end
 end
 
--- Convenience wrapper: improve a single idea sentence
-function M.improve_idea(idea_text, lang, callback)
-    local prompt = lang == "es"
-        and ("Reescribe la siguiente idea como una oración clara y concisa para un proyecto literario: " .. idea_text)
-        or  ("Rewrite the following idea as a single clear, concise sentence for a literary project: " .. idea_text)
-    M.generate_text(prompt, callback)
+-- Ideas and group names are stored as a single `- ` bullet / `## ` header, and
+-- add_item_to_section strips newlines without inserting spaces. A chatty reply
+-- ("Claro, aquí tienes:\n\n\"...\"") therefore lands in plan.wyt.md as one
+-- mangled run-on line, so every short answer is collapsed to one clean line.
+
+local function first_meaningful_line(text)
+    text = text:gsub("```[%w]*\n?", "")
+    for line in (text .. "\n"):gmatch("([^\n]*)\n") do
+        line = vim.trim(line)
+        -- skip blanks and preamble ("Here you go:", "Idea reescrita:")
+        if line ~= "" and not line:match(":%s*$") then
+            return line
+        end
+    end
+    return vim.trim((text:gsub("%s+", " ")))
+end
+
+local function strip_decoration(line)
+    line = line:gsub("^%s*[-*•]%s+", "")        -- bullet marker
+    line = line:gsub("^%s*%d+[%.%)]%s+", "")    -- "1. " / "1) "
+    line = line:gsub("^%*+(.-)%*+$", "%1")      -- **bold**
+    line = line:gsub('^["\'“”«]+', '')
+    line = line:gsub('["\'“”»]+$', '')
+    return vim.trim(line)
+end
+
+--- Collapse an LLM reply to the single clean line the caller can store.
+function M.to_single_line(text)
+    if not text or text == "" then return "" end
+    return (strip_decoration(first_meaningful_line(text)):gsub("%s+", " "))
+end
+
+--- True when a reply is a clarifying question rather than the answer. The model
+--- has no one to ask — the caller keeps the user's own text instead.
+function M.looks_like_question(text)
+    if not text then return false end
+    return text:match("%?%s*$") ~= nil or text:match("^%s*¿") ~= nil
+end
+
+-- Convenience wrapper: improve a single idea sentence.
+-- `context` is optional project context (type, description).
+function M.improve_idea(idea_text, lang, callback, context)
+    local parts = {}
+    if lang == "es" then
+        parts[#parts + 1] = "Reescribe la idea delimitada por <idea> como UNA sola oración clara y concisa en español."
+        if context and context ~= "" then
+            parts[#parts + 1] = "Contexto del proyecto: " .. context
+        end
+        parts[#parts + 1] = "Responde únicamente con la oración reescrita, en una sola línea."
+        parts[#parts + 1] = "No añadas introducción, comillas, viñetas, explicaciones ni comentarios."
+        parts[#parts + 1] = "No pidas aclaraciones ni hagas preguntas: si la idea es vaga, reescríbela tal como está."
+    else
+        parts[#parts + 1] = "Rewrite the idea delimited by <idea> as ONE clear, concise sentence in English."
+        if context and context ~= "" then
+            parts[#parts + 1] = "Project context: " .. context
+        end
+        parts[#parts + 1] = "Reply with the rewritten sentence only, on a single line."
+        parts[#parts + 1] = "Do not add preamble, quotes, bullets, explanations or commentary."
+        parts[#parts + 1] = "Never ask for clarification: if the idea is vague, rewrite it as it stands."
+    end
+    parts[#parts + 1] = "<idea>" .. idea_text .. "</idea>"
+
+    M.generate_text(table.concat(parts, "\n"), function(result, err)
+        if err or not result then
+            callback(nil, err)
+            return
+        end
+        callback(M.to_single_line(result), nil)
+    end)
 end
 
 -- Generate a paragraph from an idea
@@ -169,13 +232,21 @@ function M.suggest_group_name(ideas, type_name, lang, callback)
     if lang == "es" then
         prompt = "Sugiere un nombre corto y descriptivo para un grupo de ideas de un " .. type_name
             .. ".\nIdeas:\n- " .. ideas_str
-            .. "\nResponde solo con el nombre del grupo, sin explicación."
+            .. "\nResponde solo con el nombre, en una sola línea, sin comillas, sin prefijos"
+            .. " como \"Nombre:\" y sin explicación."
     else
         prompt = "Suggest a short, descriptive name for a group of ideas in a " .. type_name
             .. ".\nIdeas:\n- " .. ideas_str
-            .. "\nReply with only the group name, no explanation."
+            .. "\nReply with the name only, on a single line, no quotes, no \"Name:\" prefix,"
+            .. " no explanation."
     end
-    M.generate_text(prompt, callback)
+    M.generate_text(prompt, function(result, err)
+        if err or not result then
+            callback(nil, err)
+            return
+        end
+        callback(M.to_single_line(result), nil)
+    end)
 end
 
 return M
