@@ -21,9 +21,56 @@ local function multi_select(...)
     return require("wyt.group").multi_select(...)
 end
 
+local function truncate(str, width)
+    if vim.fn.strdisplaywidth(str) <= width then return str end
+    return vim.fn.strcharpart(str, 0, width - 1) .. "…"
+end
+
 -- A section's plan is not the root plan; the orienting question differs there.
 local function in_subsection()
     return project.section_plan_path ~= "" and project.section_plan_path ~= project.plan_path
+end
+
+-- Guided brainstorming: explain the run once, wait for the writer to start,
+-- then ask the questions one at a time. Listing every question up front was
+-- noise the writer had to hold in their head while answering the first one.
+local function run_guided(questions, project_type, callback)
+    if #questions == 0 then
+        callback({})
+        return
+    end
+
+    vim.notify(
+        loc.t("guided_questions_title") .. project_type .. ":\n"
+            .. string.format(loc.t("guided_intro"), #questions),
+        vim.log.levels.INFO
+    )
+
+    local collected = {}
+    local function ask_next(i)
+        if i > #questions then
+            callback(collected)
+            return
+        end
+        -- The question is the prompt; a second line just pushed the input away
+        -- from what it is answering.
+        local prompt = string.format("(%d/%d) %s %s",
+            i, #questions, questions[i], loc.t("question_skip_hint"))
+        vim.ui.input({ prompt = loc.pad(prompt) }, function(answer)
+            -- nil is <Esc>: stop here and keep what has been answered.
+            -- An empty string is a deliberate skip of this one question.
+            if answer == nil then
+                callback(collected)
+                return
+            end
+            answer = vim.trim(answer)
+            if answer ~= "" then
+                collected[#collected + 1] = answer
+            end
+            ask_next(i + 1)
+        end)
+    end
+    ask_next(1)
 end
 
 -- P14: ask how to brainstorm, then collect one or more raw idea strings
@@ -38,29 +85,7 @@ local function show_guided_questions_and_proceed(callback)
         { prompt = loc.t("brainstorm_mode") },
         function(choice)
             if choice == loc.t("answer_questions") then
-                -- Only this mode uses the full list, so only this mode shows it
-                if #questions > 0 then
-                    local hint = loc.t("guided_questions_title") .. project_type .. ":\n"
-                    for i, q in ipairs(questions) do
-                        hint = hint .. "  " .. i .. ". " .. q .. "\n"
-                    end
-                    vim.notify(hint, vim.log.levels.INFO)
-                end
-                -- Collect one idea per answered question
-                local collected = {}
-                local function ask_next(i)
-                    if i > #questions then
-                        callback(collected)
-                        return
-                    end
-                    vim.ui.input({ prompt = loc.pad(questions[i] .. "\n" .. loc.t("question_prompt")) }, function(answer)
-                        if answer and answer ~= "" then
-                            table.insert(collected, answer)
-                        end
-                        ask_next(i + 1)
-                    end)
-                end
-                ask_next(1)
+                run_guided(questions, project_type, callback)
             elseif choice == loc.t("free_idea") then
                 -- Free-form: one idea, prompted by the type's single orienting
                 -- question, or the generic prompt when the type defines none.
@@ -143,7 +168,14 @@ function M.new_idea()
             local function ask(question, options)
                 local skip = loc.t("llm_skip_question")
                 local items = vim.list_extend(vim.deepcopy(options), { skip })
-                vim.ui.select(items, { prompt = question }, function(answer)
+                -- In a guided batch the model asks about one idea out of
+                -- several, so the idea under discussion is shown above the
+                -- question rather than left for the writer to infer.
+                local panel = ui.preview(loc.t("llm_question_title"), idea_name)
+                local prompt = panel and question
+                    or (question .. " [" .. truncate(idea_name, 40) .. "]")
+                vim.ui.select(items, { prompt = prompt }, function(answer)
+                    ui.close(panel)
                     if not answer or answer == skip then
                         -- nothing more to tell it; demand an answer this time
                         no_more_questions = true
@@ -218,8 +250,17 @@ function M.new_idea()
             end
             project.write_file(project.section_plan_path, plan_content)
             project.commit_changes("Add ideas: " .. table.concat(ideas_list, ", "))
-            vim.notify(loc.t("idea_added") .. table.concat(ideas_list, ", "), vim.log.levels.INFO)
-            vim.cmd("e! " .. vim.fn.fnameescape(project.section_plan_path))
+            -- The confirmation has to fit on one command line. Listing every
+            -- idea, plus the file message from :edit, overflowed it and forced
+            -- Neovim's "Press ENTER" prompt, which reads as one more step.
+            if #ideas_list == 1 then
+                local prefix = loc.t("idea_added")
+                local budget = math.max(20, vim.o.columns - vim.fn.strdisplaywidth(prefix) - 2)
+                vim.notify(prefix .. truncate(ideas_list[1], budget), vim.log.levels.INFO)
+            else
+                vim.notify(string.format(loc.t("ideas_added_count"), #ideas_list), vim.log.levels.INFO)
+            end
+            vim.cmd("silent edit! " .. vim.fn.fnameescape(project.section_plan_path))
             -- Position cursor at last added idea
             local last_idea = ideas_list[#ideas_list]
             local lines = api.nvim_buf_get_lines(0, 0, -1, false)
