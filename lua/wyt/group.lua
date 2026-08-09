@@ -326,6 +326,12 @@ local function find_group_bounds(lines, cursor)
         end
         end_idx = i
     end
+    -- The blank lines that follow a group belong to the gap between groups, not to
+    -- the group itself. The last group in the file has none, so counting them in
+    -- would make it swap as a shorter block and move the separator to the wrong side.
+    while end_idx > start_idx and lines[end_idx]:match("^%s*$") do
+        end_idx = end_idx - 1
+    end
     return start_idx, end_idx
 end
 
@@ -387,10 +393,11 @@ function M.move_group(direction)
         end
         if not target_start then return end
         -- O8: use shared helper; current is above target, so current=a, target=b
-        local target_block_size = target_end - target_start + 1
         local new_lines = swap_line_blocks(lines, start_idx, end_idx, target_start, target_end)
         api.nvim_buf_set_lines(buf, 0, -1, false, new_lines)
-        api.nvim_win_set_cursor(0, {start_idx + target_block_size, 0})
+        -- The target block and the untouched gap now sit before the moved group:
+        -- start_idx + (target size) + (gap size) collapses to start_idx + target_end - end_idx.
+        api.nvim_win_set_cursor(0, {start_idx + target_end - end_idx, 0})
     end
 end
 
