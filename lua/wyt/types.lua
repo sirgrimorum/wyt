@@ -31,6 +31,10 @@ M.configs = {
                 "¿Qué tono emocional o atmósfera predomina?",
             },
         },
+        group_prompt = {
+            en = "What chapter or scene do these ideas form?",
+            es = "¿Qué capítulo o escena forman estas ideas?",
+        },
         group_questions = {
             en = {
                 "What narrative arc do these ideas form?",
@@ -75,6 +79,10 @@ M.configs = {
                 "¿Cuál es el núcleo emocional de la historia?",
             },
         },
+        group_prompt = {
+            en = "What story beat do these ideas form?",
+            es = "¿Qué momento narrativo forman estas ideas?",
+        },
         group_questions = {
             en = {
                 "What story beat does this group represent?",
@@ -115,6 +123,10 @@ M.configs = {
                 "¿Qué contraargumento debe abordarse?",
                 "¿Cómo se conecta con la tesis central?",
             },
+        },
+        group_prompt = {
+            en = "What central argument unites these ideas?",
+            es = "¿Cuál es el argumento central que une estas ideas?",
         },
         group_questions = {
             en = {
@@ -157,6 +169,10 @@ M.configs = {
                 "¿Cómo conecta con la conclusión principal?",
             },
         },
+        group_prompt = {
+            en = "What topic do these ideas summarize?",
+            es = "¿Qué tema resumen estas ideas?",
+        },
         group_questions = {
             en = {
                 "What topic does this group summarize?",
@@ -194,6 +210,14 @@ end
 function M.idea_questions(type_name, lang)
     local cfg = M.get(type_name)
     return cfg.idea_questions[lang] or cfg.idea_questions.en
+end
+
+--- Single orienting question for naming a group. Returns nil when the type
+--- defines none, so the caller can fall back to `group_name_hint`.
+function M.group_prompt(type_name, lang)
+    local entry = M.get(type_name).group_prompt
+    if not entry then return nil end
+    return entry[lang] or entry.en
 end
 
 function M.group_questions(type_name, lang)

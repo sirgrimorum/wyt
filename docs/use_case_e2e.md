@@ -217,12 +217,14 @@ Flow:
    - `El ruido urbano suprime la capacidad de escuchar el propio pensamiento`
    - `La arquitectura urbana moderna elimina espacios para la contemplación`
    - `Las ciudades medievales tenían plazas diseñadas para el silencio`
-3. Plugin shows guided question for `essay`:
-   *"¿Cuál es el argumento central que une estas ideas?"*
-4. Plugin asks: **Suggest group name with LLM? [y/N]**
-5. User types `y` → LLM suggests: `"El espacio urbano como destructor del silencio"`
-6. User accepts or edits the name
-7. Group is written to plan.wyt.md
+3. Plugin asks: **Suggest group name with LLM? [y/N]**
+4. Either way the name is asked with the guided question for `essay` as the
+   prompt: *"¿Cuál es el argumento central que une estas ideas?"*
+   - answered `n`, the prompt is empty and you name the group yourself
+   - answered `y`, the LLM suggestion arrives pre-filled in that same prompt,
+     `"El espacio urbano como destructor del silencio"`, ready to accept with
+     `<CR>` or edit in place
+5. Group is written to plan.wyt.md
 
 **Group section added:**
 ```markdown
