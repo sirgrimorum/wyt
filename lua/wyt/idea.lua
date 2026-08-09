@@ -48,10 +48,14 @@ local function run_guided(questions, project_type, callback)
             return
         end
         -- The question is the prompt; a second line just pushed the input away
-        -- from what it is answering.
-        local prompt = string.format("(%d/%d) %s %s",
-            i, #questions, questions[i], loc.t("question_skip_hint"))
-        vim.ui.input({ prompt = loc.pad(prompt) }, function(answer)
+        -- from what it is answering. A question too long for the prompt line
+        -- goes in a panel instead, and the counter stays on the prompt so the
+        -- writer still knows where they are in the run.
+        local counter = string.format("(%d/%d)", i, #questions)
+        local question = string.format("%s %s %s",
+            counter, questions[i], loc.t("question_skip_hint"))
+        local title = string.format("%s %s", counter, loc.t("answer_prompt"))
+        ui.ask_input({ title = title, question = question }, function(answer)
             -- nil is <Esc>: stop here and keep what has been answered.
             -- An empty string is a deliberate skip of this one question.
             if answer == nil then
@@ -134,20 +138,23 @@ function M.new_idea()
                 local edit  = loc.t("edit_result")
                 local again = loc.t("try_again")
                 local mine  = loc.t("keep_mine")
-                -- The generated sentence is too long for a select prompt, which
-                -- renders on one line; it goes in a panel and the prompt keeps a
-                -- short title. Without a float, fall back to the inline prompt.
-                local panel = ui.preview(loc.t("llm_result_title"), text)
-                local prompt = panel and loc.t("llm_result_action")
-                    or (loc.t("llm_result_title") .. ": " .. text)
-                vim.ui.select({ keep, edit, again, mine },
-                    { prompt = prompt },
+                -- A generated sentence is normally too long for a select prompt,
+                -- which renders on one line; it goes in a panel then and the
+                -- prompt keeps the short title.
+                ui.ask_select({
+                    title = loc.t("llm_result_title"),
+                    question = text,
+                    prompt = loc.t("llm_result_action"),
+                }, { keep, edit, again, mine },
                     function(choice)
-                        ui.close(panel)
                         if choice == keep then
                             on_done(text)
                         elseif choice == edit then
-                            vim.ui.input({ prompt = loc.prompt("llm_review_idea"), default = text }, function(edited)
+                            ui.ask_input({
+                                title = loc.t("llm_result_title"),
+                                question = loc.t("llm_review_idea"),
+                                default = text,
+                            }, function(edited)
                                 edited = edited and vim.trim(edited) or ""
                                 on_done(edited ~= "" and edited or text)
                             end)
@@ -165,12 +172,14 @@ function M.new_idea()
                 local items = vim.list_extend(vim.deepcopy(options), { skip })
                 -- In a guided batch the model asks about one idea out of
                 -- several, so the idea under discussion is shown above the
-                -- question rather than left for the writer to infer.
-                local panel = ui.preview(loc.t("llm_question_title"), idea_name)
-                local prompt = panel and question
-                    or (question .. " [" .. ui.truncate(idea_name, 40) .. "]")
-                vim.ui.select(items, { prompt = prompt }, function(answer)
-                    ui.close(panel)
+                -- question rather than left for the writer to infer. The model
+                -- writes the question, so it goes in the panel too instead of
+                -- being cut off as a prompt.
+                ui.ask_select({
+                    title = loc.t("llm_question_title"),
+                    question = idea_name .. "\n\n" .. question,
+                    prompt = loc.t("answer_prompt"),
+                }, items, function(answer)
                     if not answer or answer == skip then
                         -- nothing more to tell it; demand an answer this time
                         no_more_questions = true

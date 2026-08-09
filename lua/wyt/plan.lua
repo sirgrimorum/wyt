@@ -1,6 +1,7 @@
 local api = vim.api
 local project = require("wyt.project")
 local loc = require("wyt.localization")
+local ui = require("wyt.ui")
 
 local M = {}
 
@@ -42,7 +43,14 @@ end
 
 -- Pregunta si se debe re-implementar el grupo
 local function prompt_reimplement_group(current_plan_content, group_name, section_dir, sections_enabled, section_plan)
-    vim.ui.select({loc.t("yes"), loc.t("no")}, {prompt = loc.t("the_group") .. " '" .. group_name .. "' " .. loc.t("is_edited")}, function(choice)
+    -- The group name is the writer's own sentence-long text often enough that
+    -- the question outgrows a prompt; ask_select moves it into a panel then.
+    local question = loc.t("the_group") .. " '" .. group_name .. "' " .. loc.t("is_edited")
+    ui.ask_select({
+        title = loc.t("group_edited_title"),
+        question = question,
+        prompt = loc.t("reimplement"),
+    }, { loc.t("yes"), loc.t("no") }, function(choice)
         if choice == loc.t("yes") then
             project.implement_group(current_plan_content, group_name, section_dir, sections_enabled)
         end

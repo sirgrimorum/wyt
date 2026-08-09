@@ -38,6 +38,7 @@ end
 function M.search()
     local project = require("wyt.project")
     local loc = require("wyt.localization")
+    local ui = require("wyt.ui")
     if not project.setup() then return end
 
     local def_files = collect_definition_files(project, project.project_root)
@@ -75,7 +76,8 @@ function M.search()
         local labels = {}
         for _, m in ipairs(matches) do table.insert(labels, m.label) end
 
-        vim.ui.select(labels, { prompt = query }, function(choice)
+        -- The query is whatever the writer typed, so it can outgrow a prompt.
+        ui.ask_select({ title = loc.t("search_desc"), question = query }, labels, function(choice)
             if not choice then return end
             for _, m in ipairs(matches) do
                 if m.label == choice then
