@@ -57,10 +57,15 @@ Interactive wizard prompts:
 |--------|----------------|
 | Language | `es` |
 | Text type | `essay` |
-| Path | `/home/user/writing` |
-| Root folder name | `the-silence-of-cities` |
+| Path | `/home/user/writing` (pre-filled with the current directory) |
+| Project name | `The Silence of Cities` |
+| Root folder name | `the-silence-of-cities` (pre-filled with the slug; `.` = use the path itself) |
 | Content type | `content` |
 | Has sections? | `y` |
+| Open in | `Same window` |
+
+Every prompt after the Language step is shown in the language you picked, and
+`<Esc>` at any step cancels the wizard without creating anything.
 
 What happens automatically:
 - `/home/user/writing/the-silence-of-cities/` directory is created
@@ -76,6 +81,7 @@ lang: es
 type: essay
 content_type: content
 sections: true
+name: The Silence of Cities
 ```
 
 **Resulting `plan.wyt.md`:**
