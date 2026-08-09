@@ -4,6 +4,7 @@ local llm = require("wyt.llm")
 local project = require("wyt.project")
 local plan = require("wyt.plan")
 local group = require("wyt.group")
+local ui = require("wyt.ui")
 
 local M = {}
 
@@ -113,9 +114,16 @@ function M.new_idea()
                 local edit  = loc.t("edit_result")
                 local again = loc.t("try_again")
                 local mine  = loc.t("keep_mine")
+                -- The generated sentence is too long for a select prompt, which
+                -- renders on one line; it goes in a panel and the prompt keeps a
+                -- short title. Without a float, fall back to the inline prompt.
+                local panel = ui.preview(loc.t("llm_result_title"), text)
+                local prompt = panel and loc.t("llm_result_action")
+                    or (loc.t("llm_result_title") .. ": " .. text)
                 vim.ui.select({ keep, edit, again, mine },
-                    { prompt = loc.t("llm_result_prompt") .. text },
+                    { prompt = prompt },
                     function(choice)
+                        ui.close(panel)
                         if choice == keep then
                             on_done(text)
                         elseif choice == edit then

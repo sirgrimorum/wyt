@@ -135,8 +135,9 @@ Flow:
    *"¿Qué argumento o perspectiva quieres explorar en este ensayo?"*
 3. User types: `El ruido urbano suprime la capacidad de escuchar el propio pensamiento`
 4. Plugin asks: **Improve with LLM? [y/N]**
-5. User types `y`. The LLM refines the sentence and the result is offered as a
-   menu, never applied on its own:
+5. User types `y`. The refined sentence appears in full in a panel titled
+   *Idea mejorada* above the menu, and the menu decides what happens to it. The
+   result is never applied on its own:
 
    | Option | Effect |
    |--------|--------|
