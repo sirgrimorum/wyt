@@ -76,7 +76,7 @@ function M.search()
             if not choice then return end
             for _, m in ipairs(matches) do
                 if m.label == choice then
-                    vim.cmd("edit " .. vim.fn.fnameescape(m.path))
+                    ui.edit_file(m.path)
                     vim.api.nvim_win_set_cursor(0, { m.lnum, 0 })
                     vim.cmd("normal! zz")
                     return

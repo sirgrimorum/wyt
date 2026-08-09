@@ -60,7 +60,7 @@ function M.navigate()
         if not choice then return end
         for _, e in ipairs(entries) do
             if e.label == choice and e.path then
-                vim.cmd("edit " .. vim.fn.fnameescape(e.path))
+                require("wyt.ui").edit_file(e.path)
                 return
             end
         end

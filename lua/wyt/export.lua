@@ -75,7 +75,7 @@ function M.export()
     project.commit_changes("Export: " .. title)
 
     vim.notify(loc.t("export_generated") .. export_path, vim.log.levels.INFO)
-    vim.cmd("edit " .. vim.fn.fnameescape(export_path))
+    require("wyt.ui").edit_file(export_path)
 end
 
 return M
