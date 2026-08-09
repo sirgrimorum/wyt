@@ -1,6 +1,8 @@
 local uv = vim.uv or vim.loop  -- O2: vim.loop is deprecated in Neovim 0.10+
 local api = vim.api
 local loc = require("wyt.localization")
+local ui = require("wyt.ui")
+local types = require("wyt.types")
 local M = {}
 
 -- O10: per-buffer root cache; avoids re-walking the directory tree on every command
@@ -141,7 +143,32 @@ end
 function M.get_project_type()
     local config_content = M.read_file(M.config_path)
     if not config_content then return "essay" end
-    return config_content:match("type:%s*(%w+)") or "essay"
+    -- `%w` excludes `_`, so this used to read `short_story` as `short` and fall
+    -- back to essay for every type whose name has an underscore. The frontier
+    -- keeps the key itself from matching the tail of `content_type:`.
+    return config_content:match("%f[%w_]type:%s*([%w_]+)") or "essay"
+end
+
+--- Level of `dir` in the section tree: the project root is level 1, a section
+--- created inside it level 2, and so on. Compared against the type's
+--- `section_depth` to decide whether a new section may hold sub-sections.
+function M.section_level(dir)
+    local root = M.project_root
+    if not root or root == "" then return 1 end
+    -- F13 again: the two paths can disagree on the separator, so normalise
+    -- before measuring one against the other.
+    local norm = function(p) return (p:gsub("\\", "/")) end
+    local rel = norm(dir):sub(#norm(root) + 1)
+    local level = 1
+    for _ in rel:gmatch("[^/]+") do level = level + 1 end
+    return level
+end
+
+--- True when `section_dir` holds definitions rather than text of its own:
+--- reference material the writer searches, kept out of the export.
+function M.is_definition_section(section_dir)
+    local cfg = M.read_file(section_dir .. "config.wyt.yml") or ""
+    return cfg:match("content_type:%s*definition") ~= nil
 end
 
 local function mkdir(path)
@@ -202,7 +229,7 @@ function M.new_project()
     vim.ui.select({"en", "es"}, {prompt = loc.t("choose_lang")}, function(lang)
         if not lang then return cancelled() end
         opts.lang = lang
-        vim.ui.select({"novel", "short_story", "essay", "summary"}, {prompt = t("choose_type")}, function(type)
+        vim.ui.select(types.names(), {prompt = t("choose_type")}, function(type)
             if not type then return cancelled() end
             opts.type = type
             vim.ui.input({prompt = p("choose_path"), default = vim.fn.getcwd()}, function(base_path)
@@ -225,9 +252,7 @@ function M.new_project()
                         vim.ui.select({t("content"), t("definition")}, {prompt = t("choose_content_type")}, function(content_type)
                             if not content_type then return cancelled() end
                             opts.content_type = content_type == t("content") and "content" or "definition"
-                            vim.ui.select({t("yes"), t("no")}, {prompt = t("has_sections")}, function(has_sections)
-                                if not has_sections then return cancelled() end
-                                opts.sections = has_sections == t("yes")
+                            local function ask_where_to_open()
                                 vim.ui.select({t("same_window"), t("new_window")}, {prompt = t("open_where")}, function(open_where)
                                     if not open_where then return cancelled() end
                                     mkdir(root)
@@ -257,7 +282,21 @@ function M.new_project()
                                     -- O6: vim.notify instead of print
                                     vim.notify(t("project_created") .. root, vim.log.levels.INFO)
                                 end)
-                            end)
+                            end
+
+                            -- Only types that allow more than one plan level can
+                            -- have sub-sections, so the others are not asked a
+                            -- question with one possible answer.
+                            if types.section_depth(opts.type) > 1 then
+                                vim.ui.select({t("yes"), t("no")}, {prompt = t("has_sections")}, function(has_sections)
+                                    if not has_sections then return cancelled() end
+                                    opts.sections = has_sections == t("yes")
+                                    ask_where_to_open()
+                                end)
+                            else
+                                opts.sections = false
+                                ask_where_to_open()
+                            end
                         end)
                     end)
                 end)
@@ -318,34 +357,68 @@ function M.get_groups(plan_content)
     return groups
 end
 
-function M.implement_group(current_plan_content, group_name, section_dir, sections_enabled)
+--- Turn a group into a section, or into text when the section holds no
+--- sub-sections. `on_done` runs once the files are on disk; a new section asks
+--- the writer what it holds first, so it never runs if they cancel.
+function M.implement_group(current_plan_content, group_name, section_dir, sections_enabled, on_done)
     local current_section_dir = M.get_section_dir()
     local ideas = M.get_ideas(current_plan_content, "## " .. M.t("group_tag") .. ": " .. group_name)
     if sections_enabled then
         local slug = slugify(group_name)
         local group_section_dir = section_dir .. slug .. "/"
-        mkdir(group_section_dir)
-        local plan_path = group_section_dir .. "plan.wyt.md"
-        -- O4: fs_stat instead of vim.fn.filereadable
-        if uv.fs_stat(plan_path) then
-            if uv.fs_stat(group_section_dir .. "plan.old.wyt.md") then
-                vim.fn.delete(group_section_dir .. "plan.old.wyt.md")
-            end
-            vim.fn.rename(plan_path, group_section_dir .. "plan.old.wyt.md")
-        end
-        if not uv.fs_stat(plan_path) then
-            local plan_content = "# " .. group_name .. "\n\n## " .. M.t("ideas_section") .. "\n"
-            for _, idea in ipairs(ideas) do
-                plan_content = plan_content .. "\n\n## " .. M.t("group_tag") .. ": " .. idea .. "\n"
-            end
-            M.write_file(plan_path, plan_content)
-        end
         local config_path = group_section_dir .. "config.wyt.yml"
-        if not uv.fs_stat(config_path) then
-            M.write_file(config_path, "type: content\nsections: false\n")
+
+        -- `content_type` is nil when the section already has a config: an
+        -- existing section keeps the answer it was created with.
+        local function build(content_type)
+            mkdir(group_section_dir)
+            local plan_path = group_section_dir .. "plan.wyt.md"
+            -- O4: fs_stat instead of vim.fn.filereadable
+            if uv.fs_stat(plan_path) then
+                if uv.fs_stat(group_section_dir .. "plan.old.wyt.md") then
+                    vim.fn.delete(group_section_dir .. "plan.old.wyt.md")
+                end
+                vim.fn.rename(plan_path, group_section_dir .. "plan.old.wyt.md")
+            end
+            if not uv.fs_stat(plan_path) then
+                local plan_content = "# " .. group_name .. "\n\n## " .. M.t("ideas_section") .. "\n"
+                for _, idea in ipairs(ideas) do
+                    plan_content = plan_content .. "\n\n## " .. M.t("group_tag") .. ": " .. idea .. "\n"
+                end
+                M.write_file(plan_path, plan_content)
+            end
+            if content_type then
+                -- `type` is the literary type, inherited from the project, not
+                -- the content type: a section of an essay is still an essay.
+                -- Whether this one may hold sub-sections is the type's business:
+                -- a long novel nests parts inside books, a summary nests nothing.
+                local project_type = M.get_project_type()
+                local nests = M.section_level(group_section_dir) < types.section_depth(project_type)
+                M.write_file(config_path, string.format(
+                    "type: %s\ncontent_type: %s\nsections: %s\n",
+                    project_type, content_type, tostring(nests)))
+            end
+            current_plan_content = M.mark_group_status(current_plan_content, group_name, "implemented")
+            update_changes_in_buffer(current_section_dir .. "plan.wyt.md", current_plan_content)
+            M.commit_changes("Implement group: " .. group_name)
+            if on_done then on_done() end
         end
-        current_plan_content = M.mark_group_status(current_plan_content, group_name, "implemented")
-        update_changes_in_buffer(current_section_dir .. "plan.wyt.md", current_plan_content)
+
+        if uv.fs_stat(config_path) then
+            build(nil)
+        else
+            -- A section either carries text of its own or defines terms the
+            -- other sections refer to. Only the writer knows which, and the
+            -- answer is what keeps definitions out of the export and inside
+            -- :WYTSearch, so it is asked before anything is written.
+            ui.ask_select({
+                title = M.t("section_type"),
+                question = M.t("choose_section_content_type") .. " '" .. group_name .. "'",
+            }, { M.t("content"), M.t("definition") }, function(choice)
+                if not choice then return end
+                build(choice == M.t("content") and "content" or "definition")
+            end)
+        end
     else
         local text_path = section_dir .. "text.wyt.md"
         -- O4: fs_stat instead of vim.fn.filereadable
@@ -383,8 +456,15 @@ function M.implement_group(current_plan_content, group_name, section_dir, sectio
             previous_content = text_content
         end
         local new_block = "\n\n## " .. M.t("group_tag") .. ": " .. group_name .. "\n"
-        for _, idea in ipairs(ideas) do
-            new_block = new_block .. "\n\n*" .. M.t("create_paragraph") .. "[" .. idea .. "]*\n"
+        if types.multi_idea_paragraph(M.get_project_type()) and #ideas > 0 then
+            -- A summary condenses: the whole group becomes one paragraph, so it
+            -- gets one placeholder holding every idea the writer has to fold in.
+            new_block = new_block .. "\n\n*" .. M.t("create_paragraph")
+                .. "[" .. table.concat(ideas, "; ") .. "]*\n"
+        else
+            for _, idea in ipairs(ideas) do
+                new_block = new_block .. "\n\n*" .. M.t("create_paragraph") .. "[" .. idea .. "]*\n"
+            end
         end
         local new_text = previous_content
         for _, gname in ipairs(group_order) do
@@ -402,8 +482,9 @@ function M.implement_group(current_plan_content, group_name, section_dir, sectio
         M.write_file(text_path, new_text)
         current_plan_content = M.mark_group_status(current_plan_content, group_name, "implemented")
         update_changes_in_buffer(current_section_dir .. "plan.wyt.md", current_plan_content)
+        M.commit_changes("Implement group: " .. group_name)
+        if on_done then on_done() end
     end
-    M.commit_changes("Implement group: " .. group_name)
 end
 
 return M

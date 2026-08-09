@@ -15,6 +15,11 @@ local function collect_text(project_mod, section_dir, depth)
     local text_path   = section_dir .. "text.wyt.md"
     local plan_path   = section_dir .. "plan.wyt.md"
 
+    -- A definition section is reference material: searchable while writing,
+    -- never part of the exported text. The root is the project itself, so it is
+    -- the one config this never applies to.
+    if depth > 0 and project_mod.is_definition_section(section_dir) then return "" end
+
     if sections_enabled(config_path, project_mod) then
         local plan_content = project_mod.read_file(plan_path) or ""
         local groups = project_mod.get_groups(plan_content)
