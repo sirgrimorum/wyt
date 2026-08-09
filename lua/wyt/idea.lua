@@ -21,11 +21,6 @@ local function multi_select(...)
     return require("wyt.group").multi_select(...)
 end
 
-local function truncate(str, width)
-    if vim.fn.strdisplaywidth(str) <= width then return str end
-    return vim.fn.strcharpart(str, 0, width - 1) .. "…"
-end
-
 -- A section's plan is not the root plan; the orienting question differs there.
 local function in_subsection()
     return project.section_plan_path ~= "" and project.section_plan_path ~= project.plan_path
@@ -173,7 +168,7 @@ function M.new_idea()
                 -- question rather than left for the writer to infer.
                 local panel = ui.preview(loc.t("llm_question_title"), idea_name)
                 local prompt = panel and question
-                    or (question .. " [" .. truncate(idea_name, 40) .. "]")
+                    or (question .. " [" .. ui.truncate(idea_name, 40) .. "]")
                 vim.ui.select(items, { prompt = prompt }, function(answer)
                     ui.close(panel)
                     if not answer or answer == skip then
@@ -254,9 +249,7 @@ function M.new_idea()
             -- idea, plus the file message from :edit, overflowed it and forced
             -- Neovim's "Press ENTER" prompt, which reads as one more step.
             if #ideas_list == 1 then
-                local prefix = loc.t("idea_added")
-                local budget = math.max(20, vim.o.columns - vim.fn.strdisplaywidth(prefix) - 2)
-                vim.notify(prefix .. truncate(ideas_list[1], budget), vim.log.levels.INFO)
+                vim.notify(ui.fit_message(loc.t("idea_added"), ideas_list[1]), vim.log.levels.INFO)
             else
                 vim.notify(string.format(loc.t("ideas_added_count"), #ideas_list), vim.log.levels.INFO)
             end

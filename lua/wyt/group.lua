@@ -2,6 +2,7 @@ local api = vim.api
 local loc = require("wyt.localization")
 local project = require("wyt.project")
 local plan = require("wyt.plan")
+local ui = require("wyt.ui")
 
 local M = {}
 
@@ -183,7 +184,9 @@ function M.new_group(line1, line2)
 
     local function proceed_group()
         local function finish(group_name)
-            vim.cmd("e! " .. vim.fn.fnameescape(project.section_plan_path))  -- F5
+            -- silent: the file message from :edit, stacked on the confirmation,
+            -- overflows the command line into a "Press ENTER" prompt
+            vim.cmd("silent edit! " .. vim.fn.fnameescape(project.section_plan_path))  -- F5
             if group_name and group_name ~= "" then
                 local group_header = "## " .. project.t("group_tag") .. ": " .. group_name
                 local lines = api.nvim_buf_get_lines(0, 0, -1, false)
@@ -201,64 +204,56 @@ function M.new_group(line1, line2)
             vim.cmd("normal! zz")
         end
         local function new_group_name()
-            -- P14: show guided questions for group naming
             local types_mod = require("wyt.types")
+            local llm = require("wyt.llm")
             local project_type = project.get_project_type()
-            local questions = types_mod.group_questions(project_type, project.lang)
-            if #questions > 0 then
-                local hint = loc.t("guided_questions_title") .. project_type .. ":\n"
-                for i, q in ipairs(questions) do
-                    hint = hint .. "  " .. i .. ". " .. q .. "\n"
+            -- P14: one orienting question, used as the prompt for the name.
+            -- The numbered list of group questions made no sense here: the
+            -- writer names one group, they do not answer each question in turn.
+            local prompt = loc.pad(
+                types_mod.group_prompt(project_type, project.lang)
+                    or types_mod.group_name_hint(project_type, project.lang)
+            )
+
+            local function create_with(name)
+                name = name and vim.trim(name) or ""
+                if name == "" then return end
+                local updated_content = plan_content
+                for _, idea in ipairs(selected_ideas) do
+                    updated_content = plan.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. name, idea)
                 end
-                vim.notify(hint, vim.log.levels.INFO)
+                updated_content = M.mark_ideas_as_grouped(updated_content, selected_ideas, name)
+                project.write_file(project.section_plan_path, updated_content)
+                project.commit_changes("Created group: " .. name)
+                vim.notify(ui.fit_message(loc.t("group_created"), name), vim.log.levels.INFO)
+                finish(name)
             end
-            local name_hint = loc.pad(types_mod.group_name_hint(project_type, project.lang))
+
+            -- Both branches ask the same question; the LLM one only pre-fills
+            -- the answer, so the suggestion is edited in place or accepted.
+            local function ask_name(suggested)
+                vim.ui.input({ prompt = prompt, default = suggested }, function(name)
+                    if (not name or vim.trim(name) == "") and suggested then
+                        name = suggested
+                    end
+                    create_with(name)
+                end)
+            end
+
             vim.ui.select({ loc.t("yes"), loc.t("no") }, { prompt = loc.t("use_llm") }, function(use_llm)
                 if use_llm == loc.t("yes") and #selected_ideas > 0 then
                     vim.notify(loc.t("llm_generating"), vim.log.levels.INFO)
-                    require("wyt.llm").suggest_group_name(selected_ideas, project_type, project.lang, function(suggested, err)
-                        if err or not suggested or suggested == "" then
-                            if err then vim.notify(loc.t("llm_error") .. err, vim.log.levels.WARN) end
-                            vim.ui.input({ prompt = name_hint }, function(name)
-                                if not name or name == "" then return end
-                                local updated_content = plan_content
-                                for _, idea in ipairs(selected_ideas) do
-                                    updated_content = plan.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. name, idea)
-                                end
-                                updated_content = M.mark_ideas_as_grouped(updated_content, selected_ideas, name)
-                                project.write_file(project.section_plan_path, updated_content)
-                                project.commit_changes("Created group: " .. name)
-                                vim.notify(loc.t("group_created") .. name, vim.log.levels.INFO)
-                                finish(name)
-                            end)
-                        else
-                            vim.ui.input({ prompt = name_hint, default = suggested }, function(name)
-                                if not name or name == "" then name = suggested end
-                                local updated_content = plan_content
-                                for _, idea in ipairs(selected_ideas) do
-                                    updated_content = plan.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. name, idea)
-                                end
-                                updated_content = M.mark_ideas_as_grouped(updated_content, selected_ideas, name)
-                                project.write_file(project.section_plan_path, updated_content)
-                                project.commit_changes("Created group: " .. name)
-                                vim.notify(loc.t("group_created") .. name, vim.log.levels.INFO)
-                                finish(name)
-                            end)
+                    llm.suggest_group_name(selected_ideas, project_type, project.lang, function(suggested, err)
+                        if err then vim.notify(loc.t("llm_error") .. err, vim.log.levels.WARN) end
+                        -- A name that is really a question is no name at all
+                        if suggested and suggested ~= "" and llm.looks_like_question(suggested) then
+                            vim.notify(loc.t("llm_returned_question"), vim.log.levels.WARN)
+                            suggested = nil
                         end
+                        ask_name(suggested ~= "" and suggested or nil)
                     end)
                 else
-                    vim.ui.input({ prompt = name_hint }, function(name)
-                        if not name or name == "" then return end
-                        local updated_content = plan_content
-                        for _, idea in ipairs(selected_ideas) do
-                            updated_content = plan.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. name, idea)
-                        end
-                        updated_content = M.mark_ideas_as_grouped(updated_content, selected_ideas, name)
-                        project.write_file(project.section_plan_path, updated_content)
-                        project.commit_changes("Created group: " .. name)
-                        vim.notify(loc.t("group_created") .. name, vim.log.levels.INFO)
-                        finish(name)
-                    end)
+                    ask_name(nil)
                 end
             end)
         end

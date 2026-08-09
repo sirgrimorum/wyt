@@ -4,6 +4,19 @@
 -- the prompt keeps a short, fixed title.
 local M = {}
 
+--- Shorten `str` to `width` display cells, ellipsis included.
+function M.truncate(str, width)
+    if vim.fn.strdisplaywidth(str) <= width then return str end
+    return vim.fn.strcharpart(str, 0, width - 1) .. "…"
+end
+
+--- Fit `text` after `prefix` on one command line, so a confirmation never
+--- overflows into Neovim's "Press ENTER" prompt.
+function M.fit_message(prefix, text)
+    local budget = math.max(20, vim.o.columns - vim.fn.strdisplaywidth(prefix) - 2)
+    return prefix .. M.truncate(text, budget)
+end
+
 --- Word-wrap `text` to `width` display cells. Multibyte safe.
 function M.wrap(text, width)
     local lines = {}
