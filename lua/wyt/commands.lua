@@ -8,13 +8,29 @@ function M.setup_command()
     vim.api.nvim_create_user_command("WYTConfig", function(args)
         -- O1: lazy require
         local config = require("wyt.config")
-        if #args.fargs ~= 2 then
+        if #args.fargs < 1 or #args.fargs > 2 then
             -- O6: vim.notify instead of print
-            vim.notify(loc.t("config_usage") or "[WYT] Usage: :WYTConfig <provider> <api_key>", vim.log.levels.WARN)
+            vim.notify(loc.t("config_usage") or "[WYT] Usage: :WYTConfig <provider> [api_key]", vim.log.levels.WARN)
             return
         end
         local provider = args.fargs[1]
         local key = args.fargs[2]
+        if key then
+            -- Typing the key on the command line writes it to :history, which
+            -- Neovim persists to the shada file. Scrub both entries.
+            vim.notify(
+                "[WYT] Key passed on the command line — prefer :WYTConfig " .. provider .. " and enter it at the prompt.",
+                vim.log.levels.WARN
+            )
+            vim.fn.histdel("cmd", -1)
+            vim.fn.histdel(":", "WYTConfig")
+        else
+            key = vim.fn.inputsecret("API key for " .. provider .. ": ")
+            if key == "" then
+                vim.notify("[WYT] Cancelled — provider unchanged.", vim.log.levels.WARN)
+                return
+            end
+        end
         config.setup({ llm_provider = provider, api_key = key })
         vim.notify(loc.t("config_updated") .. provider, vim.log.levels.INFO)
     end, {

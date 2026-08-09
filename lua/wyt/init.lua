@@ -8,6 +8,7 @@ function M.setup(opts)
     if not pcall(require, "telescope") then
         -- print("[WYT] Warning: telescope.nvim is required for multi-selection.\n")
     end
+    require("wyt.config").setup(opts)
     commands.setup()
     autocmd.setup()
     mappings.setup()
