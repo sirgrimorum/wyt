@@ -152,13 +152,47 @@ local function first_meaningful_line(text)
     return vim.trim((text:gsub("%s+", " ")))
 end
 
+-- Lua patterns are byte-oriented, so a character class holding multibyte
+-- punctuation ("«", "•") also matches those characters' individual bytes. `¿`
+-- is 0xC2 0xBF and `«` is 0xC2 0xAB, so `[«]` ate the 0xC2 off every Spanish
+-- question, leaving a broken byte. Quote and bullet markers are matched as
+-- whole tokens instead.
+local BULLETS = { "- ", "* ", "• ", "– ", "— " }
+local OPEN_QUOTES = { '"', "'", "“", "«", "‘" }
+local CLOSE_QUOTES = { '"', "'", "”", "»", "’" }
+
+local function strip_wrapping_quotes(s)
+    local changed = true
+    while changed do
+        changed = false
+        for _, q in ipairs(OPEN_QUOTES) do
+            if s:sub(1, #q) == q then
+                s = s:sub(#q + 1)
+                changed = true
+            end
+        end
+        for _, q in ipairs(CLOSE_QUOTES) do
+            if #s >= #q and s:sub(-#q) == q then
+                s = s:sub(1, #s - #q)
+                changed = true
+            end
+        end
+    end
+    return s
+end
+
 local function strip_decoration(line)
-    line = line:gsub("^%s*[-*•]%s+", "")        -- bullet marker
-    line = line:gsub("^%s*%d+[%.%)]%s+", "")    -- "1. " / "1) "
-    line = line:gsub("^%*+(.-)%*+$", "%1")      -- **bold**
-    line = line:gsub('^["\'“”«]+', '')
-    line = line:gsub('["\'“”»]+$', '')
-    return vim.trim(line)
+    line = vim.trim(line)
+    for _, b in ipairs(BULLETS) do
+        if line:sub(1, #b) == b then
+            line = vim.trim(line:sub(#b + 1))
+            break
+        end
+    end
+    line = line:gsub("^%d+[%.%)]%s+", "")       -- "1. " / "1) "
+    line = line:gsub("^%*%*(.-)%*%*$", "%1")    -- **bold**
+    line = line:gsub("^%*(.-)%*$", "%1")        -- *italic*
+    return vim.trim(strip_wrapping_quotes(line))
 end
 
 --- Collapse an LLM reply to the single clean line the caller can store.
@@ -174,35 +208,128 @@ function M.looks_like_question(text)
     return text:match("%?%s*$") ~= nil or text:match("^%s*¿") ~= nil
 end
 
--- Convenience wrapper: improve a single idea sentence.
--- `context` is optional project context (type, description).
-function M.improve_idea(idea_text, lang, callback, context)
-    local parts = {}
-    if lang == "es" then
-        parts[#parts + 1] = "Reescribe la idea delimitada por <idea> como UNA sola oración clara y concisa en español."
-        if context and context ~= "" then
-            parts[#parts + 1] = "Contexto del proyecto: " .. context
-        end
-        parts[#parts + 1] = "Responde únicamente con la oración reescrita, en una sola línea."
-        parts[#parts + 1] = "No añadas introducción, comillas, viñetas, explicaciones ni comentarios."
-        parts[#parts + 1] = "No pidas aclaraciones ni hagas preguntas: si la idea es vaga, reescríbela tal como está."
-    else
-        parts[#parts + 1] = "Rewrite the idea delimited by <idea> as ONE clear, concise sentence in English."
-        if context and context ~= "" then
-            parts[#parts + 1] = "Project context: " .. context
-        end
-        parts[#parts + 1] = "Reply with the rewritten sentence only, on a single line."
-        parts[#parts + 1] = "Do not add preamble, quotes, bullets, explanations or commentary."
-        parts[#parts + 1] = "Never ask for clarification: if the idea is vague, rewrite it as it stands."
-    end
-    parts[#parts + 1] = "<idea>" .. idea_text .. "</idea>"
+-- Pull the first JSON object out of a reply that may still carry fences or prose.
+local function extract_json(text)
+    text = text:gsub("```%w*", ""):gsub("```", "")
+    local first = text:find("{", 1, true)
+    local last = text:reverse():find("}", 1, true)
+    if not first or not last then return nil end
+    local ok, data = pcall(vim.json.decode, text:sub(first, #text - last + 1))
+    if ok and type(data) == "table" then return data end
+    return nil
+end
 
-    M.generate_text(table.concat(parts, "\n"), function(result, err)
-        if err or not result then
+-- A clarifying question is only useful if it can be answered from a menu, so
+-- the options are capped in both count and length before they reach the UI.
+local function normalize_options(list)
+    if type(list) ~= "table" then return nil end
+    local out = {}
+    for _, v in ipairs(list) do
+        if type(v) == "string" then
+            local words = {}
+            for w in M.to_single_line(v):gmatch("%S+") do
+                words[#words + 1] = w
+                if #words == 4 then break end
+            end
+            local option = table.concat(words, " ")
+            if option ~= "" then out[#out + 1] = option end
+        end
+        if #out == 4 then break end
+    end
+    -- one option is not a choice; fall through to the plain-text path instead
+    if #out < 2 then return nil end
+    return out
+end
+
+local function build_improve_prompt(idea_text, lang, opts)
+    local p = {}
+    if lang == "es" then
+        p[#p + 1] = "Reescribe la idea delimitada por <idea> como UNA sola oración clara y concisa en español."
+        if opts.context and opts.context ~= "" then
+            p[#p + 1] = "Contexto del proyecto: " .. opts.context
+        end
+        for _, qa in ipairs(opts.answers or {}) do
+            p[#p + 1] = "Ya preguntaste: " .. qa.question .. " El autor respondió: " .. qa.answer
+        end
+        if opts.avoid and opts.avoid ~= "" then
+            p[#p + 1] = "Propón una versión claramente distinta de esta: " .. opts.avoid
+        end
+        p[#p + 1] = "Responde SOLO con un objeto JSON, sin texto adicional ni bloques de código."
+        if opts.no_questions then
+            p[#p + 1] = 'Formato obligatorio: {"idea": "la oración reescrita"}. No hagas preguntas.'
+        else
+            p[#p + 1] = 'Formato normal: {"idea": "la oración reescrita"}.'
+            p[#p + 1] = "Prefiere reescribir. Solo si la idea es imposible de interpretar, responde:"
+            p[#p + 1] = '{"question": "pregunta breve", "options": ["opción corta", "otra opción"]}'
+            p[#p + 1] = "Cada opción: 3 palabras como máximo. Entre 2 y 4 opciones. Una sola pregunta."
+        end
+        p[#p + 1] = "No pongas comillas, viñetas ni explicaciones dentro de los valores."
+    else
+        p[#p + 1] = "Rewrite the idea delimited by <idea> as ONE clear, concise sentence in English."
+        if opts.context and opts.context ~= "" then
+            p[#p + 1] = "Project context: " .. opts.context
+        end
+        for _, qa in ipairs(opts.answers or {}) do
+            p[#p + 1] = "You already asked: " .. qa.question .. " The author answered: " .. qa.answer
+        end
+        if opts.avoid and opts.avoid ~= "" then
+            p[#p + 1] = "Propose a clearly different version from this one: " .. opts.avoid
+        end
+        p[#p + 1] = "Reply with a JSON object ONLY, no extra text and no code fences."
+        if opts.no_questions then
+            p[#p + 1] = 'Required format: {"idea": "the rewritten sentence"}. Do not ask questions.'
+        else
+            p[#p + 1] = 'Normal format: {"idea": "the rewritten sentence"}.'
+            p[#p + 1] = "Prefer rewriting. Only if the idea is impossible to interpret, reply:"
+            p[#p + 1] = '{"question": "short question", "options": ["short option", "another option"]}'
+            p[#p + 1] = "Each option: 3 words maximum. Between 2 and 4 options. One question only."
+        end
+        p[#p + 1] = "Do not put quotes, bullets or explanations inside the values."
+    end
+    p[#p + 1] = "<idea>" .. idea_text .. "</idea>"
+    return table.concat(p, "\n")
+end
+
+--- Improve a single idea sentence.
+--- `opts` may carry { context, answers = {{question, answer}}, avoid, no_questions }.
+--- On success the callback receives a table:
+---   { kind = "idea",     text = "..." }
+---   { kind = "question", question = "...", options = { "...", ... } }
+--- A reply that is neither valid JSON nor a usable question degrades to `idea`
+--- with the sanitized text, which the caller screens with looks_like_question.
+function M.improve_idea(idea_text, lang, callback, opts)
+    opts = opts or {}
+    M.generate_text(build_improve_prompt(idea_text, lang, opts), function(raw, err)
+        if err or not raw then
             callback(nil, err)
             return
         end
-        callback(M.to_single_line(result), nil)
+        local data = extract_json(raw)
+        if data then
+            if type(data.question) == "string" and data.question ~= "" then
+                local options = normalize_options(data.options)
+                if options then
+                    callback({
+                        kind = "question",
+                        question = M.to_single_line(data.question),
+                        options = options,
+                    })
+                    return
+                end
+            end
+            -- Structured reply we cannot use: a question with no pickable
+            -- options, or neither field. Reporting it beats storing raw JSON.
+            if type(data.idea) ~= "string" or data.idea == "" then
+                callback({ kind = "unusable" })
+                return
+            end
+        end
+        local text = M.to_single_line(data and data.idea or raw)
+        if text == "" then
+            callback(nil, "empty response")
+            return
+        end
+        callback({ kind = "idea", text = text })
     end)
 end
 

@@ -135,8 +135,17 @@ Flow:
    *"¿Qué argumento o perspectiva quieres explorar en este ensayo?"*
 3. User types: `El ruido urbano suprime la capacidad de escuchar el propio pensamiento`
 4. Plugin asks: **Improve with LLM? [y/N]**
-5. User types `y` — the LLM refines the sentence and the result comes back in an
-   editable prompt. Accept it, edit it, or clear it to keep your own wording.
+5. User types `y`. The LLM refines the sentence and the result is offered as a
+   menu, never applied on its own:
+
+   | Option | Effect |
+   |--------|--------|
+   | Keep this version | store the generated sentence |
+   | Edit this version | open it in an input, pre-filled, to adjust |
+   | Generate another | ask again for a clearly different version |
+   | Keep my original | discard the generation, store what you typed |
+
+   `<Esc>` is the same as *Keep my original*.
 6. Plugin asks: **Add to group? [y/N]**  — User types `n` (no group yet)
 7. Idea is appended to `## Ideas`
 
@@ -144,8 +153,17 @@ The second mode, **Answer guided questions**, lists every question for the type
 and turns each answer into its own idea. With LLM improvement on, each collected
 idea is refined and reviewed in turn.
 
-The refined idea is always stored as a single line. If the model replies with a
-clarifying question instead of a rewrite, WYT reports it and keeps your text.
+### If the model needs a clarification
+
+The prompt tells the model to rewrite rather than ask. When an idea really is
+ambiguous, it may reply with one short question and 2 to 4 short options, which
+WYT shows as a normal selection menu plus **Skip / not sure**. Your answer is
+fed back into the next attempt. Skipping, or a second question, forces the model
+to commit to a rewrite.
+
+The idea is always stored as a single line. If the model replies with a question
+it cannot render as a menu, or with anything else unusable, WYT reports it and
+keeps your text.
 
 ### 4b. More ideas (repeat `:WYTNew i`)
 
