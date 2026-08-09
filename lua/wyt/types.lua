@@ -1,8 +1,20 @@
 -- P3: per-text-type configuration — guided questions, paragraph behavior, section depth
 local M = {}
 
+-- `idea_prompt` is the single orienting question shown when adding one free-form
+-- idea; `subsection_idea_prompt` replaces it inside a section, where the writer
+-- is filling in a part rather than opening a new line of thought. The multi-item
+-- `idea_questions` list is only used by the guided brainstorming mode.
 M.configs = {
     novel = {
+        idea_prompt = {
+            en = "What happens next in your story?",
+            es = "¿Qué ocurre a continuación en tu historia?",
+        },
+        subsection_idea_prompt = {
+            en = "What detail or moment brings this scene to life?",
+            es = "¿Qué detalle o momento da vida a esta escena?",
+        },
         idea_questions = {
             en = {
                 "What happens in this scene or chapter?",
@@ -41,6 +53,14 @@ M.configs = {
     },
 
     short_story = {
+        idea_prompt = {
+            en = "What moment or image do you want to capture?",
+            es = "¿Qué momento o imagen quieres capturar?",
+        },
+        subsection_idea_prompt = {
+            en = "What detail reveals this moment?",
+            es = "¿Qué detalle revela este momento?",
+        },
         idea_questions = {
             en = {
                 "What is the central image or moment?",
@@ -74,6 +94,14 @@ M.configs = {
     },
 
     essay = {
+        idea_prompt = {
+            en = "What argument or perspective do you want to explore in this essay?",
+            es = "¿Qué argumento o perspectiva quieres explorar en este ensayo?",
+        },
+        subsection_idea_prompt = {
+            en = "What evidence or example best illustrates this part?",
+            es = "¿Qué evidencia o ejemplo ilustra mejor esta parte?",
+        },
         idea_questions = {
             en = {
                 "What argument or claim does this idea support?",
@@ -107,6 +135,14 @@ M.configs = {
     },
 
     summary = {
+        idea_prompt = {
+            en = "What key point do you want to record?",
+            es = "¿Qué punto clave quieres registrar?",
+        },
+        subsection_idea_prompt = {
+            en = "What supporting detail belongs here?",
+            es = "¿Qué detalle de apoyo va aquí?",
+        },
         idea_questions = {
             en = {
                 "What key point must the reader take away?",
@@ -143,6 +179,16 @@ M.configs = {
 
 function M.get(type_name)
     return M.configs[type_name] or M.configs.essay
+end
+
+--- Single orienting question for one free-form idea.
+--- Returns nil when the type defines none, so the caller can fall back to the
+--- generic "Enter idea name:" prompt.
+function M.idea_prompt(type_name, lang, is_subsection)
+    local cfg = M.get(type_name)
+    local entry = (is_subsection and cfg.subsection_idea_prompt) or cfg.idea_prompt
+    if not entry then return nil end
+    return entry[lang] or entry.en
 end
 
 function M.idea_questions(type_name, lang)

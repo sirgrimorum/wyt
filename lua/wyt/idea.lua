@@ -20,20 +20,16 @@ local function multi_select(...)
     return require("wyt.group").multi_select(...)
 end
 
--- P14: show guided questions for the project type, then ask how to brainstorm
+-- A section's plan is not the root plan; the orienting question differs there.
+local function in_subsection()
+    return project.section_plan_path ~= "" and project.section_plan_path ~= project.plan_path
+end
+
+-- P14: ask how to brainstorm, then collect one or more raw idea strings
 local function show_guided_questions_and_proceed(callback)
     local types_mod = require("wyt.types")
     local project_type = project.get_project_type()
     local questions = types_mod.idea_questions(project_type, project.lang)
-
-    -- Show questions as a hint notification
-    if #questions > 0 then
-        local hint = loc.t("guided_questions_title") .. project_type .. ":\n"
-        for i, q in ipairs(questions) do
-            hint = hint .. "  " .. i .. ". " .. q .. "\n"
-        end
-        vim.notify(hint, vim.log.levels.INFO)
-    end
 
     -- Ask whether to enter free idea or answer questions one by one
     vim.ui.select(
@@ -41,6 +37,14 @@ local function show_guided_questions_and_proceed(callback)
         { prompt = loc.t("brainstorm_mode") },
         function(choice)
             if choice == loc.t("answer_questions") then
+                -- Only this mode uses the full list, so only this mode shows it
+                if #questions > 0 then
+                    local hint = loc.t("guided_questions_title") .. project_type .. ":\n"
+                    for i, q in ipairs(questions) do
+                        hint = hint .. "  " .. i .. ". " .. q .. "\n"
+                    end
+                    vim.notify(hint, vim.log.levels.INFO)
+                end
                 -- Collect one idea per answered question
                 local collected = {}
                 local function ask_next(i)
@@ -56,16 +60,34 @@ local function show_guided_questions_and_proceed(callback)
                     end)
                 end
                 ask_next(1)
-            else
-                -- Free-form: single idea
-                vim.ui.input({ prompt = loc.prompt("idea_name") }, function(idea_name)
-                    if idea_name and idea_name ~= "" then
-                        callback({ idea_name })
+            elseif choice == loc.t("free_idea") then
+                -- Free-form: one idea, prompted by the type's single orienting
+                -- question, or the generic prompt when the type defines none.
+                local single = types_mod.idea_prompt(project_type, project.lang, in_subsection())
+                vim.ui.input({ prompt = loc.pad(single or loc.t("idea_name")) }, function(idea_name)
+                    if idea_name and vim.trim(idea_name) ~= "" then
+                        callback({ vim.trim(idea_name) })
                     end
                 end)
             end
         end
     )
+end
+
+-- Project context for the LLM: type plus the plan's Description section.
+local function project_context(plan_content)
+    local ctx = project.get_project_type()
+    local header = "## " .. project.t("description_section")
+    local start = plan_content:find(header, 1, true)
+    if start then
+        local rest = plan_content:sub(start + #header)
+        local desc = rest:match("^(.-)\n## ") or rest
+        desc = vim.trim((desc:gsub("%s+", " ")))
+        if desc ~= "" then
+            ctx = ctx .. ". " .. desc:sub(1, 400)
+        end
+    end
+    return ctx
 end
 
 function M.new_idea()
@@ -77,20 +99,40 @@ function M.new_idea()
     show_guided_questions_and_proceed(function(idea_names)
         if not idea_names or #idea_names == 0 then return end
 
-        local function process_idea(idea_name, use_llm_improve, on_done)
-            if use_llm_improve then
-                vim.notify(loc.t("llm_generating"), vim.log.levels.INFO)
-                llm.improve_idea(idea_name, project.lang, function(result, err)
-                    if err or not result then
-                        vim.notify(loc.t("llm_error") .. (err or ""), vim.log.levels.WARN)
-                        on_done(idea_name)
-                    else
-                        on_done(result)
-                    end
+        -- Improve one idea and hand the result back for review. Any failure
+        -- mode falls back to what the user wrote, never to a chatty reply.
+        local function improve_with_review(idea_name, on_done)
+            vim.notify(loc.t("llm_generating"), vim.log.levels.INFO)
+            llm.improve_idea(idea_name, project.lang, function(result, err)
+                if err or not result or result == "" then
+                    vim.notify(loc.t("llm_error") .. (err or ""), vim.log.levels.WARN)
+                    on_done(idea_name)
+                    return
+                end
+                -- The model has no one to ask, so a clarifying question would
+                -- otherwise be stored verbatim as the idea.
+                if llm.looks_like_question(result) and not llm.looks_like_question(idea_name) then
+                    vim.notify(loc.t("llm_returned_question"), vim.log.levels.WARN)
+                    on_done(idea_name)
+                    return
+                end
+                vim.ui.input({ prompt = loc.prompt("llm_review_idea"), default = result }, function(edited)
+                    edited = edited and vim.trim(edited) or ""
+                    on_done(edited ~= "" and edited or idea_name)
                 end)
-            else
-                on_done(idea_name)
+            end, project_context(plan_content))
+        end
+
+        -- Sequential: the review prompt for idea N must close before N+1 starts
+        local function improve_all(list, i, acc, on_done)
+            if i > #list then
+                on_done(acc)
+                return
             end
+            improve_with_review(list[i], function(final)
+                acc[#acc + 1] = final
+                improve_all(list, i + 1, acc, on_done)
+            end)
         end
 
         -- For each collected idea, optionally improve and add
@@ -123,29 +165,25 @@ function M.new_idea()
             vim.cmd("normal! zz")
         end
 
+        local function ask_groups_and_add(final_ideas)
+            local function add_idea(selected_groups)
+                add_ideas_batch(final_ideas, selected_groups)
+            end
+            if #groups > 0 then
+                multi_select(groups, { prompt = loc.t("add_to_group") }, add_idea)
+            else
+                add_idea({})
+            end
+        end
+
         -- Ask LLM improvement once for the whole batch
         vim.ui.select({ loc.t("yes"), loc.t("no") }, { prompt = loc.t("use_llm") }, function(use_llm)
-            local improve = use_llm == loc.t("yes")
-            if improve and #idea_names == 1 then
-                process_idea(idea_names[1], true, function(final_idea)
-                    local function add_idea(selected_groups)
-                        add_ideas_batch({ final_idea }, selected_groups)
-                    end
-                    if #groups > 0 then
-                        multi_select(groups, { prompt = loc.t("add_to_group") }, add_idea)
-                    else
-                        add_idea({})
-                    end
-                end)
+            -- F15: improvement used to be skipped silently for batches of more
+            -- than one idea; every collected idea is offered now.
+            if use_llm == loc.t("yes") then
+                improve_all(idea_names, 1, {}, ask_groups_and_add)
             else
-                local function add_idea(selected_groups)
-                    add_ideas_batch(idea_names, selected_groups)
-                end
-                if #groups > 0 then
-                    multi_select(groups, { prompt = loc.t("add_to_group") }, add_idea)
-                else
-                    add_idea({})
-                end
+                ask_groups_and_add(idea_names)
             end
         end)
     end)

@@ -129,13 +129,23 @@ The `BufWritePost` autocmd fires automatically:
 ```
 
 Flow:
-1. Plugin shows guided question for `essay` type:
+1. Plugin asks how to brainstorm: **Enter a free-form idea** / **Answer guided
+   questions**. Pick the first.
+2. Plugin shows the single orienting question for `essay` type:
    *"¿Qué argumento o perspectiva quieres explorar en este ensayo?"*
-2. User types: `El ruido urbano suprime la capacidad de escuchar el propio pensamiento`
-3. Plugin asks: **Improve with LLM? [y/N]**
-4. User types `y` — LLM refines the sentence, shows result
-5. Plugin asks: **Add to group? [y/N]**  — User types `n` (no group yet)
-6. Idea is appended to `## Ideas`
+3. User types: `El ruido urbano suprime la capacidad de escuchar el propio pensamiento`
+4. Plugin asks: **Improve with LLM? [y/N]**
+5. User types `y` — the LLM refines the sentence and the result comes back in an
+   editable prompt. Accept it, edit it, or clear it to keep your own wording.
+6. Plugin asks: **Add to group? [y/N]**  — User types `n` (no group yet)
+7. Idea is appended to `## Ideas`
+
+The second mode, **Answer guided questions**, lists every question for the type
+and turns each answer into its own idea. With LLM improvement on, each collected
+idea is refined and reviewed in turn.
+
+The refined idea is always stored as a single line. If the model replies with a
+clarifying question instead of a rewrite, WYT reports it and keeps your text.
 
 ### 4b. More ideas (repeat `:WYTNew i`)
 

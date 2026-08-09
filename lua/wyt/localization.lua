@@ -85,6 +85,8 @@ M.translations = {
         answer_questions = "Answer guided questions (each answer becomes an idea)",
         question_prompt = "Your answer (leave blank to skip):",
         guided_questions_title = "Guiding questions for your ",
+        llm_review_idea = "Review the improved idea (empty = keep yours):",
+        llm_returned_question = "[WYT] The model replied with a question instead of a rewrite. Keeping your text.",
         -- P2: export
         export_generating = "[WYT] Generating export...",
         export_generated = "[WYT] Export generated at: ",
@@ -190,6 +192,8 @@ M.translations = {
         answer_questions = "Responder preguntas orientadoras (cada respuesta se convierte en idea)",
         question_prompt = "Tu respuesta (deja en blanco para saltar):",
         guided_questions_title = "Preguntas orientadoras para tu ",
+        llm_review_idea = "Revisa la idea mejorada (vacío = conservar la tuya):",
+        llm_returned_question = "[WYT] El modelo respondió con una pregunta en vez de reescribir. Se conserva tu texto.",
         -- P2: exportar
         export_generating = "[WYT] Generando exportación...",
         export_generated = "[WYT] Exportación generada en: ",
