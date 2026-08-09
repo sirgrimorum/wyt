@@ -73,7 +73,7 @@ M.translations = {
         nav_tab_desc = "WYT: navigate to related file",
         -- P1: LLM
         llm_generating = "[WYT] Generating text...",
-        llm_no_api_key = "[WYT] API key not set. Use :WYTConfig <provider> <api_key>",
+        llm_no_api_key = "[WYT] API key not set. Use :WYTConfig <provider>, or set api_key in setup()",
         llm_error = "[WYT] Generation failed: ",
         -- P3/P14: guided questions
         brainstorm_mode = "How would you like to brainstorm?",
@@ -174,7 +174,7 @@ M.translations = {
         nav_tab_desc = "WYT: navegar al archivo relacionado",
         -- P1: LLM
         llm_generating = "[WYT] Generando texto...",
-        llm_no_api_key = "[WYT] API key no configurada. Usa :WYTConfig <proveedor> <api_key>",
+        llm_no_api_key = "[WYT] API key no configurada. Usa :WYTConfig <proveedor>, o define api_key en setup()",
         llm_error = "[WYT] Error al generar: ",
         -- P3/P14: preguntas orientadoras
         brainstorm_mode = "¿Cómo quieres generar ideas?",

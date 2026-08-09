@@ -4,7 +4,56 @@ local M = {}
 
 local function get_opts()
     local config = require("wyt.config")
-    return config.options.llm_provider, config.options.api_key
+    local key, err = config.get_api_key()
+    return config.options.llm_provider, key, err
+end
+
+-- Quote a value for curl's config-file syntax. vim.json.encode never emits raw
+-- control characters, so escaping backslash and double quote is sufficient.
+local function curl_quote(s)
+    local escaped = s:gsub("\\", "\\\\"):gsub('"', '\\"')
+    return '"' .. escaped .. '"'
+end
+
+-- Build a curl invocation that keeps the API key off the command line.
+--
+-- Anything passed in argv is world-readable while the process lives (`ps aux`,
+-- Win32_Process.CommandLine), so the key, and the request body with it, go over
+-- stdin via `--config -` instead. Only the flags below are ever visible.
+local function curl_request(url, headers, body, callback)
+    local lines = { "url = " .. curl_quote(url) }
+    for _, h in ipairs(headers) do
+        table.insert(lines, "header = " .. curl_quote(h))
+    end
+    table.insert(lines, "data-binary = " .. curl_quote(body))
+
+    vim.system(
+        { "curl", "-s", "--config", "-" },
+        { text = true, stdin = table.concat(lines, "\n") .. "\n" },
+        callback
+    )
+end
+
+-- Shared response handling for both providers.
+-- `extract` pulls the assistant text out of a decoded, error-free payload.
+local function handle_response(result, callback, extract)
+    vim.schedule(function()
+        if result.code ~= 0 then
+            callback(nil, "curl error: " .. (result.stderr or "exit " .. result.code))
+            return
+        end
+        local ok, data = pcall(vim.json.decode, result.stdout)
+        if not ok then
+            callback(nil, "JSON parse error: " .. tostring(data))
+            return
+        end
+        if data.error then
+            local message = data.error.message or vim.inspect(data.error)
+            callback(nil, data.error.type and (data.error.type .. ": " .. message) or message)
+            return
+        end
+        callback(extract(data) or "", nil)
+    end)
 end
 
 -- Internal: call OpenAI chat completions endpoint
@@ -14,34 +63,22 @@ local function call_openai(prompt, api_key, callback)
         messages = { { role = "user", content = prompt } },
         max_tokens = 1024,
     })
-    vim.system({
-        "curl", "-s", "-X", "POST",
+    curl_request(
         "https://api.openai.com/v1/chat/completions",
-        "-H", "Content-Type: application/json",
-        "-H", "Authorization: Bearer " .. api_key,
-        "-d", body,
-    }, { text = true }, function(result)
-        vim.schedule(function()
-            if result.code ~= 0 then
-                callback(nil, "curl error: " .. (result.stderr or "exit " .. result.code))
-                return
-            end
-            local ok, data = pcall(vim.json.decode, result.stdout)
-            if not ok then
-                callback(nil, "JSON parse error: " .. tostring(data))
-                return
-            end
-            if data.error then
-                callback(nil, data.error.message or vim.inspect(data.error))
-                return
-            end
-            local text = data.choices
-                and data.choices[1]
-                and data.choices[1].message
-                and data.choices[1].message.content
-            callback(text or "", nil)
-        end)
-    end)
+        {
+            "Content-Type: application/json",
+            "Authorization: Bearer " .. api_key,
+        },
+        body,
+        function(result)
+            handle_response(result, callback, function(data)
+                return data.choices
+                    and data.choices[1]
+                    and data.choices[1].message
+                    and data.choices[1].message.content
+            end)
+        end
+    )
 end
 
 -- Internal: call Anthropic Messages endpoint
@@ -51,37 +88,34 @@ local function call_claude(prompt, api_key, callback)
         max_tokens = 1024,
         messages = { { role = "user", content = prompt } },
     })
-    vim.system({
-        "curl", "-s", "-X", "POST",
+    curl_request(
         "https://api.anthropic.com/v1/messages",
-        "-H", "Content-Type: application/json",
-        "-H", "x-api-key: " .. api_key,
-        "-H", "anthropic-version: 2023-06-01",
-        "-d", body,
-    }, { text = true }, function(result)
-        vim.schedule(function()
-            if result.code ~= 0 then
-                callback(nil, "curl error: " .. (result.stderr or "exit " .. result.code))
-                return
-            end
-            local ok, data = pcall(vim.json.decode, result.stdout)
-            if not ok then
-                callback(nil, "JSON parse error: " .. tostring(data))
-                return
-            end
-            if data.error then
-                callback(nil, (data.error.type or "") .. ": " .. (data.error.message or vim.inspect(data.error)))
-                return
-            end
-            local text = data.content and data.content[1] and data.content[1].text
-            callback(text or "", nil)
-        end)
-    end)
+        {
+            "Content-Type: application/json",
+            "x-api-key: " .. api_key,
+            "anthropic-version: 2023-06-01",
+        },
+        body,
+        function(result)
+            handle_response(result, callback, function(data)
+                return data.content and data.content[1] and data.content[1].text
+            end)
+        end
+    )
 end
 
 -- Public async API: callback(result_string, err_string_or_nil)
 function M.generate_text(prompt, callback)
-    local provider, api_key = get_opts()
+    local provider, api_key, key_err = get_opts()
+
+    if key_err then
+        -- The resolver ran and failed (keychain locked, file missing, ...).
+        -- Report that rather than the generic "no key configured" message.
+        if callback then
+            callback(nil, key_err)
+        end
+        return
+    end
 
     if not api_key or api_key == "" then
         if callback then
