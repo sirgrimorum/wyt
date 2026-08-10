@@ -216,10 +216,14 @@ No modifiques los archivos internos del plugin. Edita los archivos de tu proyect
 2. Navega y administra tu proyecto con los comandos y mappings.
 3. Edita y organiza tus ideas, grupos y textos desde los archivos generados.
 
-## Guía de comandos y mappings
+## Documentación
 
-Consulta la [Guía de Comandos y Mappings](./USER_GUIDE.md) para la lista completa de comandos,
-atajos de teclado y ejemplos de uso.
+- [Guía de usuario](./USER_GUIDE.md): la lista completa de comandos y atajos, el
+  comportamiento automático, los tipos de texto con su profundidad y su lógica de
+  párrafos, el mapa de títulos del export y los arquetipos de sección
+  (personajes, cronología, puntos de giro, conceptos clave, fuentes).
+- [Caso de uso completo](./docs/use_case_e2e.md): el recorrido de la metodología
+  de principio a fin, desde un directorio vacío hasta el export final.
 
 ---
 

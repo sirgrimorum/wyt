@@ -3,6 +3,11 @@
 A complete walkthrough of the WYT methodology using every command, keymap, and option.
 The example project is a **short essay** titled *"The Silence of Cities"*.
 
+This is the worked example. The rules it exercises, the commands, the keymaps,
+the project types and the section archetypes, are documented once in the
+[User Guide](../USER_GUIDE.md); this document shows them in use, in order, from
+an empty directory to a finished export.
+
 ---
 
 ## 0. Prerequisites
@@ -66,7 +71,8 @@ Interactive wizard prompts:
 
 The text types offered are `novel`, `long_novel`, `short_novel`, `short_story`,
 `essay` and `summary`. **Has sections?** is only asked for a type that allows
-more than one plan level (see §21): `short_story` and `summary` are
+more than one plan level (see the
+[User Guide](../USER_GUIDE.md#tipos-de-texto)): `short_story` and `summary` are
 single-level, so the wizard writes `sections: false` without asking.
 
 Every prompt after the Language step is shown in the language you picked, and
@@ -312,8 +318,9 @@ Position cursor on the group header line:
 Press `<S-Tab>`.
 
 Since this group has no section yet, the plugin asks what the section is *for*,
-listing the archetypes of the project's type (§21b). Pick **Prose (the text
-itself)** here; §13 covers the others. `<Esc>` cancels and nothing is created.
+listing the [archetypes](../USER_GUIDE.md#arquetipos-de-sección) of the project's
+type. Pick **Prose (the text itself)** here; §13 covers the others. `<Esc>`
+cancels and nothing is created.
 
 What happens automatically:
 - Directory `sections/el-espacio-urbano-como-destructor-del-silencio/` is created
@@ -503,7 +510,8 @@ Not every section is text you will publish. A novel needs a cast, a chronology
 and a list of turning points; an essay needs its key concepts and its sources.
 WYT calls these **archetypes**, and the archetype you pick decides three things:
 the questions the section asks you from then on, whether it reaches the export,
-and whether `:WYTSearch` can see it. §21b lists the archetypes per type.
+and whether `:WYTSearch` can see it. The
+[User Guide](../USER_GUIDE.md#arquetipos-de-sección) lists them per type.
 
 In the root `plan.wyt.md`, create a group called `Key Concepts`:
 
@@ -528,7 +536,7 @@ From now on, `:WYTNew i` inside that section asks "How would you define it in
 one sentence?" rather than the essay's argument questions, and `:WYTNew g` asks
 "Which concept is this?" instead of asking for an argument name.
 
-### Search across definition sections
+### Search across reference sections
 
 From anywhere in the project:
 
@@ -536,10 +544,22 @@ From anywhere in the project:
 :WYTSearch
 ```
 
-A Telescope picker opens with all content from `definition`-type sections.
-Type to filter → `<CR>` to jump to the matching line in the relevant file.
+WYT reads every reference section, both its `plan.wyt.md` and its
+`text.wyt.md`, and lists the lines that match. A reference section is usually
+never written into prose at all: its groups are the entries and the ideas under
+them are what you know, so most of what you are looking for is in the plan.
 
-Definition sections are **excluded from export** but always searchable.
+Each hit is labelled with the heading it sits under, which is what makes the
+result readable. Searching a novel for `afraid`:
+
+```
+cast/plan.wyt.md:7 (Ana): - goes quiet when she is afraid
+```
+
+`<CR>` jumps to that line in that file. Reference sections are **excluded from
+the export** but always searchable, which is the whole point of them: the cast,
+the chronology and the turning points are there to be consulted while you write,
+not to be published.
 
 ---
 
@@ -614,8 +634,8 @@ The plugin:
    - If `content_type: definition` → skipped, with everything below it
    - Otherwise → uses `text.wyt.md`
    - Strips unexpanded `*Create a paragraph about: ...*` placeholders
-3. Applies the type's outline map (§21): a section name becomes a heading, a
-   scene break, or nothing, according to its plan level
+3. Applies the type's [outline map](../USER_GUIDE.md#mapa-de-títulos): a section
+   name becomes a heading, a scene break, or nothing, by its plan level
 4. Drops the `## Grupo: ...` markers, which are WYT's own structure and not part
    of the finished text, unless the type says group names are headings
 5. Writes root `export.wyt.md`
@@ -650,138 +670,16 @@ Open the result:
 
 ---
 
-## 18. Full Command Reference
+## 18. Reference
 
-| Command | Description |
-|---------|-------------|
-| `:WYTNew p` | Create new project (wizard) |
-| `:WYTNew i` | Add a new idea to current plan |
-| `:WYTNew g` | Create a group from selected ideas |
-| `:WYTConfig <provider> <key>` | Set LLM provider and API key |
-| `:WYTSetLang <en\|es>` | Change language (persists to config) |
-| `:WYTNav` | Hierarchical project file browser |
-| `:WYTGoto <plan\|config\|text\|export\|parent>` | Jump to project file |
-| `:WYTGenerate [prompt]` | Insert LLM-generated text at cursor |
-| `:WYTExpand` | Expand placeholder at cursor |
-| `:WYTExpand next` | Find and expand next placeholder |
-| `:WYTExpand prev` | Find and expand previous placeholder |
-| `:WYTSearch` | Search across definition sections |
-| `:WYTExport` | Assemble all sections into export.wyt.md |
-| `:checkhealth wyt` | Verify plugin dependencies |
+The command list, the keymaps, the automatic behaviour, the project types with
+their depth and paragraph logic, the outline map and the section archetypes all
+live in the [User Guide](../USER_GUIDE.md). They are rules that hold for every
+project, so they are documented once there rather than retold here.
 
 ---
 
-## 19. Full Keymap Reference
-
-| Key | Buffer | Action |
-|-----|--------|--------|
-| `<S-Tab>` | `plan.wyt.md` | Context-aware navigation: implement group → section, navigate to section, navigate to parent plan |
-| `<S-Up>` | `plan.wyt.md` | Move current idea or entire group up |
-| `<S-Down>` | `plan.wyt.md` | Move current idea or entire group down |
-| `<leader>we` | `text.wyt.md` | Expand placeholder at cursor |
-| `]w` | `text.wyt.md` | Jump to next placeholder and expand |
-| `[w` | `text.wyt.md` | Jump to previous placeholder and expand |
-
-All keymaps are **buffer-local** — they only activate in WYT files and do not override keys in other buffers.
-
-Every WYT navigation, by keymap or by command, does two things first: it writes
-the current file if it has unsaved changes, which also fires the auto-commit, and
-it looks for a window that already shows the target. So work is never lost to a
-move, and moving back and forth between a plan and its section reuses the two
-tabs instead of piling up copies.
-
----
-
-## 20. Autocmd Behaviors (Transparent)
-
-These fire automatically without user action:
-
-| Trigger | File | Effect |
-|---------|------|--------|
-| `BufEnter` | `plan.wyt.md` | Reads project lang from config, applies to localization, sets buffer-local keymaps |
-| `BufEnter` | `text.wyt.md` | Same as above, sets text-file keymaps |
-| `TextChanged`, `InsertLeave` | `*plan.wyt.md` | Debounced 300ms sync: ideas in groups are mirrored to `## Ideas` section |
-| `BufWritePost` | `*plan.wyt.md` | Auto git commit: `"Save: plan.wyt.md"` |
-| `BufWritePost` | `*text.wyt.md` | Auto git commit: `"Save: text.wyt.md"` |
-
----
-
-## 21. Supported Project Types
-
-| Type | Guided questions | Paragraph logic | Max depth |
-|------|-----------------|-----------------|-----------|
-| `novel` | Story-arc, character, scene questions | 1 idea → 1 paragraph | 3 levels |
-| `long_novel` | Through-line, part, subplot, timeline questions | 1 idea → 1 paragraph | 4 levels |
-| `short_novel` | Scene, want, consequence questions | 1 idea → 1 paragraph | 2 levels |
-| `short_story` | Narrative focus, tone questions | 1 idea → 1 paragraph | 1 level |
-| `essay` | Argument, evidence, perspective questions | 1 idea → 1 paragraph | 2 levels |
-| `summary` | Key point, synthesis questions | Multiple ideas → 1 paragraph | 1 level |
-
-**Max depth** counts plan levels, the root plan being level 1. A section created
-with `<S-Tab>` gets `sections: true` while it is still above the limit, so its
-own groups become sections in turn; at the limit it gets `sections: false` and
-its groups implement straight to `text.wyt.md`. An `essay` therefore nests one
-level of sections under the root, a `novel` two, a `long_novel` three, and
-`short_story` and `summary` none: their groups go straight to text.
-
-**Paragraph logic** decides what `<S-Tab>` writes into `text.wyt.md`. Every type
-but `summary` writes one placeholder per idea. `summary` condenses, so a group
-becomes a single placeholder listing all of its ideas, separated by `;`, and
-expanding it produces one paragraph that folds them together.
-
-### Outline map
-
-The same names, placed the same way, are set differently by each form. Each type
-declares what a name at a given plan level becomes in the export:
-
-| Type | level 2 | level 3 | level 4 | groups inside `text.wyt.md` |
-|------|---------|---------|---------|------------------------------|
-| `novel` | chapter `##` | scene: `* * *` | — | nothing |
-| `long_novel` | part `##` | chapter `###` | scene: `* * *` | nothing |
-| `short_novel` | scene: `* * *` | — | — | nothing |
-| `short_story` | — | — | — | scene: `* * *` |
-| `essay` | section `##` | — | — | nothing |
-| `summary` | — | — | — | `##` per group |
-
-The root is always the document title, so no type declares level 1. "Nothing"
-means the blocks simply run on, separated by a blank line: an essay's paragraphs
-do not each want a title, and neither do a novel's.
-
----
-
-## 21b. Section Archetypes
-
-An archetype says what a section is *for*. It is asked once, when `<S-Tab>`
-creates the section, and from then on it supplies that section's guided
-questions, decides whether the section reaches the export, and decides whether
-`:WYTSearch` can see it.
-
-| Archetype | For | Exported |
-|-----------|-----|----------|
-| Prose | the text itself; guided by the project type | yes |
-| Characters | one group per character: want, need, wound, voice | no, searchable |
-| Setting | places and the rules of the world | no, searchable |
-| Chronology | when things happen, in story order rather than narrative order | no, searchable |
-| Turning points | what changes everything, and what it costs | no, searchable |
-| Themes | what the work is about underneath | no, searchable |
-| Key concepts | the terms an argument rests on | no, searchable |
-| Sources | the evidence being cited | no, searchable |
-| Counterarguments | the objections the essay answers | yes |
-
-Which are offered depends on the type:
-
-| Type | Archetypes offered |
-|------|--------------------|
-| `novel`, `long_novel`, `short_novel`, `short_story` | Prose, Characters, Setting, Chronology, Turning points, Themes |
-| `essay` | Prose, Key concepts, Sources, Counterarguments, Themes |
-| `summary` | Prose, Key concepts, Sources |
-
-A section created inside a reference section inherits its archetype without
-asking: a section of a Characters section is still about characters.
-
----
-
-## 22. Full Project Directory After Completion
+## 19. Full Project Directory After Completion
 
 ```
 the-silence-of-cities/
