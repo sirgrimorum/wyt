@@ -1,5 +1,15 @@
 -- P3: per-text-type configuration — guided questions, paragraph behavior, section depth
+local kinds = require("wyt.section_kinds")
+
 local M = {}
+
+-- `outline` says what a name becomes in the export, per plan level, counting the
+-- root as level 1. A heading level sets it; `break_with` prints a separator
+-- instead, which is how prose marks a scene change; nothing at all means the
+-- text simply runs on. `groups` covers the group markers inside `text.wyt.md`,
+-- which are structure for WYT and not part of the finished document.
+-- The root itself is always the document title, so no type declares level 1.
+local SCENE = "* * *"
 
 -- `idea_prompt` is the single orienting question shown when adding one free-form
 -- idea; `subsection_idea_prompt` replaces it inside a section, where the writer
@@ -54,6 +64,9 @@ M.configs = {
         -- one idea → one paragraph
         multi_idea_paragraph = false,
         section_depth = 3,
+        -- chapters are titled, scenes are separated
+        outline = { levels = { [2] = { heading = 2 }, [3] = { break_with = SCENE } }, groups = {} },
+        section_kinds = kinds.narrative,
     },
 
     -- A long novel is a novel with one more level between the book and the
@@ -108,6 +121,64 @@ M.configs = {
         -- one idea → one paragraph
         multi_idea_paragraph = false,
         section_depth = 4,
+        -- parts and chapters are titled, scenes are separated
+        outline = {
+            levels = { [2] = { heading = 2 }, [3] = { heading = 3 }, [4] = { break_with = SCENE } },
+            groups = {},
+        },
+        section_kinds = kinds.narrative,
+    },
+
+    -- The middle ground: longer than a story, but told in scenes rather than
+    -- chapters, so level 2 is the scene itself and nothing is titled.
+    short_novel = {
+        idea_prompt = {
+            en = "What scene do you want to write?",
+            es = "¿Qué escena quieres escribir?",
+        },
+        subsection_idea_prompt = {
+            en = "What happens inside this scene?",
+            es = "¿Qué ocurre dentro de esta escena?",
+        },
+        idea_questions = {
+            en = {
+                "What scene is this, and who is in it?",
+                "What does the point-of-view character want in it?",
+                "What goes wrong, or differently than expected?",
+                "What is different by the end of it?",
+                "What does it set up for the scene after?",
+            },
+            es = {
+                "¿Qué escena es esta, y quién está en ella?",
+                "¿Qué quiere en ella el personaje desde cuyo punto de vista se narra?",
+                "¿Qué sale mal, o distinto de lo esperado?",
+                "¿Qué ha cambiado al terminar?",
+                "¿Qué prepara para la escena siguiente?",
+            },
+        },
+        group_prompt = {
+            en = "What scene do these ideas form?",
+            es = "¿Qué escena forman estas ideas?",
+        },
+        group_questions = {
+            en = {
+                "What scene do these ideas form?",
+                "Where does it start, and where does it cut?",
+            },
+            es = {
+                "¿Qué escena forman estas ideas?",
+                "¿Dónde empieza, y dónde corta?",
+            },
+        },
+        group_name_hint = {
+            en = "Scene name:",
+            es = "Nombre de la escena:",
+        },
+        multi_idea_paragraph = false,
+        section_depth = 2,
+        -- scenes are separated, never titled
+        outline = { levels = { [2] = { break_with = SCENE } }, groups = {} },
+        section_kinds = kinds.narrative,
     },
 
     short_story = {
@@ -153,6 +224,9 @@ M.configs = {
         },
         multi_idea_paragraph = false,
         section_depth = 1,
+        -- one flow of scenes under the story's title
+        outline = { levels = {}, groups = { break_with = SCENE } },
+        section_kinds = kinds.narrative,
     },
 
     essay = {
@@ -198,6 +272,9 @@ M.configs = {
         },
         multi_idea_paragraph = false,
         section_depth = 2,
+        -- sections are titled, the paragraphs inside them run on
+        outline = { levels = { [2] = { heading = 2 } }, groups = {} },
+        section_kinds = kinds.argument,
     },
 
     summary = {
@@ -244,6 +321,9 @@ M.configs = {
         -- summary: multiple ideas combine into one paragraph
         multi_idea_paragraph = true,
         section_depth = 1,
+        -- notes read best labelled, so here the group names do become headings
+        outline = { levels = {}, groups = { heading = 2 } },
+        section_kinds = kinds.notes,
     },
 }
 
@@ -251,37 +331,59 @@ function M.get(type_name)
     return M.configs[type_name] or M.configs.essay
 end
 
+--- The archetypes a project of this type can give its sections.
+function M.section_kinds(type_name)
+    return M.get(type_name).section_kinds or kinds.narrative
+end
+
+--- One archetype by id, or nil. `prose` and an unknown id both return nil: they
+--- mean the section is guided by its project type and nothing else.
+function M.section_kind(type_name, kind_id)
+    if not kind_id or kind_id == "" or kind_id == "prose" then return nil end
+    for _, kind in ipairs(M.section_kinds(type_name)) do
+        if kind.id == kind_id then return kind end
+    end
+    return nil
+end
+
+--- Where a section's guides come from. An archetype answers for the fields it
+--- defines and the project type answers for the rest, so a Characters section of
+--- a novel asks about wounds and wants but still knows it is inside a novel.
+local function guide(type_name, kind_id, field)
+    local kind = M.section_kind(type_name, kind_id)
+    if kind and kind[field] then return kind[field] end
+    return M.get(type_name)[field]
+end
+
+local function localized(entry, lang)
+    if not entry then return nil end
+    return entry[lang] or entry.en
+end
+
 --- Single orienting question for one free-form idea.
---- Returns nil when the type defines none, so the caller can fall back to the
---- generic "Enter idea name:" prompt.
-function M.idea_prompt(type_name, lang, is_subsection)
-    local cfg = M.get(type_name)
-    local entry = (is_subsection and cfg.subsection_idea_prompt) or cfg.idea_prompt
-    if not entry then return nil end
-    return entry[lang] or entry.en
+--- Returns nil when neither the section's archetype nor the type defines one, so
+--- the caller can fall back to the generic "Enter idea name:" prompt.
+function M.idea_prompt(type_name, lang, is_subsection, kind_id)
+    local field = is_subsection and "subsection_idea_prompt" or "idea_prompt"
+    return localized(guide(type_name, kind_id, field), lang)
 end
 
-function M.idea_questions(type_name, lang)
-    local cfg = M.get(type_name)
-    return cfg.idea_questions[lang] or cfg.idea_questions.en
+function M.idea_questions(type_name, lang, kind_id)
+    return localized(guide(type_name, kind_id, "idea_questions"), lang)
 end
 
---- Single orienting question for naming a group. Returns nil when the type
---- defines none, so the caller can fall back to `group_name_hint`.
-function M.group_prompt(type_name, lang)
-    local entry = M.get(type_name).group_prompt
-    if not entry then return nil end
-    return entry[lang] or entry.en
+--- Single orienting question for naming a group. Returns nil when none is
+--- defined, so the caller can fall back to `group_name_hint`.
+function M.group_prompt(type_name, lang, kind_id)
+    return localized(guide(type_name, kind_id, "group_prompt"), lang)
 end
 
-function M.group_questions(type_name, lang)
-    local cfg = M.get(type_name)
-    return cfg.group_questions[lang] or cfg.group_questions.en
+function M.group_questions(type_name, lang, kind_id)
+    return localized(guide(type_name, kind_id, "group_questions"), lang)
 end
 
-function M.group_name_hint(type_name, lang)
-    local cfg = M.get(type_name)
-    return cfg.group_name_hint[lang] or cfg.group_name_hint.en
+function M.group_name_hint(type_name, lang, kind_id)
+    return localized(guide(type_name, kind_id, "group_name_hint"), lang)
 end
 
 --- True when the type gathers a whole group into one paragraph instead of one
@@ -297,9 +399,25 @@ function M.section_depth(type_name)
     return M.get(type_name).section_depth or 1
 end
 
+--- What a section name at `level` becomes in the export, counting the root as
+--- level 1: `{ heading = n }`, `{ break_with = "* * *" }`, or nil for nothing.
+function M.outline(type_name, level)
+    local outline = M.get(type_name).outline
+    if not outline then return nil end
+    return outline.levels and outline.levels[level] or nil
+end
+
+--- The same, for the group markers inside `text.wyt.md`. Most types render
+--- nothing: the markers are structure, not part of the finished document.
+function M.group_outline(type_name)
+    local outline = M.get(type_name).outline
+    if not outline or not outline.groups then return nil end
+    return next(outline.groups) and outline.groups or nil
+end
+
 --- Type names the project wizard offers, in the order it offers them.
 function M.names()
-    return { "novel", "long_novel", "short_story", "essay", "summary" }
+    return { "novel", "long_novel", "short_novel", "short_story", "essay", "summary" }
 end
 
 return M

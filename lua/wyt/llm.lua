@@ -201,6 +201,31 @@ function M.to_single_line(text)
     return (strip_decoration(first_meaningful_line(text)):gsub("%s+", " "))
 end
 
+--- Strip the structure a model wraps prose in: code fences, headings, list
+--- markers. Generated text lands in `text.wyt.md`, where a heading is not
+--- decoration: WYT reads `##` lines as group markers and the export builds the
+--- document outline from them, so a title the model invented shows up as a
+--- section of the finished text. Paragraph breaks are kept.
+function M.to_prose(text)
+    if not text or text == "" then return "" end
+    text = text:gsub("```%w*", ""):gsub("```", "")
+    -- A heading is one or more `#` followed by a space or nothing. `#silence`
+    -- with no space is a hashtag the writer may well have wanted.
+    local function is_heading(line)
+        return line:match("^%s*#+%s") ~= nil or line:match("^%s*#+%s*$") ~= nil
+    end
+    local kept = {}
+    for _, line in ipairs(vim.split(text, "\n", { plain = true })) do
+        if not is_heading(line) then
+            line = line:gsub("^%s*[%-%*%+]%s+", "")
+            line = line:gsub("^%s*%d+[%.%)]%s+", "")
+            kept[#kept + 1] = line
+        end
+    end
+    local prose = table.concat(kept, "\n"):gsub("\n\n\n+", "\n\n")
+    return vim.trim(prose)
+end
+
 --- True when a reply is a clarifying question rather than the answer. The model
 --- has no one to ask — the caller keeps the user's own text instead.
 function M.looks_like_question(text)
@@ -349,14 +374,26 @@ function M.expand_idea(idea_text, context, lang, callback)
             prompt = prompt .. ". Contexto del proyecto: " .. context
         end
         prompt = prompt .. ". Idea: " .. idea_text
+            .. ". Responde solo con la prosa: sin título, sin encabezados,"
+            .. " sin listas y sin ningún otro formato markdown."
     else
         prompt = "Write a literary paragraph based on the following idea"
         if context and context ~= "" then
             prompt = prompt .. ". Project context: " .. context
         end
         prompt = prompt .. ". Idea: " .. idea_text
+            .. ". Reply with the prose only: no title, no headings, no lists,"
+            .. " no other markdown formatting."
     end
-    M.generate_text(prompt, callback)
+    -- The instruction is not enough on its own; the reply is stripped as well,
+    -- because one invented title corrupts the export's outline.
+    M.generate_text(prompt, function(result, err)
+        if err or not result then
+            callback(nil, err)
+            return
+        end
+        callback(M.to_prose(result), nil)
+    end)
 end
 
 -- Suggest a group name from a list of ideas
