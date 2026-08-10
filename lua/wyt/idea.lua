@@ -76,7 +76,10 @@ end
 local function show_guided_questions_and_proceed(callback)
     local types_mod = require("wyt.types")
     local project_type = project.get_project_type()
-    local questions = types_mod.idea_questions(project_type, project.lang)
+    -- Inside a section with an archetype, its questions replace the type's: a
+    -- Characters section asks about wounds and wants, not about the next scene.
+    local kind = project.get_section_kind()
+    local questions = types_mod.idea_questions(project_type, project.lang, kind)
 
     -- Ask whether to enter free idea or answer questions one by one
     vim.ui.select(
@@ -88,7 +91,7 @@ local function show_guided_questions_and_proceed(callback)
             elseif choice == loc.t("free_idea") then
                 -- Free-form: one idea, prompted by the type's single orienting
                 -- question, or the generic prompt when the type defines none.
-                local single = types_mod.idea_prompt(project_type, project.lang, in_subsection())
+                local single = types_mod.idea_prompt(project_type, project.lang, in_subsection(), kind)
                 vim.ui.input({ prompt = loc.pad(single or loc.t("idea_name")) }, function(idea_name)
                     if idea_name and vim.trim(idea_name) ~= "" then
                         callback({ vim.trim(idea_name) })

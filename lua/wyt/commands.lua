@@ -115,7 +115,9 @@ function M.generate_text_command()
                 vim.notify(loc.t("llm_error") .. (err or ""), vim.log.levels.WARN)
                 return
             end
-            local result_lines = vim.split(result, "\n", { plain = true })
+            -- Free-form or not, it is going into a file whose headings are
+            -- structure; the model does not get to add any.
+            local result_lines = vim.split(llm.to_prose(result), "\n", { plain = true })
             vim.api.nvim_buf_set_lines(buf, row, row, false, result_lines)
             vim.notify("[WYT] Text generated and inserted at cursor", vim.log.levels.INFO)
         end)

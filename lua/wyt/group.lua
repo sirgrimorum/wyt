@@ -211,9 +211,12 @@ function M.new_group(line1, line2)
             -- The numbered list of group questions made no sense here: the
             -- writer names one group, they do not answer each question in turn.
             -- Raw, not padded: ui.ask_input pads whichever of the question or
-            -- the short title ends up on the prompt line.
-            local question = types_mod.group_prompt(project_type, project.lang)
-                or types_mod.group_name_hint(project_type, project.lang)
+            -- the short title ends up on the prompt line. Inside a section with
+            -- an archetype, the archetype names the group: a Characters section
+            -- asks which character this is.
+            local kind = project.get_section_kind()
+            local question = types_mod.group_prompt(project_type, project.lang, kind)
+                or types_mod.group_name_hint(project_type, project.lang, kind)
 
             local function create_with(name)
                 name = name and vim.trim(name) or ""

@@ -171,6 +171,25 @@ function M.is_definition_section(section_dir)
     return cfg:match("content_type:%s*definition") ~= nil
 end
 
+-- `prose` is the absence of an archetype, so it reads back as nil: the section
+-- is guided by the project type alone.
+local function kind_in(config_content)
+    local kind = (config_content or ""):match("section_kind:%s*([%w_]+)")
+    if not kind or kind == "prose" then return nil end
+    return kind
+end
+
+--- The archetype the current section was created with (`characters`,
+--- `chronology`, ...), or nil for a plain prose section.
+function M.get_section_kind()
+    return kind_in(M.read_file(M.section_config_path or ""))
+end
+
+--- The same, for any section directory.
+function M.section_kind_of(dir)
+    return kind_in(M.read_file(dir .. "config.wyt.yml"))
+end
+
 local function mkdir(path)
     local sep = package.config:sub(1,1)
     local parts = {}
@@ -368,9 +387,9 @@ function M.implement_group(current_plan_content, group_name, section_dir, sectio
         local group_section_dir = section_dir .. slug .. "/"
         local config_path = group_section_dir .. "config.wyt.yml"
 
-        -- `content_type` is nil when the section already has a config: an
-        -- existing section keeps the answer it was created with.
-        local function build(content_type)
+        -- `kind` is nil when the section already has a config: an existing
+        -- section keeps the archetype it was created with.
+        local function build(kind)
             mkdir(group_section_dir)
             local plan_path = group_section_dir .. "plan.wyt.md"
             -- O4: fs_stat instead of vim.fn.filereadable
@@ -387,16 +406,18 @@ function M.implement_group(current_plan_content, group_name, section_dir, sectio
                 end
                 M.write_file(plan_path, plan_content)
             end
-            if content_type then
+            if kind then
                 -- `type` is the literary type, inherited from the project, not
                 -- the content type: a section of an essay is still an essay.
                 -- Whether this one may hold sub-sections is the type's business:
                 -- a long novel nests parts inside books, a summary nests nothing.
+                -- The archetype is what decides the content type, and what the
+                -- section's own questions will be from here on.
                 local project_type = M.get_project_type()
                 local nests = M.section_level(group_section_dir) < types.section_depth(project_type)
                 M.write_file(config_path, string.format(
-                    "type: %s\ncontent_type: %s\nsections: %s\n",
-                    project_type, content_type, tostring(nests)))
+                    "type: %s\nsection_kind: %s\ncontent_type: %s\nsections: %s\n",
+                    project_type, kind.id, kind.content_type, tostring(nests)))
             end
             current_plan_content = M.mark_group_status(current_plan_content, group_name, "implemented")
             update_changes_in_buffer(current_section_dir .. "plan.wyt.md", current_plan_content)
@@ -406,17 +427,31 @@ function M.implement_group(current_plan_content, group_name, section_dir, sectio
 
         if uv.fs_stat(config_path) then
             build(nil)
+        elseif M.is_definition_section(section_dir) then
+            -- Inside reference material the question is already answered: a
+            -- section of a Characters section is still about characters. Asking
+            -- again could make a child that is content inside a parent the
+            -- export skips, which would be neither exported nor searchable.
+            build({ id = M.section_kind_of(section_dir) or "prose", content_type = "definition" })
         else
-            -- A section either carries text of its own or defines terms the
-            -- other sections refer to. Only the writer knows which, and the
-            -- answer is what keeps definitions out of the export and inside
-            -- :WYTSearch, so it is asked before anything is written.
+            -- A section carries the text itself, or it works out something the
+            -- text needs: who the people are, when things happen, what turns.
+            -- The answer decides the section's questions, and whether it reaches
+            -- the export or stays reference material, so it is asked before
+            -- anything is written.
+            local available = types.section_kinds(M.get_project_type())
+            local labels, by_label = {}, {}
+            for _, kind in ipairs(available) do
+                local label = kind.label[M.lang] or kind.label.en
+                labels[#labels + 1] = label
+                by_label[label] = kind
+            end
             ui.ask_select({
                 title = M.t("section_type"),
-                question = M.t("choose_section_content_type") .. " '" .. group_name .. "'",
-            }, { M.t("content"), M.t("definition") }, function(choice)
-                if not choice then return end
-                build(choice == M.t("content") and "content" or "definition")
+                question = M.t("choose_section_kind") .. " '" .. group_name .. "'",
+            }, labels, function(choice)
+                if not choice or not by_label[choice] then return end
+                build(by_label[choice])
             end)
         end
     else

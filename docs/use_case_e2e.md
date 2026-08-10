@@ -64,10 +64,10 @@ Interactive wizard prompts:
 | Has sections? | `y` |
 | Open in | `Same window` |
 
-The text types offered are `novel`, `long_novel`, `short_story`, `essay` and
-`summary`. **Has sections?** is only asked for a type that allows more than one
-plan level (see §21): `short_story` and `summary` are single-level, so the
-wizard writes `sections: false` without asking.
+The text types offered are `novel`, `long_novel`, `short_novel`, `short_story`,
+`essay` and `summary`. **Has sections?** is only asked for a type that allows
+more than one plan level (see §21): `short_story` and `summary` are
+single-level, so the wizard writes `sections: false` without asking.
 
 Every prompt after the Language step is shown in the language you picked, and
 `<Esc>` at any step cancels the wizard without creating anything.
@@ -311,14 +311,15 @@ Position cursor on the group header line:
 
 Press `<S-Tab>`.
 
-Since this group has no section yet, the plugin asks what the section will
-hold: **Content** or **Definition**. Pick *Content* here; §13 covers the other
-answer. `<Esc>` cancels and nothing is created.
+Since this group has no section yet, the plugin asks what the section is *for*,
+listing the archetypes of the project's type (§21b). Pick **Prose (the text
+itself)** here; §13 covers the others. `<Esc>` cancels and nothing is created.
 
 What happens automatically:
 - Directory `sections/el-espacio-urbano-como-destructor-del-silencio/` is created
 - `config.wyt.yml` written: `type` inherited from the project (`essay`),
-  `content_type` from your answer, `sections: false`
+  `section_kind` and its `content_type` from your answer, and `sections`
+  computed from the type's depth
 - `plan.wyt.md` created with:
   - Title = group name
   - Description = ideas from the group (joined as description text)
@@ -428,6 +429,9 @@ Plugin prompts: **Expand with LLM or manual? [l/m]**
 - `l` → calls `llm.expand_idea(idea_text, context, lang, callback)` asynchronously with OpenAI/Claude
   - While generating, cursor stays in buffer
   - On completion, placeholder is replaced with generated paragraph
+  - The model is told to reply with prose only, and the reply is stripped of
+    headings, code fences and list markers anyway. A `#` heading invented by the
+    model would otherwise become a section of the finished export.
 - `m` → opens a small input prompt, user types the paragraph manually
 
 ### Expand placeholder at cursor manually
@@ -493,9 +497,13 @@ All subsequent UI strings, guided questions, and LLM prompts use English.
 
 ---
 
-## 13. Definitions Section (e.g. "Key Concepts")
+## 13. Reference Sections (archetypes)
 
-For essay projects, you may want a non-content reference section.
+Not every section is text you will publish. A novel needs a cast, a chronology
+and a list of turning points; an essay needs its key concepts and its sources.
+WYT calls these **archetypes**, and the archetype you pick decides three things:
+the questions the section asks you from then on, whether it reaches the export,
+and whether `:WYTSearch` can see it. §21b lists the archetypes per type.
 
 In the root `plan.wyt.md`, create a group called `Key Concepts`:
 
@@ -507,11 +515,18 @@ Select ideas related to definitions → name the group `Key Concepts`.
 
 Position cursor on that group header, press `<S-Tab>` → implement as section.
 
-The section is new, so WYT asks what it will hold. Choose **Definition**.
+The section is new, so WYT asks what it is for. Choose
+**Key concepts (the terms the argument rests on)**.
 
-The section's `config.wyt.yml` will have `content_type: definition`, while
-`type` stays the project's literary type. The answer is asked once, when the
-section is created; re-implementing the group later keeps it.
+The section's `config.wyt.yml` gets `section_kind: key_concepts` and the
+`content_type: definition` that archetype implies, while `type` stays the
+project's literary type. The answer is asked once, when the section is created:
+re-implementing the group later keeps it, and a section created *inside* a
+reference section inherits it without asking again.
+
+From now on, `:WYTNew i` inside that section asks "How would you define it in
+one sentence?" rather than the essay's argument questions, and `:WYTNew g` asks
+"Which concept is this?" instead of asking for an argument name.
 
 ### Search across definition sections
 
@@ -596,13 +611,36 @@ Once all sections have their `text.wyt.md` written:
 The plugin:
 1. Reads root `plan.wyt.md` to get section order
 2. For each section in order:
-   - If `content_type: definition` → skipped
-   - If `export.wyt.md` is newer than `text.wyt.md` → uses `export.wyt.md`
+   - If `content_type: definition` → skipped, with everything below it
    - Otherwise → uses `text.wyt.md`
    - Strips unexpanded `*Create a paragraph about: ...*` placeholders
-3. Applies formatting per section type
-4. Writes root `export.wyt.md`
-5. Auto-commit fires
+3. Applies the type's outline map (§21): a section name becomes a heading, a
+   scene break, or nothing, according to its plan level
+4. Drops the `## Grupo: ...` markers, which are WYT's own structure and not part
+   of the finished text, unless the type says group names are headings
+5. Writes root `export.wyt.md`
+6. Auto-commit fires
+
+The export is assembled, never generated: nothing is sent to the LLM by
+`:WYTExport`. What it contains is what you wrote, minus the scaffolding.
+
+For the essay of this walkthrough the result is:
+
+```markdown
+# The Silence of Cities
+
+## El espacio urbano como destructor del silencio
+
+Paragraph. Paragraph.
+
+## La economía de la atención como amplificador del ruido
+
+Paragraph.
+```
+
+The same project as a `novel` would title its chapters and separate its scenes
+with `* * *` instead, and as a `summary` it would turn each group name into a
+heading. Nothing about the files changes; only the outline map does.
 
 Open the result:
 
@@ -674,6 +712,7 @@ These fire automatically without user action:
 |------|-----------------|-----------------|-----------|
 | `novel` | Story-arc, character, scene questions | 1 idea → 1 paragraph | 3 levels |
 | `long_novel` | Through-line, part, subplot, timeline questions | 1 idea → 1 paragraph | 4 levels |
+| `short_novel` | Scene, want, consequence questions | 1 idea → 1 paragraph | 2 levels |
 | `short_story` | Narrative focus, tone questions | 1 idea → 1 paragraph | 1 level |
 | `essay` | Argument, evidence, perspective questions | 1 idea → 1 paragraph | 2 levels |
 | `summary` | Key point, synthesis questions | Multiple ideas → 1 paragraph | 1 level |
@@ -689,6 +728,56 @@ level of sections under the root, a `novel` two, a `long_novel` three, and
 but `summary` writes one placeholder per idea. `summary` condenses, so a group
 becomes a single placeholder listing all of its ideas, separated by `;`, and
 expanding it produces one paragraph that folds them together.
+
+### Outline map
+
+The same names, placed the same way, are set differently by each form. Each type
+declares what a name at a given plan level becomes in the export:
+
+| Type | level 2 | level 3 | level 4 | groups inside `text.wyt.md` |
+|------|---------|---------|---------|------------------------------|
+| `novel` | chapter `##` | scene: `* * *` | — | nothing |
+| `long_novel` | part `##` | chapter `###` | scene: `* * *` | nothing |
+| `short_novel` | scene: `* * *` | — | — | nothing |
+| `short_story` | — | — | — | scene: `* * *` |
+| `essay` | section `##` | — | — | nothing |
+| `summary` | — | — | — | `##` per group |
+
+The root is always the document title, so no type declares level 1. "Nothing"
+means the blocks simply run on, separated by a blank line: an essay's paragraphs
+do not each want a title, and neither do a novel's.
+
+---
+
+## 21b. Section Archetypes
+
+An archetype says what a section is *for*. It is asked once, when `<S-Tab>`
+creates the section, and from then on it supplies that section's guided
+questions, decides whether the section reaches the export, and decides whether
+`:WYTSearch` can see it.
+
+| Archetype | For | Exported |
+|-----------|-----|----------|
+| Prose | the text itself; guided by the project type | yes |
+| Characters | one group per character: want, need, wound, voice | no, searchable |
+| Setting | places and the rules of the world | no, searchable |
+| Chronology | when things happen, in story order rather than narrative order | no, searchable |
+| Turning points | what changes everything, and what it costs | no, searchable |
+| Themes | what the work is about underneath | no, searchable |
+| Key concepts | the terms an argument rests on | no, searchable |
+| Sources | the evidence being cited | no, searchable |
+| Counterarguments | the objections the essay answers | yes |
+
+Which are offered depends on the type:
+
+| Type | Archetypes offered |
+|------|--------------------|
+| `novel`, `long_novel`, `short_novel`, `short_story` | Prose, Characters, Setting, Chronology, Turning points, Themes |
+| `essay` | Prose, Key concepts, Sources, Counterarguments, Themes |
+| `summary` | Prose, Key concepts, Sources |
+
+A section created inside a reference section inherits its archetype without
+asking: a section of a Characters section is still about characters.
 
 ---
 
