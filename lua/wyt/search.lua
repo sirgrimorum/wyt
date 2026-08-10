@@ -4,15 +4,22 @@ local M = {}
 local uv_ref = nil
 local function uv() uv_ref = uv_ref or (vim.uv or vim.loop); return uv_ref end
 
--- Collect all definition text.wyt.md files under `dir` recursively.
+-- Collect the searchable files of every definition section under `dir`.
+-- Both files count. A reference section is usually never implemented into prose
+-- at all: a Characters section keeps each character as a group in its
+-- `plan.wyt.md` and their traits as the ideas under it, so indexing only
+-- `text.wyt.md` found nothing of what the writer went looking for.
 local function collect_definition_files(project_mod, dir, results)
     results = results or {}
     local config_path = dir .. "config.wyt.yml"
-    local text_path   = dir .. "text.wyt.md"
     local plan_path   = dir .. "plan.wyt.md"
 
-    if uv().fs_stat(text_path) and uv().fs_stat(config_path) and project_mod.is_definition_section(dir) then
-        table.insert(results, text_path)
+    if uv().fs_stat(config_path) and project_mod.is_definition_section(dir) then
+        for _, name in ipairs({ "plan.wyt.md", "text.wyt.md" }) do
+            if uv().fs_stat(dir .. name) then
+                table.insert(results, dir .. name)
+            end
+        end
     end
 
     -- Recurse into group subdirectories
@@ -47,15 +54,24 @@ function M.search()
         local query_lower = query:lower()
 
         local matches = {}
+        local marker = project.t("group_tag") .. ": "
         for _, file_path in ipairs(def_files) do
             local content = project.read_file(file_path) or ""
-            local lines = vim.split(content, "\n", { plain = true })
-            for lnum, line in ipairs(lines) do
+            -- Relative path for display
+            local rel = file_path:sub(#project.project_root + 1)
+            -- A trait on its own says nothing about whose it is, so each hit
+            -- carries the heading it sits under: the character, the concept.
+            local heading = nil
+            for lnum, line in ipairs(vim.split(content, "\n", { plain = true })) do
+                local title = line:match("^#+%s+(.+)$")
+                if title then
+                    if title:sub(1, #marker) == marker then title = title:sub(#marker + 1) end
+                    heading = project.clean_group_name(title)
+                end
                 if line:lower():find(query_lower, 1, true) then
-                    -- Relative path for display
-                    local rel = file_path:sub(#project.project_root + 1)
+                    local under = (not title and heading) and (" (" .. heading .. ")") or ""
                     table.insert(matches, {
-                        label = rel .. ":" .. lnum .. ": " .. vim.trim(line),
+                        label = rel .. ":" .. lnum .. under .. ": " .. vim.trim(line),
                         path  = file_path,
                         lnum  = lnum,
                     })
