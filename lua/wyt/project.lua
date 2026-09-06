@@ -149,6 +149,24 @@ function M.get_project_type()
     return config_content:match("%f[%w_]type:%s*([%w_]+)") or "essay"
 end
 
+--- The frame every generation is given: the literary type, plus the plan's
+--- Description section when it has one. Kept short, since it is prepended to
+--- every prompt.
+function M.description_context(plan_content)
+    local ctx = M.get_project_type()
+    local header = "## " .. M.t("description_section")
+    local start = (plan_content or ""):find(header, 1, true)
+    if start then
+        local rest = plan_content:sub(start + #header)
+        local desc = rest:match("^(.-)\n## ") or rest
+        desc = vim.trim((desc:gsub("%s+", " ")))
+        if desc ~= "" then
+            ctx = ctx .. ". " .. desc:sub(1, 400)
+        end
+    end
+    return ctx
+end
+
 --- Level of `dir` in the section tree: the project root is level 1, a section
 --- created inside it level 2, and so on. Compared against the type's
 --- `section_depth` to decide whether a new section may hold sub-sections.
@@ -413,6 +431,10 @@ function M.implement_group(current_plan_content, group_name, section_dir, sectio
                 -- a long novel nests parts inside books, a summary nests nothing.
                 -- The archetype is what decides the content type, and what the
                 -- section's own questions will be from here on.
+                --
+                -- The type's depth is only the default written here at creation.
+                -- Hand-editing this file's `sections:` to true afterwards is the
+                -- real override, and it applies to this branch alone.
                 local project_type = M.get_project_type()
                 local nests = M.section_level(group_section_dir) < types.section_depth(project_type)
                 M.write_file(config_path, string.format(

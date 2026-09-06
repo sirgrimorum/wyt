@@ -104,23 +104,9 @@ end
 
 function M.generate_text_command()
     vim.api.nvim_create_user_command("WYTGenerate", function(args)
-        local llm = require("wyt.llm")
-        local prompt = args.args
-        -- P8: async — insert result at cursor once the callback fires
-        local buf = vim.api.nvim_get_current_buf()
-        local row = vim.api.nvim_win_get_cursor(0)[1]
-        vim.notify(loc.t("llm_generating"), vim.log.levels.INFO)
-        llm.generate_text(prompt, function(result, err)
-            if err or not result then
-                vim.notify(loc.t("llm_error") .. (err or ""), vim.log.levels.WARN)
-                return
-            end
-            -- Free-form or not, it is going into a file whose headings are
-            -- structure; the model does not get to add any.
-            local result_lines = vim.split(llm.to_prose(result), "\n", { plain = true })
-            vim.api.nvim_buf_set_lines(buf, row, row, false, result_lines)
-            vim.notify("[WYT] Text generated and inserted at cursor", vim.log.levels.INFO)
-        end)
+        -- P8: async — the result is inserted once the callback fires. What is
+        -- generated depends on where the cursor is; see wyt.generate.
+        require("wyt.generate").run(args.args)
     end, {
         nargs = "?",
         desc = loc.t("generate_text")

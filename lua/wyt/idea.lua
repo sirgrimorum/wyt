@@ -103,19 +103,8 @@ local function show_guided_questions_and_proceed(callback)
 end
 
 -- Project context for the LLM: type plus the plan's Description section.
-local function project_context(plan_content)
-    local ctx = project.get_project_type()
-    local header = "## " .. project.t("description_section")
-    local start = plan_content:find(header, 1, true)
-    if start then
-        local rest = plan_content:sub(start + #header)
-        local desc = rest:match("^(.-)\n## ") or rest
-        desc = vim.trim((desc:gsub("%s+", " ")))
-        if desc ~= "" then
-            ctx = ctx .. ". " .. desc:sub(1, 400)
-        end
-    end
-    return ctx
+local project_context = function(plan_content)
+    return project.description_context(plan_content)
 end
 
 function M.new_idea()

@@ -365,6 +365,76 @@ function M.improve_idea(idea_text, lang, callback, opts)
     end)
 end
 
+-- What the model is told, per language. Only the parts the cursor actually has
+-- are used: a paragraph with nothing after it asks for a continuation, one
+-- between two others asks for a bridge.
+local CONTEXT_PROMPT = {
+    en = {
+        frame = "Project: %s",
+        about = "The project is about: %s",
+        under = "The cursor is inside: %s",
+        before = "The text just before the cursor: %s",
+        after = "The text just after the cursor: %s",
+        existing = "Ideas already listed here: %s",
+        connector = "Write a paragraph that carries the reader from what comes before to what comes after.",
+        continue = "Write the paragraph that comes next.",
+        brainstorm = "Propose new ideas that belong here and do not repeat the ones already listed.",
+        prose_only = "Reply with the prose only: no title, no headings, no lists, no other markdown.",
+        ideas_only = "Reply with at most %d ideas, one per line, each a single sentence."
+            .. " No bullets, no numbering, no explanation.",
+    },
+    es = {
+        frame = "Proyecto: %s",
+        about = "El proyecto trata de: %s",
+        under = "El cursor está dentro de: %s",
+        before = "El texto justo antes del cursor: %s",
+        after = "El texto justo después del cursor: %s",
+        existing = "Ideas que ya están aquí: %s",
+        connector = "Escribe un párrafo que lleve al lector de lo anterior a lo siguiente.",
+        continue = "Escribe el párrafo que sigue.",
+        brainstorm = "Propón ideas nuevas que encajen aquí y que no repitan las que ya están.",
+        prose_only = "Responde solo con la prosa: sin título, sin encabezados, sin listas"
+            .. " y sin ningún otro formato markdown.",
+        ideas_only = "Responde con %d ideas como máximo, una por línea, cada una en una sola frase."
+            .. " Sin viñetas, sin numeración y sin explicación.",
+    },
+}
+
+--- Generate for what surrounds the cursor. `ctx` is built by `wyt.generate`:
+--- where the cursor is, what is around it, and what the writer asked for.
+--- The instruction is optional; without one the position decides the task.
+function M.generate_in_context(ctx, callback)
+    local words = CONTEXT_PROMPT[ctx.lang] or CONTEXT_PROMPT.en
+    local parts = {}
+    local function add(template, value)
+        if value and value ~= "" then parts[#parts + 1] = template:format(value) end
+    end
+
+    add(words.frame, ctx.project)
+    add(words.under, ctx.heading)
+    add(words.before, ctx.before)
+    add(words.after, ctx.after)
+    add(words.existing, ctx.existing)
+
+    if ctx.instruction and ctx.instruction ~= "" then
+        parts[#parts + 1] = ctx.instruction
+    elseif ctx.mode == "plan" then
+        parts[#parts + 1] = words.brainstorm
+    elseif ctx.before and ctx.after then
+        parts[#parts + 1] = words.connector
+    else
+        parts[#parts + 1] = words.continue
+    end
+
+    if ctx.mode == "plan" then
+        parts[#parts + 1] = words.ideas_only:format(ctx.max_ideas or 5)
+    else
+        parts[#parts + 1] = words.prose_only
+    end
+
+    M.generate_text(table.concat(parts, "\n"), callback)
+end
+
 -- Generate a paragraph from an idea
 function M.expand_idea(idea_text, context, lang, callback)
     local prompt
