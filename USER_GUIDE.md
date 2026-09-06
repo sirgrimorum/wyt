@@ -6,6 +6,7 @@ aplica a un proyecto. Para verlo todo en uso, de principio a fin, consulta el
 
 - [Estructura de un proyecto](#estructura-de-un-proyecto)
 - [Comandos](#comandos)
+- [Cómo usar :WYTGenerate](#cómo-usar-wytgenerate)
 - [Mappings](#mappings)
 - [Comportamiento automático](#comportamiento-automático)
 - [Tipos de texto](#tipos-de-texto)
@@ -76,9 +77,10 @@ dos ocurre depende de la profundidad del tipo, más abajo.
 
 ### Escritura y generación
 
-- `:WYTGenerate [prompt]`
-  Genera texto con el LLM configurado y lo inserta en el cursor.
-  _Puedes pasar un prompt personalizado._
+- `:WYTGenerate [instrucción]`
+  Genera en el punto donde está el cursor y lo inserta ahí.
+  _La instrucción es opcional: sin ella, la posición decide la tarea. Ver
+  [Cómo usar :WYTGenerate](#cómo-usar-wytgenerate)._
 
 - `:WYTExpand`, `:WYTExpand next`, `:WYTExpand prev`
   Expande el marcador de párrafo en el cursor, o busca el siguiente o el
@@ -100,6 +102,65 @@ está, de modo que un rasgo te dice de quién es:
 ```
 cast/plan.wyt.md:7 (Ana): - se queda callada cuando tiene miedo
 ```
+
+---
+
+## Cómo usar :WYTGenerate
+
+El cursor no es solo el sitio donde se pega el resultado: es parte de la
+pregunta. Antes de llamar al modelo, WYT lee dónde estás y qué tienes alrededor,
+y arma el prompt con eso. Nunca hace falta explicar el contexto a mano.
+
+Lo que se envía siempre:
+
+- **El proyecto**: el tipo literario y la descripción del `plan.wyt.md`.
+- **Dónde está el cursor**: la cabecera más cercana por encima, ya sea la
+  sección o el grupo, sin la marca `Grupo:` ni las etiquetas de estado.
+
+Lo que se envía según el archivo:
+
+| Estás en | Se envía además | Sin instrucción, pide | Se inserta como |
+|----------|-----------------|-----------------------|-----------------|
+| `text.wyt.md`, entre dos párrafos | el párrafo anterior y el siguiente | un párrafo que lleve de uno a otro | prosa |
+| `text.wyt.md`, después del último párrafo | el párrafo anterior | el párrafo que sigue | prosa |
+| `plan.wyt.md`, dentro de un grupo | las ideas que ya están en ese grupo | ideas nuevas que no repitan las existentes | ideas `- ` |
+| `plan.wyt.md`, bajo `## Ideas` | las ideas sueltas que ya hay | ideas nuevas para la sección | ideas `- ` |
+| cualquier otro archivo | nada más | el párrafo que sigue | prosa |
+
+Tres formas de usarlo, entonces:
+
+**Un conector entre párrafos.** Deja el cursor en la línea en blanco que separa
+dos párrafos y ejecuta `:WYTGenerate` sin argumentos. El modelo recibe los dos
+párrafos y escribe el puente.
+
+```vim
+:WYTGenerate
+:WYTGenerate que sea una sola frase, seca
+```
+
+**Lluvia de ideas en un grupo o sección.** Deja el cursor en la cabecera del
+grupo, o en cualquiera de sus ideas, dentro de `plan.wyt.md`. El modelo recibe
+las ideas que ya están ahí y propone hasta cinco nuevas, que se insertan como
+ideas de la lista, no como prosa.
+
+```vim
+:WYTGenerate
+:WYTGenerate ideas que contradigan las anteriores
+```
+
+**Cualquier otra cosa, con instrucción.** La instrucción sustituye a la tarea por
+defecto, pero el contexto se sigue enviando igual, así que no tienes que repetir
+de qué va el proyecto ni en qué grupo estás.
+
+```vim
+:WYTGenerate describe el lugar con tres detalles concretos
+:WYTGenerate reescribe el párrafo anterior en tercera persona
+```
+
+En un plan, el resultado se convierte siempre en ideas de una línea con su `- `,
+aunque el modelo responda con una lista numerada o con prosa. Un párrafo suelto
+dentro de un `plan.wyt.md` no sería una idea, y la sincronización automática lo
+arrastraría a todos los grupos.
 
 ---
 
@@ -174,6 +235,40 @@ tipos que permiten más de un nivel.
 tipos menos `summary` escriben un marcador por idea. `summary` condensa: el
 grupo entero se vuelve un solo marcador con todas sus ideas separadas por `;`,
 y al expandirlo se obtiene un párrafo que las funde.
+
+### Hacer que una rama baje un nivel más
+
+La profundidad del tipo es solo el valor por defecto **al crear** una sección.
+Lo que de verdad gobierna a una sección es su propio `sections:`, y ese
+interruptor lo puedes editar a mano. Si una rama concreta necesita un nivel más
+del que su tipo reparte, abre el `config.wyt.yml` de esa sección y pon
+`sections: true`:
+
+```yaml
+type: essay
+section_kind: prose
+content_type: definition
+sections: true    # esta sección anida, aunque el ensayo ya estuviera en su límite
+```
+
+A partir de ahí, `<S-Tab>` sobre un grupo de esa sección crea una sub-sección en
+lugar de mandar el grupo a `text.wyt.md`. El cambio es **local a esa rama**: sus
+secciones hermanas siguen con `sections: false` y siguen escribiendo texto, y
+las sub-secciones nuevas se crean con el valor que les toca por el tipo, así que
+el árbol no se desborda solo. No hay ninguna clave global de profundidad, ni
+hace falta: para un ensayo que quieres entero en tres niveles, el sitio correcto
+es el tipo.
+
+Dos detalles que conviene tener claros:
+
+- El interruptor solo decide lo que pasa **de ahí en adelante**. Ponerlo a
+  `false` en una sección que ya tiene sub-secciones no las borra ni las saca del
+  export; solo hace que el próximo `<S-Tab>` escriba texto en vez de crear otra.
+- El [mapa de títulos](#mapa-de-títulos) solo declara niveles hasta la
+  profundidad propia del tipo. Un nivel de más no lleva título: sus bloques
+  simplemente salen uno tras otro, separados por una línea en blanco, dentro del
+  título del nivel que sí está declarado. El export no se rompe, pero tampoco
+  titula. Si quieres títulos ahí, el tipo es el sitio donde declararlos.
 
 ---
 

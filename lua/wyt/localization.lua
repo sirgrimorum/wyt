@@ -87,6 +87,8 @@ M.translations = {
         nav_tab_desc = "WYT: navigate to related file",
         -- P1: LLM
         llm_generating = "[WYT] Generating text...",
+        text_inserted = "[WYT] Text inserted at cursor",
+        ideas_inserted = "[WYT] %d ideas inserted",
         llm_no_api_key = "[WYT] API key not set. Use :WYTConfig <provider>, or set api_key in setup()",
         llm_error = "[WYT] Generation failed: ",
         -- P3/P14: guided questions
@@ -214,6 +216,8 @@ M.translations = {
         nav_tab_desc = "WYT: navegar al archivo relacionado",
         -- P1: LLM
         llm_generating = "[WYT] Generando texto...",
+        text_inserted = "[WYT] Texto insertado en el cursor",
+        ideas_inserted = "[WYT] %d ideas insertadas",
         llm_no_api_key = "[WYT] API key no configurada. Usa :WYTConfig <proveedor>, o define api_key en setup()",
         llm_error = "[WYT] Error al generar: ",
         -- P3/P14: preguntas orientadoras

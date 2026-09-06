@@ -38,15 +38,22 @@ Expected output:
 
 ## 1. Configure LLM Provider
 
-Before using AI-assisted features, set your provider and API key:
+Before using AI-assisted features, set your provider. Give the command the
+provider **only**, and let it ask for the key:
 
 ```vim
-:WYTConfig openai sk-proj-...your-key...
+:WYTConfig openai
 " or
-:WYTConfig claude sk-ant-...your-key...
+:WYTConfig claude
 ```
 
-This saves the provider and key to the global plugin config. Only needs to be done once per Neovim session (or persisted via your own config).
+The key is then read with `inputsecret`, so it is not echoed and never reaches
+`:history`. Passing it as a second argument still works, but WYT warns and
+scrubs the command out of the history, because Neovim would otherwise persist it
+to the shada file.
+
+This saves the provider and key to the global plugin config. Only needs to be
+done once per Neovim session (or persisted via your own config).
 
 ---
 
@@ -66,7 +73,7 @@ Interactive wizard prompts:
 | Project name | `The Silence of Cities` |
 | Root folder name | `the-silence-of-cities` (pre-filled with the slug; `.` = use the path itself) |
 | Content type | `content` |
-| Has sections? | `y` |
+| Has sections? | `Yes` |
 | Open in | `Same window` |
 
 The text types offered are `novel`, `long_novel`, `short_novel`, `short_story`,
@@ -145,8 +152,9 @@ Flow:
 2. Plugin shows the single orienting question for `essay` type:
    *"¿Qué argumento o perspectiva quieres explorar en este ensayo?"*
 3. User types: `El ruido urbano suprime la capacidad de escuchar el propio pensamiento`
-4. Plugin asks: **Improve with LLM? [y/N]**
-5. User types `y`. The refined sentence appears in full in a panel titled
+4. Plugin asks **Improve with LLM?**, as a menu with *Yes* and *No*. Every
+   yes/no in WYT is a menu, never a typed `y`.
+5. Pick *Yes*. The refined sentence appears in full in a panel titled
    *Idea mejorada* above the menu, and the menu decides what happens to it. The
    result is never applied on its own:
 
@@ -158,7 +166,9 @@ Flow:
    | Keep my original | discard the generation, store what you typed |
 
    `<Esc>` is the same as *Keep my original*.
-6. Plugin asks: **Add to group? [y/N]**  — User types `n` (no group yet)
+6. No group exists yet, so nothing is asked about groups. Once the plan has
+   groups, this is where a multi-select of them appears, and the new idea is
+   tagged into every group you tick.
 7. Idea is appended to `## Ideas`
 
 ### The guided questions mode
@@ -228,11 +238,11 @@ Flow:
    - `El ruido urbano suprime la capacidad de escuchar el propio pensamiento`
    - `La arquitectura urbana moderna elimina espacios para la contemplación`
    - `Las ciudades medievales tenían plazas diseñadas para el silencio`
-3. Plugin asks: **Suggest group name with LLM? [y/N]**
+3. Plugin asks **Suggest group name with LLM?**, again as a *Yes* / *No* menu
 4. Either way the name is asked with the guided question for `essay` as the
    prompt: *"¿Cuál es el argumento central que une estas ideas?"*
-   - answered `n`, the prompt is empty and you name the group yourself
-   - answered `y`, the LLM suggestion arrives pre-filled in that same prompt,
+   - answered *No*, the prompt is empty and you name the group yourself
+   - answered *Yes*, the LLM suggestion arrives pre-filled in that same prompt,
      `"El espacio urbano como destructor del silencio"`, ready to accept with
      `<CR>` or edit in place
 5. Group is written to plan.wyt.md
@@ -261,6 +271,10 @@ Ideas in the Ideas section are automatically tagged:
 Select:
 - `El smartphone es una extensión del ruido urbano dentro del hogar`
 - `El capitalismo de atención explota la incapacidad de estar en silencio`
+
+Now that a group exists, one extra question comes after the picker: **Add to
+existing group or create new?**. Answer **Create new group** and the flow
+continues as in 5a.
 
 LLM suggests: `"La economía de la atención como amplificador del ruido"`
 
@@ -323,14 +337,15 @@ type. Pick **Prose (the text itself)** here; §13 covers the others. `<Esc>`
 cancels and nothing is created.
 
 What happens automatically:
-- Directory `sections/el-espacio-urbano-como-destructor-del-silencio/` is created
+- Directory `el-espacio-urbano-como-destructor-del-silencio/` is created next to
+  the plan that owns it. A section is a plain subdirectory named after the
+  group's slug; there is no `sections/` folder anywhere.
 - `config.wyt.yml` written: `type` inherited from the project (`essay`),
   `section_kind` and its `content_type` from your answer, and `sections`
   computed from the type's depth
-- `plan.wyt.md` created with:
-  - Title = group name
-  - Description = ideas from the group (joined as description text)
-  - Each idea from the group becomes a `## Grupo: [idea]` with sub-ideas pre-populated
+- `plan.wyt.md` created with the group name as its title, an empty Ideas
+  section, and one empty `## Grupo:` per idea of the group, so each idea of the
+  parent becomes a group of its own waiting to be filled
 - Group in root plan is tagged `[Implemented]`
 - Auto-commit fires
 
@@ -343,7 +358,7 @@ tab. If that file is already open, WYT jumps to its tab instead of opening a
 second copy of it.
 
 ```
-sections/el-espacio-urbano-como-destructor-del-silencio/plan.wyt.md
+el-espacio-urbano-como-destructor-del-silencio/plan.wyt.md
 ```
 
 ---
@@ -394,18 +409,25 @@ Back in the section's `plan.wyt.md`, position cursor on a group that is ready to
 
 Press `<S-Tab>`.
 
-Since `sections: false` in this section's config, the plugin implements to `text.wyt.md`:
-- `text.wyt.md` is created/updated with group header and one placeholder per idea:
+Since `sections: false` in this section's config, the plugin implements to
+`text.wyt.md`: the group header is copied over and each of its ideas becomes one
+placeholder, the idea itself wrapped in square brackets.
 
 ```markdown
-## El espacio urbano como destructor del silencio
+## Grupo: Las ciudades medievales tenían plazas...
 
-*Create a paragraph about: El ruido urbano suprime la capacidad...*
+*Create a paragraph about: [Ejemplo de Haussmann demoliendo el Paris medieval]*
 
-*Create a paragraph about: La arquitectura urbana moderna elimina espacios...*
-
-*Create a paragraph about: Las ciudades medievales tenían plazas...*
+*Create a paragraph about: [Las plazas eran el lugar donde se pensaba en común]*
 ```
+
+The marker is written in the project's language, so a project still on `lang: es`
+gets `*Crea un párrafo sobre: [...]*`. Either form is recognised on expansion and
+on export.
+
+A `summary` is the exception: it folds the whole group into a single placeholder
+holding every idea separated by `; `. See the
+[User Guide](../USER_GUIDE.md#tipos-de-texto).
 
 Group is tagged `[Implemented]` in plan. Auto-commit fires.
 
@@ -429,17 +451,22 @@ The BufEnter autocmd sets buffer-local keymaps for text files.
 ]w
 ```
 
-Cursor jumps to first `*Create a paragraph about: ...*` placeholder.
+Cursor jumps to first `*Create a paragraph about: [...]*` placeholder, and the
+expansion starts right there. Jumping and expanding are one move.
 
-Plugin prompts: **Expand with LLM or manual? [l/m]**
+Plugin prompts **How to expand this placeholder?** with two answers:
 
-- `l` → calls `llm.expand_idea(idea_text, context, lang, callback)` asynchronously with OpenAI/Claude
+- **Generate with LLM** → calls `llm.expand_idea(idea_text, context, lang, callback)`
+  asynchronously with OpenAI/Claude
   - While generating, cursor stays in buffer
-  - On completion, placeholder is replaced with generated paragraph
+  - On completion, the placeholder line is replaced with the generated paragraph
   - The model is told to reply with prose only, and the reply is stripped of
     headings, code fences and list markers anyway. A `#` heading invented by the
     model would otherwise become a section of the finished export.
-- `m` → opens a small input prompt, user types the paragraph manually
+- **Write manually** → opens the input panel, titled *Paragraph text*, with the
+  idea itself as the question, since a whole idea rarely fits on a prompt line
+
+`<Esc>` at the question leaves the placeholder as it is.
 
 ### Expand placeholder at cursor manually
 
@@ -474,19 +501,33 @@ Auto-commit fires: `"Save: text.wyt.md"`
 
 ---
 
-## 11. Use WYTGenerate for Free-Form Text
+## 11. Use WYTGenerate
 
-With `text.wyt.md` open and cursor positioned where you want to insert text:
-
-```vim
-:WYTGenerate escribe una transición entre los dos párrafos anteriores
-```
-
-The LLM is called asynchronously with your prompt + project context (description, type, language). Generated text is inserted at cursor position when ready.
+Put the cursor on the blank line between two paragraphs of `text.wyt.md` and
+run it with no arguments:
 
 ```vim
-:WYTGenerate    " without arguments → uses a default creative prompt
+:WYTGenerate
 ```
+
+The cursor is the instruction. WYT sends the project frame (type and
+description), the group or section heading the cursor sits under, and the
+paragraph on either side of it, then asks for a paragraph that carries the
+reader from one to the other. The result is inserted where the cursor was.
+
+With the cursor inside a group of `plan.wyt.md` instead, the same command
+brainstorms: it sends the ideas already in that group and asks for new ones that
+do not repeat them, and inserts them as `- ` ideas rather than as prose.
+
+An argument replaces the default task, and keeps the context:
+
+```vim
+:WYTGenerate que sea una sola frase, seca
+:WYTGenerate ideas que contradigan las anteriores
+```
+
+The [User Guide](../USER_GUIDE.md#cómo-usar-wytgenerate) has the full table of
+what is sent from where.
 
 ---
 
@@ -569,23 +610,34 @@ not to be published.
 :WYTNav
 ```
 
-Opens a Telescope picker showing the hierarchical project tree, indented by depth:
+Opens a Telescope picker showing the hierarchical project tree. Each section is
+a directory line, its files indented under it, and the sections come in the
+order their groups have in the plan, not in alphabetical order:
 
 ```
 plan.wyt.md
-  sections/el-espacio-urbano.../plan.wyt.md
-  sections/el-espacio-urbano.../text.wyt.md
-  sections/la-economia-de-la-atencion.../plan.wyt.md
-  sections/la-economia-de-la-atencion.../text.wyt.md
-  sections/recuperar-el-silencio.../plan.wyt.md
-  sections/recuperar-el-silencio.../text.wyt.md
-  sections/key-concepts.../plan.wyt.md
 export.wyt.md
 config.wyt.yml
+el-espacio-urbano.../
+  plan.wyt.md
+  text.wyt.md
+  config.wyt.yml
+la-economia-de-la-atencion.../
+  plan.wyt.md
+  text.wyt.md
+  config.wyt.yml
+recuperar-el-silencio.../
+  plan.wyt.md
+  text.wyt.md
+  config.wyt.yml
+key-concepts/
+  plan.wyt.md
+  config.wyt.yml
 ```
 
-Select any entry → opens that file in the current window, or jumps to the
-window that already shows it.
+Select any file → opens it in the current window, or jumps to the window that
+already shows it. The directory lines are there to read the shape of the
+project; selecting one does nothing.
 
 ---
 
@@ -599,24 +651,40 @@ window that already shows it.
 :WYTGoto parent    " open the parent section's plan.wyt.md
 ```
 
-`WYTGoto parent` from inside a section → opens root `plan.wyt.md`.
-`WYTGoto parent` from root → notifies "already at root".
+`plan`, `text`, `config` and `parent` are all relative to the **current
+section**; only `export` is a root-level file.
+
+`WYTGoto parent` goes up exactly one level, so from a section of this essay it
+opens the root `plan.wyt.md`, and from a section nested two deep it opens the
+section above it, not the root. From the root it notifies "already at root".
 
 ---
 
 ## 16. Rename a Group / Section
 
-In `plan.wyt.md`, edit the group header text directly:
+Rename through `:WYTNew g`, not by editing the header by hand.
 
-```markdown
-## Grupo: El espacio urbano como destructor del silencio
-" →
-## Grupo: El espacio urbano y la destrucción del silencio
+```vim
+:WYTNew g
 ```
 
-Save (`:w`).
+Pick the ideas as usual, answer **Add to existing group**, choose the group, and
+the next prompt is *"Edit group name (leave blank to keep current) [El espacio
+urbano como destructor del silencio]:"*. Type the new name there:
 
-The auto-commit fires. On next `<S-Tab>` navigation to this group, the plugin detects the folder name mismatch and renames the `sections/` folder to the new slug automatically.
+```
+El espacio urbano y la destrucción del silencio
+```
+
+The plugin renames the group in the plan, retags the ideas that belong to it,
+and, when the new name slugifies differently, renames the section directory to
+match. It says so: `Renamed section folder: el-espacio-urbano-como-... → ...`.
+
+Editing the `## Grupo:` header in the buffer instead only changes the text. The
+directory keeps its old name, and the next `<S-Tab>` on that header looks for a
+section under the *new* slug, does not find one, and offers to create a second
+one. If you have already done it, rename the directory yourself to the slug of
+the new name and the two line up again.
 
 ---
 
@@ -633,7 +701,8 @@ The plugin:
 2. For each section in order:
    - If `content_type: definition` → skipped, with everything below it
    - Otherwise → uses `text.wyt.md`
-   - Strips unexpanded `*Create a paragraph about: ...*` placeholders
+   - Strips unexpanded `*Create a paragraph about: [...]*` placeholders, in
+     either language
 3. Applies the type's [outline map](../USER_GUIDE.md#mapa-de-títulos): a section
    name becomes a heading, a scene break, or nothing, by its plan level
 4. Drops the `## Grupo: ...` markers, which are WYT's own structure and not part
@@ -656,7 +725,14 @@ Paragraph. Paragraph.
 ## La economía de la atención como amplificador del ruido
 
 Paragraph.
+
+## Recuperar el silencio: salud, creatividad y movimientos alternativos
+
+Paragraph. Paragraph.
 ```
+
+Three sections, not four: `key-concepts` carries `content_type: definition`, so
+the export leaves it out.
 
 The same project as a `novel` would title its chapters and separate its scenes
 with `* * *` instead, and as a `summary` it would turn each group name into a
@@ -686,23 +762,25 @@ the-silence-of-cities/
 ├── config.wyt.yml
 ├── plan.wyt.md                          ← root plan, all groups [Implemented]
 ├── export.wyt.md                        ← assembled final text
-└── sections/
-    ├── el-espacio-urbano.../
-    │   ├── config.wyt.yml
-    │   ├── plan.wyt.md
-    │   └── text.wyt.md
-    ├── la-economia-de-la-atencion.../
-    │   ├── config.wyt.yml
-    │   ├── plan.wyt.md
-    │   └── text.wyt.md
-    ├── recuperar-el-silencio.../
-    │   ├── config.wyt.yml
-    │   ├── plan.wyt.md
-    │   └── text.wyt.md
-    └── key-concepts/                    ← definition type, excluded from export
-        ├── config.wyt.yml
-        └── plan.wyt.md
+├── el-espacio-urbano.../
+│   ├── config.wyt.yml
+│   ├── plan.wyt.md
+│   └── text.wyt.md
+├── la-economia-de-la-atencion.../
+│   ├── config.wyt.yml
+│   ├── plan.wyt.md
+│   └── text.wyt.md
+├── recuperar-el-silencio.../
+│   ├── config.wyt.yml
+│   ├── plan.wyt.md
+│   └── text.wyt.md
+└── key-concepts/                        ← definition archetype, excluded from export
+    ├── config.wyt.yml
+    └── plan.wyt.md
 ```
+
+Every section is a subdirectory of the plan that owns it, named after the
+group's slug. Nesting a level deeper just repeats the shape.
 
 ---
 
