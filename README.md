@@ -197,6 +197,17 @@ En ambos casos, reinicia la terminal o recarga el perfil.
 Reporta versión de Neovim, telescope, git, el proveedor LLM y de dónde sale la API key. Nunca
 imprime la key.
 
+## Tests
+
+```sh
+nvim --headless -l tests/runner.lua              # todo
+nvim --headless -l tests/runner.lua types llm    # solo esos specs
+```
+
+No hay nada que instalar y ninguna llamada al LLM: los tests reemplazan
+`generate_text` por un doble, así que corren sin API key. Sale con código 1 si
+algo falla. Ver [tests/README.md](./tests/README.md) para escribir uno.
+
 ## ¿Qué archivos y carpetas crea?
 
 - `plan.wyt.md`: Plan principal del proyecto o sección.
@@ -212,7 +223,7 @@ No modifiques los archivos internos del plugin. Edita los archivos de tu proyect
 
 ## Uso básico
 
-1. Ejecuta `:WYTNewProject` para crear un nuevo proyecto literario.
+1. Ejecuta `:WYTNew p` para crear un nuevo proyecto literario.
 2. Navega y administra tu proyecto con los comandos y mappings.
 3. Edita y organiza tus ideas, grupos y textos desde los archivos generados.
 
@@ -224,6 +235,9 @@ No modifiques los archivos internos del plugin. Edita los archivos de tu proyect
   (personajes, cronología, puntos de giro, conceptos clave, fuentes).
 - [Caso de uso completo](./docs/use_case_e2e.md): el recorrido de la metodología
   de principio a fin, desde un directorio vacío hasta el export final.
+- [Tests](./tests/README.md): cómo correr la suite y cómo escribir un spec.
+- [AGENTS.md](./AGENTS.md): para contribuir, con o sin un asistente de código.
+  Las decisiones ya tomadas y las trampas que han costado tiempo.
 
 ---
 
