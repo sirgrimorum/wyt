@@ -2,6 +2,7 @@ local api = vim.api
 local loc = require("wyt.localization")
 local project = require("wyt.project")
 local plan = require("wyt.plan")
+local types = require("wyt.types")
 local ui = require("wyt.ui")
 
 local M = {}
@@ -250,7 +251,10 @@ function M.new_group(line1, line2)
             vim.ui.select({ loc.t("yes"), loc.t("no") }, { prompt = loc.t("use_llm") }, function(use_llm)
                 if use_llm == loc.t("yes") and #selected_ideas > 0 then
                     vim.notify(loc.t("llm_generating"), vim.log.levels.INFO)
-                    llm.suggest_group_name(selected_ideas, project_type, project.lang, function(suggested, err)
+                    -- The model is given the type's name, not its id: "un grupo
+                    -- de ideas de un long_novel" is half English and misspelt.
+                    local type_label = types.label(project_type, project.lang)
+                    llm.suggest_group_name(selected_ideas, type_label, project.lang, function(suggested, err)
                         if err then vim.notify(loc.t("llm_error") .. err, vim.log.levels.WARN) end
                         -- A name that is really a question is no name at all
                         if suggested and suggested ~= "" and llm.looks_like_question(suggested) then

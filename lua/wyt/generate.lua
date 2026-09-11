@@ -92,6 +92,9 @@ function M.context(buf, row)
         mode = mode,
         lang = project.lang,
         project = project.description_context(plan_content),
+        -- What the type wants a paragraph to be. Ignored in plan mode, where
+        -- ideas are asked for instead of prose.
+        prose_kind = require("wyt.types").prose_kind(project.get_project_type(), project.lang),
         heading = heading,
         max_ideas = MAX_IDEAS,
     }

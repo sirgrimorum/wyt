@@ -68,7 +68,7 @@ Interactive wizard prompts:
 | Prompt | Example answer |
 |--------|----------------|
 | Language | `es` |
-| Text type | `essay` |
+| Text type | `Ensayo: Secciones con título, y sus párrafos corren seguidos.` |
 | Path | `/home/user/writing` (pre-filled with the current directory) |
 | Project name | `The Silence of Cities` |
 | Root folder name | `the-silence-of-cities` (pre-filled with the slug; `.` = use the path itself) |
@@ -76,11 +76,16 @@ Interactive wizard prompts:
 | Has sections? | `Yes` |
 | Open in | `Same window` |
 
-The text types offered are `novel`, `long_novel`, `short_novel`, `short_story`,
-`essay` and `summary`. **Has sections?** is only asked for a type that allows
-more than one plan level (see the
-[User Guide](../USER_GUIDE.md#tipos-de-texto)): `short_story` and `summary` are
-single-level, so the wizard writes `sections: false` without asking.
+Six text types are offered. The list is shown in the language picked one
+question earlier, each entry naming the type and what it does to the finished
+text, so the answer above reads `Ensayo: ...` and not `essay`. The ids
+`novel`, `long_novel`, `short_novel`, `short_story`, `essay` and `summary` are
+what gets written to `config.wyt.yml`; they are never shown and never sent to
+the model. See the [User Guide](../USER_GUIDE.md#tipos-de-texto).
+
+**Has sections?** is only asked for a type that allows more than one plan level:
+`short_story` and `summary` are single-level, so the wizard writes
+`sections: false` without asking.
 
 Every prompt after the Language step is shown in the language you picked, and
 `<Esc>` at any step cancels the wizard without creating anything.
@@ -456,10 +461,17 @@ expansion starts right there. Jumping and expanding are one move.
 
 Plugin prompts **How to expand this placeholder?** with two answers:
 
-- **Generate with LLM** → calls `llm.expand_idea(idea_text, context, lang, callback)`
-  asynchronously with OpenAI/Claude
+- **Generate with LLM** → calls `llm.expand_idea` asynchronously with
+  OpenAI/Claude
   - While generating, cursor stays in buffer
   - On completion, the placeholder line is replaced with the generated paragraph
+  - The model is asked for the kind of paragraph this type wants, not a generic
+    one: *un párrafo argumentativo* for an essay, *un párrafo narrativo* for a
+    novel, *un párrafo de notas conciso* for a summary. It is also given the
+    project frame, the same one `:WYTGenerate` uses: the type's name, the plan's
+    Description, and the title of the plan this placeholder belongs to.
+  - A `summary` placeholder holds a whole group's ideas separated by `;`, so
+    there the model is told to merge all of them into one paragraph
   - The model is told to reply with prose only, and the reply is stripped of
     headings, code fences and list markers anyway. A `#` heading invented by the
     model would otherwise become a section of the finished export.
