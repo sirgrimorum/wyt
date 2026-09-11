@@ -1,11 +1,14 @@
--- Minimal Neovim init for running tests without a full user config.
--- Usage: nvim --headless -u tests/minimal_init.lua -c "PlenaryBustedDirectory tests/"
---    or: nvim -l tests/minimal_init.lua tests/some_spec.lua
+-- Minimal Neovim init for loading the plugin without a user config.
+--
+-- The suite does not use this file: `tests/runner.lua` puts the plugin on the
+-- runtimepath itself, so one command runs everything. Keep this for poking at
+-- the plugin by hand:
+--
+--   nvim -u tests/minimal_init.lua
+--
+-- plenary.nvim is deliberately not a dependency. It used to be what ran the
+-- tests, and `PlenaryBustedDirectory` hangs forever when it is not installed,
+-- which is the whole reason the suite ships its own runner.
 
-vim.opt.runtimepath:prepend(vim.fn.getcwd())  -- add plugin root to rtp
-
--- Bootstrap plenary if available (used for test runner)
-local ok = pcall(require, "plenary")
-if not ok then
-    vim.notify("plenary.nvim not found — install it to run tests", vim.log.levels.ERROR)
-end
+vim.opt.runtimepath:prepend(vim.fn.getcwd())
+require("wyt").setup({})
