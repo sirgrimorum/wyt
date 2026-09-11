@@ -189,6 +189,11 @@ local function strip_decoration(line)
             break
         end
     end
+    -- A heading marker, by the same rule to_prose uses: `#` then whitespace. A
+    -- name is never a heading, and a group called "## The platform" would carry
+    -- the hashes into its folder slug and its `## Group:` line. `#silence` with
+    -- no space is a hashtag the writer may have wanted, so it stays.
+    line = line:gsub("^#+%s+", "")
     line = line:gsub("^%d+[%.%)]%s+", "")       -- "1. " / "1) "
     line = line:gsub("^%*%*(.-)%*%*$", "%1")    -- **bold**
     line = line:gsub("^%*(.-)%*$", "%1")        -- *italic*
