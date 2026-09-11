@@ -367,7 +367,9 @@ end
 
 -- What the model is told, per language. Only the parts the cursor actually has
 -- are used: a paragraph with nothing after it asks for a continuation, one
--- between two others asks for a bridge.
+-- between two others asks for a bridge. `connector` and `continue` take the
+-- kind of paragraph the project's type wants, so an essay is not asked for the
+-- same thing as a novel; `kind` is the fallback for a caller that omits it.
 local CONTEXT_PROMPT = {
     en = {
         frame = "Project: %s",
@@ -376,8 +378,9 @@ local CONTEXT_PROMPT = {
         before = "The text just before the cursor: %s",
         after = "The text just after the cursor: %s",
         existing = "Ideas already listed here: %s",
-        connector = "Write a paragraph that carries the reader from what comes before to what comes after.",
-        continue = "Write the paragraph that comes next.",
+        kind = "a paragraph",
+        connector = "Write %s that carries the reader from what comes before to what comes after.",
+        continue = "Write %s that comes next.",
         brainstorm = "Propose new ideas that belong here and do not repeat the ones already listed.",
         prose_only = "Reply with the prose only: no title, no headings, no lists, no other markdown.",
         ideas_only = "Reply with at most %d ideas, one per line, each a single sentence."
@@ -390,8 +393,9 @@ local CONTEXT_PROMPT = {
         before = "El texto justo antes del cursor: %s",
         after = "El texto justo después del cursor: %s",
         existing = "Ideas que ya están aquí: %s",
-        connector = "Escribe un párrafo que lleve al lector de lo anterior a lo siguiente.",
-        continue = "Escribe el párrafo que sigue.",
+        kind = "un párrafo",
+        connector = "Escribe %s que lleve al lector de lo anterior a lo siguiente.",
+        continue = "Escribe %s que siga a lo anterior.",
         brainstorm = "Propón ideas nuevas que encajen aquí y que no repitan las que ya están.",
         prose_only = "Responde solo con la prosa: sin título, sin encabezados, sin listas"
             .. " y sin ningún otro formato markdown.",
@@ -416,14 +420,15 @@ function M.generate_in_context(ctx, callback)
     add(words.after, ctx.after)
     add(words.existing, ctx.existing)
 
+    local kind = ctx.prose_kind or words.kind
     if ctx.instruction and ctx.instruction ~= "" then
         parts[#parts + 1] = ctx.instruction
     elseif ctx.mode == "plan" then
         parts[#parts + 1] = words.brainstorm
     elseif ctx.before and ctx.after then
-        parts[#parts + 1] = words.connector
+        parts[#parts + 1] = words.connector:format(kind)
     else
-        parts[#parts + 1] = words.continue
+        parts[#parts + 1] = words.continue:format(kind)
     end
 
     if ctx.mode == "plan" then
@@ -435,26 +440,46 @@ function M.generate_in_context(ctx, callback)
     M.generate_text(table.concat(parts, "\n"), callback)
 end
 
--- Generate a paragraph from an idea
-function M.expand_idea(idea_text, context, lang, callback)
-    local prompt
-    if lang == "es" then
-        prompt = "Escribe un párrafo literario sobre la siguiente idea"
-        if context and context ~= "" then
-            prompt = prompt .. ". Contexto del proyecto: " .. context
-        end
-        prompt = prompt .. ". Idea: " .. idea_text
-            .. ". Responde solo con la prosa: sin título, sin encabezados,"
-            .. " sin listas y sin ningún otro formato markdown."
-    else
-        prompt = "Write a literary paragraph based on the following idea"
-        if context and context ~= "" then
-            prompt = prompt .. ". Project context: " .. context
-        end
-        prompt = prompt .. ". Idea: " .. idea_text
-            .. ". Reply with the prose only: no title, no headings, no lists,"
-            .. " no other markdown formatting."
+-- One line each, like CONTEXT_PROMPT. Gluing these together with ". " instead
+-- doubled the period whenever a part already ended in one.
+local EXPAND_PROMPT = {
+    en = {
+        kind = "a literary paragraph",
+        write = "Write %s based on the idea below.",
+        context = "Project context: %s",
+        idea = "Idea: %s",
+        merge = "The idea carries several points separated by ';':"
+            .. " merge all of them into a single paragraph.",
+        prose_only = "Reply with the prose only: no title, no headings, no lists,"
+            .. " no other markdown formatting.",
+    },
+    es = {
+        kind = "un párrafo literario",
+        write = "Escribe %s sobre la idea de abajo.",
+        context = "Contexto del proyecto: %s",
+        idea = "Idea: %s",
+        merge = "La idea trae varios puntos separados por ';':"
+            .. " fúndelos todos en un solo párrafo.",
+        prose_only = "Responde solo con la prosa: sin título, sin encabezados,"
+            .. " sin listas y sin ningún otro formato markdown.",
+    },
+}
+
+--- Generate a paragraph from an idea.
+--- `opts` may carry { prose_kind, merge }: the kind of paragraph the project's
+--- type wants, and whether the idea is really several ideas that have to be
+--- folded into one paragraph, which is what a summary's placeholder holds.
+function M.expand_idea(idea_text, context, lang, callback, opts)
+    opts = opts or {}
+    local words = EXPAND_PROMPT[lang] or EXPAND_PROMPT.en
+    local parts = { words.write:format(opts.prose_kind or words.kind) }
+    if context and context ~= "" then
+        parts[#parts + 1] = words.context:format(context)
     end
+    parts[#parts + 1] = words.idea:format(idea_text)
+    if opts.merge then parts[#parts + 1] = words.merge end
+    parts[#parts + 1] = words.prose_only
+    local prompt = table.concat(parts, "\n")
     -- The instruction is not enough on its own; the reply is stripped as well,
     -- because one invented title corrupts the export's outline.
     M.generate_text(prompt, function(result, err)
@@ -466,18 +491,22 @@ function M.expand_idea(idea_text, context, lang, callback)
     end)
 end
 
--- Suggest a group name from a list of ideas
-function M.suggest_group_name(ideas, type_name, lang, callback)
+--- Suggest a group name from a list of ideas. `type_label` is the type's name
+--- in the writer's language, given on its own line: inlined after an article it
+--- read as "un grupo de ideas de un Novela larga", which does not agree.
+function M.suggest_group_name(ideas, type_label, lang, callback)
     local ideas_str = table.concat(ideas, "\n- ")
     local prompt
     if lang == "es" then
-        prompt = "Sugiere un nombre corto y descriptivo para un grupo de ideas de un " .. type_name
-            .. ".\nIdeas:\n- " .. ideas_str
+        prompt = "Tipo de texto: " .. type_label
+            .. "\nSugiere un nombre corto y descriptivo para este grupo de ideas."
+            .. "\nIdeas:\n- " .. ideas_str
             .. "\nResponde solo con el nombre, en una sola línea, sin comillas, sin prefijos"
             .. " como \"Nombre:\" y sin explicación."
     else
-        prompt = "Suggest a short, descriptive name for a group of ideas in a " .. type_name
-            .. ".\nIdeas:\n- " .. ideas_str
+        prompt = "Text type: " .. type_label
+            .. "\nSuggest a short, descriptive name for this group of ideas."
+            .. "\nIdeas:\n- " .. ideas_str
             .. "\nReply with the name only, on a single line, no quotes, no \"Name:\" prefix,"
             .. " no explanation."
     end

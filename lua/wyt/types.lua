@@ -15,8 +15,20 @@ local SCENE = "* * *"
 -- idea; `subsection_idea_prompt` replaces it inside a section, where the writer
 -- is filling in a part rather than opening a new line of thought. The multi-item
 -- `idea_questions` list is only used by the guided brainstorming mode.
+--
+-- `label` and `blurb` are what the writer reads in the project wizard, and
+-- `label` is also the name the model is given for the type: the raw id would
+-- send `long_novel` into a Spanish prompt. `prose_kind` names the paragraph the
+-- model is asked for, since an essay does not want the same one as a novel. All
+-- three are noun phrases with their article, so they drop into a sentence.
 M.configs = {
     novel = {
+        label = { en = "Novel", es = "Novela" },
+        blurb = {
+            en = "Titled chapters, scenes separated inside them.",
+            es = "Capítulos con título, escenas separadas dentro de ellos.",
+        },
+        prose_kind = { en = "a narrative paragraph", es = "un párrafo narrativo" },
         idea_prompt = {
             en = "What happens next in your story?",
             es = "¿Qué ocurre a continuación en tu historia?",
@@ -72,6 +84,12 @@ M.configs = {
     -- A long novel is a novel with one more level between the book and the
     -- scene: parts or books, then chapters, then scenes.
     long_novel = {
+        label = { en = "Long novel", es = "Novela larga" },
+        blurb = {
+            en = "Parts and chapters titled, scenes separated inside them.",
+            es = "Partes y capítulos con título, escenas separadas dentro de ellos.",
+        },
+        prose_kind = { en = "a narrative paragraph", es = "un párrafo narrativo" },
         idea_prompt = {
             en = "What thread or event moves the whole story forward?",
             es = "¿Qué hilo o suceso hace avanzar toda la historia?",
@@ -132,6 +150,12 @@ M.configs = {
     -- The middle ground: longer than a story, but told in scenes rather than
     -- chapters, so level 2 is the scene itself and nothing is titled.
     short_novel = {
+        label = { en = "Short novel", es = "Novela corta" },
+        blurb = {
+            en = "Told in scenes, separated and never titled.",
+            es = "Contada en escenas, separadas y nunca tituladas.",
+        },
+        prose_kind = { en = "a narrative paragraph", es = "un párrafo narrativo" },
         idea_prompt = {
             en = "What scene do you want to write?",
             es = "¿Qué escena quieres escribir?",
@@ -182,6 +206,12 @@ M.configs = {
     },
 
     short_story = {
+        label = { en = "Short story", es = "Cuento" },
+        blurb = {
+            en = "One flow of scenes under the story's title.",
+            es = "Un solo flujo de escenas bajo el título del cuento.",
+        },
+        prose_kind = { en = "a literary paragraph", es = "un párrafo literario" },
         idea_prompt = {
             en = "What moment or image do you want to capture?",
             es = "¿Qué momento o imagen quieres capturar?",
@@ -230,6 +260,12 @@ M.configs = {
     },
 
     essay = {
+        label = { en = "Essay", es = "Ensayo" },
+        blurb = {
+            en = "Titled sections, their paragraphs running on.",
+            es = "Secciones con título, y sus párrafos corren seguidos.",
+        },
+        prose_kind = { en = "an argumentative paragraph", es = "un párrafo argumentativo" },
         idea_prompt = {
             en = "What argument or perspective do you want to explore in this essay?",
             es = "¿Qué argumento o perspectiva quieres explorar en este ensayo?",
@@ -278,6 +314,12 @@ M.configs = {
     },
 
     summary = {
+        label = { en = "Summary", es = "Resumen" },
+        blurb = {
+            en = "Labelled notes, a whole group condensed into one paragraph.",
+            es = "Notas etiquetadas, y un grupo entero se condensa en un párrafo.",
+        },
+        prose_kind = { en = "a concise paragraph of notes", es = "un párrafo de notas conciso" },
         idea_prompt = {
             en = "What key point do you want to record?",
             es = "¿Qué punto clave quieres registrar?",
@@ -358,6 +400,31 @@ end
 local function localized(entry, lang)
     if not entry then return nil end
     return entry[lang] or entry.en
+end
+
+--- The type's name in the writer's language. This is also the name the model is
+--- given: the id is English and carries an underscore, so `long_novel` would go
+--- into a Spanish prompt untranslated.
+function M.label(type_name, lang)
+    return localized(M.get(type_name).label, lang) or type_name
+end
+
+--- One line on what the type does to the text, for the wizard's list.
+function M.blurb(type_name, lang)
+    return localized(M.get(type_name).blurb, lang) or ""
+end
+
+--- What the project wizard shows for one type: its name, then what it does.
+function M.menu_label(type_name, lang)
+    local blurb = M.blurb(type_name, lang)
+    if blurb == "" then return M.label(type_name, lang) end
+    return M.label(type_name, lang) .. ": " .. blurb
+end
+
+--- The paragraph this type asks the model for, as a noun phrase with its
+--- article, so it drops straight into a prompt sentence.
+function M.prose_kind(type_name, lang)
+    return localized(M.get(type_name).prose_kind, lang)
 end
 
 --- Single orienting question for one free-form idea.

@@ -151,9 +151,11 @@ end
 
 --- The frame every generation is given: the literary type, plus the plan's
 --- Description section when it has one. Kept short, since it is prepended to
---- every prompt.
+--- every prompt. The type goes in under its name in the writer's language, not
+--- as the id: `long_novel` inside a Spanish prompt is noise the model has to
+--- decode before it can use it.
 function M.description_context(plan_content)
-    local ctx = M.get_project_type()
+    local ctx = types.label(M.get_project_type(), M.lang)
     local header = "## " .. M.t("description_section")
     local start = (plan_content or ""):find(header, 1, true)
     if start then
@@ -266,7 +268,14 @@ function M.new_project()
     vim.ui.select({"en", "es"}, {prompt = loc.t("choose_lang")}, function(lang)
         if not lang then return cancelled() end
         opts.lang = lang
-        vim.ui.select(types.names(), {prompt = t("choose_type")}, function(type)
+        -- The ids are what the config stores, but nobody picks a text type from
+        -- `long_novel`: the list shows each type's name and what it does to the
+        -- finished text, in the language chosen a question ago.
+        local type_opts = {
+            prompt = t("choose_type"),
+            format_item = function(id) return types.menu_label(id, lang) end,
+        }
+        vim.ui.select(types.names(), type_opts, function(type)
             if not type then return cancelled() end
             opts.type = type
             vim.ui.input({prompt = p("choose_path"), default = vim.fn.getcwd()}, function(base_path)

@@ -113,9 +113,14 @@ y arma el prompt con eso. Nunca hace falta explicar el contexto a mano.
 
 Lo que se envía siempre:
 
-- **El proyecto**: el tipo literario y la descripción del `plan.wyt.md`.
+- **El proyecto**: el tipo literario, con su nombre en tu idioma y no con el id,
+  más la descripción del `plan.wyt.md`.
 - **Dónde está el cursor**: la cabecera más cercana por encima, ya sea la
   sección o el grupo, sin la marca `Grupo:` ni las etiquetas de estado.
+- **Qué clase de párrafo quiere el tipo**: a un ensayo se le pide uno
+  argumentativo, a una novela uno narrativo, a un resumen uno de notas. La
+  columna "Párrafo que pide al modelo" de [Tipos de texto](#tipos-de-texto) los
+  lista. En `plan.wyt.md` no aplica: ahí se piden ideas, no prosa.
 
 Lo que se envía según el archivo:
 
@@ -209,18 +214,27 @@ modelo se leería como estructura y acabaría siendo una sección del export.
 
 ## Tipos de texto
 
-| Tipo | Preguntas orientadoras | Lógica de párrafos | Profundidad máxima |
-|------|------------------------|--------------------|--------------------|
-| `novel` | Arco, personaje, escena | 1 idea → 1 párrafo | 3 niveles |
-| `long_novel` | Hilo conductor, parte, trama secundaria, cronología | 1 idea → 1 párrafo | 4 niveles |
-| `short_novel` | Escena, deseo, consecuencia | 1 idea → 1 párrafo | 2 niveles |
-| `short_story` | Foco narrativo, tono | 1 idea → 1 párrafo | 1 nivel |
-| `essay` | Argumento, evidencia, perspectiva | 1 idea → 1 párrafo | 2 niveles |
-| `summary` | Punto clave, síntesis | Varias ideas → 1 párrafo | 1 nivel |
+| Nombre en el menú | Tipo | Preguntas orientadoras | Párrafo que pide al modelo | Lógica de párrafos | Profundidad máxima |
+|---|---|---|---|---|---|
+| Novela | `novel` | Arco, personaje, escena | Un párrafo narrativo | 1 idea → 1 párrafo | 3 niveles |
+| Novela larga | `long_novel` | Hilo conductor, parte, trama secundaria, cronología | Un párrafo narrativo | 1 idea → 1 párrafo | 4 niveles |
+| Novela corta | `short_novel` | Escena, deseo, consecuencia | Un párrafo narrativo | 1 idea → 1 párrafo | 2 niveles |
+| Cuento | `short_story` | Foco narrativo, tono | Un párrafo literario | 1 idea → 1 párrafo | 1 nivel |
+| Ensayo | `essay` | Argumento, evidencia, perspectiva | Un párrafo argumentativo | 1 idea → 1 párrafo | 2 niveles |
+| Resumen | `summary` | Punto clave, síntesis | Un párrafo de notas conciso | Varias ideas → 1 párrafo | 1 nivel |
+
+**Nombre en el menú** es lo que ves al crear el proyecto, junto a una línea que
+dice qué le hace ese tipo al texto final. El **tipo** de la segunda columna es
+el id que se guarda en `config.wyt.yml`; nunca aparece en pantalla.
 
 **Preguntas orientadoras** es el segundo modo de `:WYTNew i`. Llegan de una en
 una y cada respuesta se convierte en una idea. El tipo decide cuáles son, y el
 arquetipo de una sección puede reemplazarlas por las suyas.
+
+**Párrafo que pide al modelo** es lo que cambia en el prompt cuando expandes un
+marcador o usas `:WYTGenerate`: a un ensayo se le pide un párrafo argumentativo
+y a una novela uno narrativo. Al modelo también se le da el nombre del tipo en
+tu idioma, nunca el id: *Novela larga*, no `long_novel`.
 
 **Profundidad máxima** cuenta niveles de plan, siendo el plan raíz el nivel 1.
 Una sección creada con `<S-Tab>` recibe `sections: true` mientras esté por
