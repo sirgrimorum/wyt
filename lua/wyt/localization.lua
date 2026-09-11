@@ -269,9 +269,13 @@ function M.set_lang(lang)
     end
 end
 
+--- `set_lang` only accepts a language that exists, but the project's own
+--- `lang:` is read straight off a hand-edited config, so an unknown one reaches
+--- here. English is the fallback rather than an error: a prompt in the wrong
+--- language beats a stack trace on every string in the plugin.
 function M.t(key, lang)
-    lang = lang or M.lang
-    return M.translations[lang][key] or key
+    local strings = M.translations[lang or M.lang] or M.translations.en
+    return strings[key] or key
 end
 
 --- Normalise any string used as a `vim.ui.input` prompt: exactly one trailing
