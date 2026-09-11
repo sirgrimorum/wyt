@@ -1,5 +1,4 @@
--- Tests for plan.lua utility functions
--- Run: nvim --headless -u tests/minimal_init.lua -c "PlenaryBustedDirectory tests/"
+-- plan.lua's plan-editing helpers. Run with: nvim --headless -l tests/runner.lua
 
 local plan = require("wyt.plan")
 local project = require("wyt.project")
