@@ -15,6 +15,43 @@ describe("project.slugify", function()
     it("collapses a run of spaces into one hyphen", function()
         assert.equals("a-b", project.slugify("a    b"))
     end)
+
+    -- The folder is named from this, and dropping the byte instead of folding it
+    -- turned "Canción" into "cancin", a name the writer does not recognise.
+    it("folds an accent onto its base letter", function()
+        assert.equals("cancion", project.slugify("Canción"))
+        assert.equals("el-nino-y-la-ciguena", project.slugify("El Niño y la Cigüeña"))
+        assert.equals("angel", project.slugify("Ángel"))
+    end)
+
+    it("returns the slug alone, not gsub's count with it", function()
+        assert.equals(1, select("#", project.slugify("Canción")))
+    end)
+end)
+
+describe("project.group_dir", function()
+    it("is nil for a name that slugifies to nothing", function()
+        local root = helpers.project()
+        assert.is_nil(project.group_dir(root, "!!!"))
+        helpers.cleanup(root)
+    end)
+
+    it("finds the folder named from the group", function()
+        local root = helpers.project()
+        helpers.write(root .. "cancion/plan.wyt.md", "# Canción\n")
+        assert.equals(root .. "cancion/", project.group_dir(root, "Canción"))
+        helpers.cleanup(root)
+    end)
+
+    -- A section created before accents were folded is on disk under the stripped
+    -- spelling. Looking only for the new slug would drop it out of the export,
+    -- :WYTNav and :WYTSearch without a word.
+    it("falls back to the folder an older WYT would have made", function()
+        local root = helpers.project()
+        helpers.write(root .. "cancin/plan.wyt.md", "# Canción\n")
+        assert.equals(root .. "cancin/", project.group_dir(root, "Canción"))
+        helpers.cleanup(root)
+    end)
 end)
 
 describe("project.read_file and write_file", function()

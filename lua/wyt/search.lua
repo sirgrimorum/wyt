@@ -26,11 +26,8 @@ local function collect_definition_files(project_mod, dir, results)
         local plan_content = project_mod.read_file(plan_path) or ""
         local groups = project_mod.get_groups(plan_content)
         for _, group_name in ipairs(groups) do
-            local slug = project_mod.slugify(group_name)
-            -- An empty slug points the section at its own parent, and the walk
-            -- never ends. Such a group has no folder: skip it.
-            local group_dir = slug ~= "" and (dir .. slug .. "/") or nil
-            if group_dir and uv().fs_stat(group_dir .. "plan.wyt.md") then
+            local group_dir = project_mod.group_dir(dir, group_name)
+            if group_dir then
                 collect_definition_files(project_mod, group_dir, results)
             end
         end

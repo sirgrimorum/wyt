@@ -29,12 +29,9 @@ local function build_tree(project_mod, dir, indent, entries)
         local plan_content = project_mod.read_file(plan_path) or ""
         local groups = project_mod.get_groups(plan_content)
         for _, group_name in ipairs(groups) do
-            local slug = project_mod.slugify(group_name)
-            -- An empty slug points the section at its own parent, and the walk
-            -- never ends. Such a group has no folder: skip it.
-            local group_dir = slug ~= "" and (dir .. slug .. "/") or nil
-            if group_dir and uv().fs_stat(group_dir .. "plan.wyt.md") then
-                table.insert(entries, { label = indent .. slug .. "/", path = nil })
+            local group_dir = project_mod.group_dir(dir, group_name)
+            if group_dir then
+                table.insert(entries, { label = indent .. group_dir:sub(#dir + 1), path = nil })
                 build_tree(project_mod, group_dir, indent .. "  ", entries)
             end
         end

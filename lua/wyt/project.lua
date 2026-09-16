@@ -51,9 +51,28 @@ M.section_config_path = ""
 M.section_plan_path = ""
 M.lang = "en"
 
+-- A folder name is built from this, and stripping every byte that is not ASCII
+-- turned "Canción" into "cancin": fold the accent onto its base letter first.
+local ACCENTS = {
+    ["á"] = "a", ["à"] = "a", ["ä"] = "a", ["â"] = "a", ["ã"] = "a", ["å"] = "a", ["Á"] = "a", ["À"] = "a", ["Ä"] = "a", ["Â"] = "a", ["Ã"] = "a", ["Å"] = "a",
+    ["é"] = "e", ["è"] = "e", ["ë"] = "e", ["ê"] = "e", ["É"] = "e", ["È"] = "e", ["Ë"] = "e", ["Ê"] = "e",
+    ["í"] = "i", ["ì"] = "i", ["ï"] = "i", ["î"] = "i", ["Í"] = "i", ["Ì"] = "i", ["Ï"] = "i", ["Î"] = "i",
+    ["ó"] = "o", ["ò"] = "o", ["ö"] = "o", ["ô"] = "o", ["õ"] = "o", ["Ó"] = "o", ["Ò"] = "o", ["Ö"] = "o", ["Ô"] = "o", ["Õ"] = "o",
+    ["ú"] = "u", ["ù"] = "u", ["ü"] = "u", ["û"] = "u", ["Ú"] = "u", ["Ù"] = "u", ["Ü"] = "u", ["Û"] = "u",
+    ["ñ"] = "n", ["Ñ"] = "n",
+    ["ç"] = "c", ["Ç"] = "c",
+    ["ý"] = "y", ["ÿ"] = "y", ["Ý"] = "y",
+}
+
 -- Exported so other modules (group.lua) can slugify consistently
 function M.slugify(str)
-    return str:lower():gsub("%s+", "-"):gsub("[^%w%-]", "")
+    -- Matched as a UTF-8 sequence, never as a character class: every one of
+    -- these is two bytes, and `[á]` would eat the 0xC3 off the next letter.
+    -- `lower()` is byte-wise and leaves the uppercase ones alone, so fold first.
+    str = str:gsub("[\194-\244][\128-\191]*", function(c) return ACCENTS[c] or c end)
+    -- Parenthesised: gsub also returns its count, and a bare return handed it
+    -- to every caller as a second value.
+    return (str:lower():gsub("%s+", "-"):gsub("[^%w%-]", ""))
 end
 
 local slugify = M.slugify  -- local alias for internal use
@@ -83,6 +102,26 @@ local function get_project_lang()
     local config_content = M.read_file(M.config_path)
     if not config_content then return "en" end
     return M.config_value(config_content, "lang") or "en"
+end
+
+--- The folder of `group_name` under `parent_dir`, or nil when that section does
+--- not exist. Every walk goes through here: the export, `:WYTNav`, `:WYTSearch`
+--- and the plan all decide a section exists by finding this folder.
+function M.group_dir(parent_dir, group_name)
+    local slug = M.slugify(group_name)
+    -- An empty slug points the section at its own parent, and the walk never
+    -- ends. Such a group has no folder.
+    if slug == "" then return nil end
+    local dir = parent_dir .. slug .. "/"
+    if uv.fs_stat(dir .. "plan.wyt.md") then return dir end
+    -- Sections created before accents were folded are named after the stripped
+    -- spelling: "Canción" made "cancin", not "cancion". They keep working.
+    local stripped = (group_name:lower():gsub("%s+", "-"):gsub("[^%w%-]", ""))
+    if stripped ~= "" and stripped ~= slug then
+        local legacy = parent_dir .. stripped .. "/"
+        if uv.fs_stat(legacy .. "plan.wyt.md") then return legacy end
+    end
+    return nil
 end
 
 function M.get_section_dir()

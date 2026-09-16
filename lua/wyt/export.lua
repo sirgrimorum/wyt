@@ -73,11 +73,8 @@ local function collect_text(project_mod, section_dir, level, project_type)
         local spec = types.outline(project_type, level + 1)
         local parts = {}
         for _, group_name in ipairs(groups) do
-            local slug = project_mod.slugify(group_name)
-            -- An empty slug points the section at its own parent, and the walk
-            -- never ends. Such a group has no folder: skip it.
-            local group_dir = slug ~= "" and (section_dir .. slug .. "/") or nil
-            if group_dir and uv.fs_stat(group_dir .. "plan.wyt.md") then
+            local group_dir = project_mod.group_dir(section_dir, group_name)
+            if group_dir then
                 local sub_text = collect_text(project_mod, group_dir, level + 1, project_type)
                 if sub_text and sub_text ~= "" then
                     if spec and spec.heading then

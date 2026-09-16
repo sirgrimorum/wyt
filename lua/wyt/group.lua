@@ -279,12 +279,17 @@ function M.new_group(line1, line2)
                                 local updated_content = rename_group(plan_content, group_name, final_name)
                                 -- P4: rename section folder when group name changes
                                 if final_name ~= group_name then
-                                    local uv = vim.uv or vim.loop
-                                    local old_dir = project.current_section_dir .. project.slugify(group_name)
-                                    local new_dir = project.current_section_dir .. project.slugify(final_name)
-                                    if uv.fs_stat(old_dir) and project.slugify(group_name) ~= project.slugify(final_name) then
+                                    -- The folder as it is on disk, which for a
+                                    -- section named before accents were folded is
+                                    -- not what the new name slugifies to.
+                                    local old_dir = project.group_dir(project.current_section_dir, group_name)
+                                    local new_slug = project.slugify(final_name)
+                                    old_dir = old_dir and old_dir:gsub("/$", "")
+                                    local new_dir = project.current_section_dir .. new_slug
+                                    if old_dir and new_slug ~= "" and old_dir ~= new_dir then
                                         vim.fn.rename(old_dir, new_dir)
-                                        vim.notify("[WYT] Renamed section folder: " .. project.slugify(group_name) .. " → " .. project.slugify(final_name), vim.log.levels.INFO)
+                                        vim.notify("[WYT] Renamed section folder: "
+                                            .. vim.fn.fnamemodify(old_dir, ":t") .. " → " .. new_slug, vim.log.levels.INFO)
                                     end
                                 end
                                 for _, idea in ipairs(selected_ideas) do
