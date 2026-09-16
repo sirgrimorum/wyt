@@ -6,8 +6,8 @@
 -- cached in memory for the session.
 --
 -- Why not an environment variable: a user-scoped env var is inherited by every
--- process Neovim spawns — LSP servers, formatters, build scripts, terminal
--- jobs — and shows up in crash dumps and in the output of `env`. A resolver is
+-- process Neovim spawns (LSP servers, formatters, build scripts, terminal
+-- jobs), and it shows up in crash dumps and in the output of `env`. A resolver is
 -- read on demand, by this plugin only.
 local M = {}
 
@@ -15,7 +15,9 @@ local M = {}
 -- Synchronous by design: this happens once, on the first LLM call.
 local function run(cmd)
     local ok, res = pcall(function()
-        return vim.system(cmd, { text = true }):wait()
+        -- A helper that decides to prompt (an expired unlock, a device that
+        -- is not there) would otherwise hold Neovim still with no way out.
+        return vim.system(cmd, { text = true, timeout = 15000 }):wait()
     end)
     if not ok then
         return nil, tostring(res)
@@ -41,7 +43,7 @@ function M.command(cmd)
 end
 
 --- macOS Keychain. Store first with:
----   security add-generic-password -s wyt -a default -w
+---   security add-generic-password -s wyt -a "$USER" -w
 --- @param service string keychain service name (default "wyt")
 --- @param account string|nil keychain account (default $USER)
 function M.keychain(service, account)
@@ -70,18 +72,21 @@ function M.dpapi_path()
 end
 
 --- Windows DPAPI. The file holds ciphertext bound to the current user account
---- on the current machine — copying it elsewhere yields nothing. Store it with
---- the snippet printed by :WYTKeyHelp (uses Read-Host, so the key never enters
---- your shell history).
+--- on the current machine: copying it elsewhere yields nothing. Store it with
+--- the snippet in README.md, "Guardar la key" (it uses Read-Host, so the key
+--- never enters your shell history).
 --- @param path string|nil defaults to M.dpapi_path()
 function M.dpapi(path)
     path = path or M.dpapi_path()
     local ps = vim.fn.executable("pwsh") == 1 and "pwsh" or "powershell"
+    -- A single-quoted PowerShell literal, not Lua's %q: PowerShell expands $var
+    -- inside double quotes, and a path is allowed to contain a dollar sign.
+    local literal = "'" .. path:gsub("'", "''") .. "'"
     -- Read the single ciphertext line, unprotect it via DPAPI, write plaintext
     -- to stdout. The key is never an argument to any process.
     local script = table.concat({
         "$ErrorActionPreference = 'Stop';",
-        "$enc = Get-Content -LiteralPath " .. string.format("%q", path) .. " -TotalCount 1;",
+        "$enc = Get-Content -LiteralPath " .. literal .. " -TotalCount 1;",
         "$sec = ConvertTo-SecureString $enc;",
         "$b = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec);",
         "try { [Runtime.InteropServices.Marshal]::PtrToStringAuto($b) }",
@@ -90,10 +95,12 @@ function M.dpapi(path)
     return M.command({ ps, "-NoProfile", "-NonInteractive", "-Command", script })
 end
 
---- Read the first line of a plain file. Weakest of the stored options — use
+--- Read the first line of a plain file. Weakest of the stored options: use
 --- only with restrictive permissions (chmod 600) and never inside a git repo.
 --- @param path string
 function M.file(path)
+    -- io.open takes the path literally, so "~/.wyt-key" would never be found.
+    path = vim.fs.normalize(path)
     return function()
         local fd = io.open(path, "r")
         if not fd then
