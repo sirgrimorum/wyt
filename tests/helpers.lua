@@ -27,7 +27,6 @@ function H.project(opts)
 
     local plan = opts.plan
     if not plan then
-        project.lang = lang
         local desc_header = "## " .. require("wyt.localization").t("description_section", lang)
         plan = table.concat({
             "# " .. (opts.name or "Fixture"),
