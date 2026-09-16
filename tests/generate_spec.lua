@@ -33,7 +33,7 @@ describe("generate.context decides the mode from the file", function()
         assert.equals("text", context_at(root, "text.wyt.md", { "Something.", "" }, 2).mode)
     end)
 
-    it("falls back to free outside a WYT file, where only the frame applies", function()
+    it("falls back to free outside a WYT file", function()
         assert.equals("free", context_at(root, "notes.md", { "Something.", "" }, 2).mode)
     end)
 end)
@@ -135,12 +135,118 @@ describe("generate.context in a plan", function()
     end)
 end)
 
+-- Run :WYTGenerate at `row` against a canned model reply; the buffer after.
+local function run_at(root, name, lines, row, reply)
+    context_at(root, name, lines, row)
+    vim.api.nvim_win_set_cursor(0, { row, 0 })
+    local _, restore = helpers.capture_prompt(reply)
+    local notify_restore = select(2, helpers.capture_notify())
+    local ok, err = pcall(generate.run, "")
+    restore()
+    notify_restore()
+    assert(ok, err)
+    return vim.api.nvim_buf_get_lines(0, 0, -1, false)
+end
+
+describe("generate.run inserts in the shape the file expects", function()
+    local root
+
+    before_each(function()
+        helpers.cleanup(root)
+        root = helpers.project({ type = "novel", lang = "es" })
+    end)
+
+    it("keeps a preamble and headings out of a plan, and a hashtag in", function()
+        local out = run_at(root, "plan.wyt.md", { "## Ideas", "- una idea" }, 2,
+            "Aquí tienes tres ideas:\n# Ideas\n1. Uno\n- Dos\n#silencio como motivo")
+        assert.same({ "## Ideas", "- una idea", "- Uno", "- Dos", "- #silencio como motivo" }, out)
+    end)
+
+    it("separates a bridge from both paragraphs it sits between", function()
+        local out = run_at(root, "text.wyt.md", { "Primero.", "Segundo." }, 1, "Puente.")
+        assert.same({ "Primero.", "", "Puente.", "", "Segundo." }, out)
+    end)
+
+    it("adds no extra blank line where one is already there", function()
+        local out = run_at(root, "text.wyt.md", { "Primero.", "", "Segundo." }, 2, "Puente.")
+        assert.same({ "Primero.", "", "Puente.", "", "Segundo." }, out)
+    end)
+end)
+
+describe("generate.run waits for a reply the writer does not", function()
+    local root
+
+    before_each(function()
+        helpers.cleanup(root)
+        root = helpers.project({ type = "novel", lang = "es" })
+    end)
+
+    -- Hold the reply, edit above the cursor, then answer: a line number taken
+    -- before the request would now point at another paragraph.
+    local function run_then_reply(lines, row, edit, reply)
+        context_at(root, "text.wyt.md", lines, row)
+        vim.api.nvim_win_set_cursor(0, { row, 0 })
+        local llm = require("wyt.llm")
+        local original = llm.generate_text
+        local answer
+        llm.generate_text = function(_, callback) answer = callback end
+        local notify_restore = select(2, helpers.capture_notify())
+        generate.run("")
+        llm.generate_text = original
+        edit()
+        answer(reply, nil)
+        notify_restore()
+        return vim.api.nvim_buf_get_lines(0, 0, -1, false)
+    end
+
+    it("inserts where the cursor was, not where the line number was", function()
+        local out = run_then_reply({ "Primero.", "", "Segundo." }, 2, function()
+            vim.api.nvim_buf_set_lines(0, 0, 0, false, { "Nuevo primero.", "" })
+        end, "Puente.")
+        assert.same({ "Nuevo primero.", "", "Primero.", "", "Puente.", "", "Segundo." }, out)
+    end)
+
+    it("says so instead of erroring when the file is gone", function()
+        local messages
+        local out = run_then_reply({ "Primero.", "", "Segundo." }, 2, function()
+            messages = helpers.capture_notify()
+            local gone = vim.api.nvim_get_current_buf()
+            vim.cmd("enew")
+            vim.api.nvim_buf_delete(gone, { force = true })
+        end, "Puente.")
+        assert.same({ "" }, out)
+        assert.matches("WYT", messages[#messages].msg)
+    end)
+end)
+
 describe("generate.context keeps the prompt short", function()
     it("clips a very long block rather than sending the whole file", function()
         local root = helpers.project({ type = "novel", lang = "en" })
         local long = string.rep("word ", 400)
         local ctx = context_at(root, "text.wyt.md", { long, "" }, 2)
         assert.truthy(#ctx.before <= 600, "before was " .. #ctx.before .. " bytes")
+        helpers.cleanup(root)
+    end)
+
+    -- Read backwards: the sentences the new prose has to follow are the ones
+    -- right above the cursor, so a long paragraph loses its opening, not its end.
+    it("keeps the end of the block above, and the start of the one below", function()
+        local root = helpers.project({ type = "novel", lang = "en" })
+        local long = "First sentence. " .. string.rep("filler ", 400) .. "Last sentence."
+        local ctx = context_at(root, "text.wyt.md", { long, "", long }, 2)
+        assert.matches("Last sentence%.$", ctx.before)
+        assert.has_no_match("First sentence", ctx.before)
+        assert.matches("^First sentence%.", ctx.after)
+        assert.has_no_match("Last sentence", ctx.after)
+        helpers.cleanup(root)
+    end)
+
+    it("cuts by character, so an accent never arrives half written", function()
+        local root = helpers.project({ type = "novel", lang = "es" })
+        -- The odd leading byte puts a 600th byte in the middle of an accent.
+        local accented = "a" .. string.rep(string.char(0xC3, 0xA1), 700)
+        local ctx = context_at(root, "text.wyt.md", { accented, "" }, 2)
+        assert.equals(600, vim.fn.strchars(ctx.before))
         helpers.cleanup(root)
     end)
 
