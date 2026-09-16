@@ -47,7 +47,7 @@ end
 
 --- Non-focusable panel centred at the top of the editor.
 --- Returns a window handle for M.close, or nil when no float could be opened
---- (headless, tiny screen, older UI); callers fall back to an inline prompt.
+--- (a screen under 38 columns); callers fall back to an inline prompt.
 function M.preview(title, text)
     local width = math.min(76, vim.o.columns - 8)
     if width < 30 then return nil end
@@ -61,10 +61,15 @@ function M.preview(title, text)
     vim.bo[buf].modifiable = false
     vim.bo[buf].bufhidden = "wipe"
 
+    -- The panel takes no focus, so nothing past its last line can be scrolled
+    -- to: a question longer than a fixed ten lines was simply cut off. Give it
+    -- what the screen has, leaving the menu underneath room to open.
+    local max_height = math.max(5, vim.o.lines - 12)
+
     local ok, win = pcall(vim.api.nvim_open_win, buf, false, {
         relative = "editor",
         width = width,
-        height = math.min(#padded, 10),
+        height = math.min(#padded, max_height),
         row = 1,
         col = math.floor((vim.o.columns - width) / 2),
         style = "minimal",
@@ -83,6 +88,8 @@ function M.preview(title, text)
     return win
 end
 
+--- Close a panel. Takes the nil M.preview returns on a narrow screen, so no
+--- caller has to check first.
 function M.close(win)
     if win and vim.api.nvim_win_is_valid(win) then
         pcall(vim.api.nvim_win_close, win, true)
@@ -112,7 +119,11 @@ end
 --- Jump to the window already showing `path`, in any tab. True when it found one.
 local function focus_existing(path)
     local target = canonical(path)
-    for _, win in ipairs(vim.api.nvim_list_wins()) do
+    -- This tab's windows first. A file open both here and in a tab the writer
+    -- left behind should not pull them out of the tab they are working in.
+    local wins = vim.api.nvim_tabpage_list_wins(0)
+    vim.list_extend(wins, vim.api.nvim_list_wins())
+    for _, win in ipairs(wins) do
         local name = vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(win))
         if name ~= "" and canonical(name) == target then
             vim.fn.win_gotoid(win)
@@ -154,7 +165,7 @@ end
 --- the prompt to use with it: the question itself while it still fits, the short
 --- `q.title` (or `q.prompt`, when the menu has to ask something the title does
 --- not) once the panel carries the text, and the question labelled with the title
---- when no float could be opened (headless, tiny screen).
+--- when no float could be opened (a screen too narrow for one).
 local function place(q)
     if not M.needs_panel(q.question) then return nil, q.question end
     local panel = M.preview(q.title, q.question)

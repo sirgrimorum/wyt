@@ -8,13 +8,23 @@ local loc = require("wyt.localization")
 
 local M = {}
 
+-- The insertion point is held as an extmark while the request is out.
+local NS = api.nvim_create_namespace("wyt_generate")
+
 local MAX_CONTEXT = 600
 local MAX_IDEAS = 5
 
-local function clip(text)
+--- `tail` keeps the end of the text rather than its start. The paragraph
+--- before the cursor is read backwards: its last sentences are the ones the
+--- new prose has to follow, and a long one used to arrive with them cut off.
+--- The cut counts characters, not bytes: a slice through an accent would hand
+--- the API a broken UTF-8 sequence.
+local function clip(text, tail)
     text = vim.trim((text:gsub("%s+", " ")))
-    if #text <= MAX_CONTEXT then return text end
-    return text:sub(1, MAX_CONTEXT)
+    local len = vim.fn.strchars(text)
+    if len <= MAX_CONTEXT then return text end
+    if tail then return vim.fn.strcharpart(text, len - MAX_CONTEXT) end
+    return vim.fn.strcharpart(text, 0, MAX_CONTEXT)
 end
 
 --- The nearest heading above `row`, with the group marker and any status tag
@@ -42,7 +52,7 @@ local function block_before(lines, row)
         i = i - 1
     end
     if #collected == 0 then return nil end
-    return clip(table.concat(collected, " "))
+    return clip(table.concat(collected, " "), true)
 end
 
 local function block_after(lines, row)
@@ -73,7 +83,7 @@ end
 
 --- Everything the model is told about where the cursor is.
 --- `mode` is "plan" when ideas are wanted, "text" when prose is, "free"
---- outside a WYT file, where only the project frame applies.
+--- outside a WYT file, which reads its surroundings the same way as text.
 function M.context(buf, row)
     local project = require("wyt.project")
     local name = api.nvim_buf_get_name(buf)
@@ -112,8 +122,12 @@ local function as_ideas(text)
     local llm = require("wyt.llm")
     local ideas = {}
     for _, line in ipairs(vim.split(text, "\n", { plain = true })) do
-        local idea = llm.to_single_line(line)
-        if idea ~= "" and not idea:match("^#") then
+        -- Judged on the raw line: to_single_line strips a heading's hashes, and
+        -- one line alone gives it no second line to skip a preamble for.
+        -- `#silence` with no space is a hashtag, and stays an idea.
+        local structure = line:match("^%s*#+%s") or vim.trim(line):match(":$")
+        local idea = structure and "" or llm.to_single_line(line)
+        if idea ~= "" then
             ideas[#ideas + 1] = "- " .. idea
         end
         if #ideas == MAX_IDEAS then break end
@@ -132,12 +146,26 @@ function M.run(instruction)
     local ctx = M.context(buf, row)
     ctx.instruction = instruction and vim.trim(instruction) or ""
 
+    -- The reply lands seconds later and the writer keeps typing meanwhile. An
+    -- extmark moves with their edits, so the prose still arrives where the
+    -- cursor was instead of at a line number that has since become someone
+    -- else's paragraph.
+    local mark = api.nvim_buf_set_extmark(buf, NS, row - 1, 0, {})
+
     vim.notify(loc.t("llm_generating"), vim.log.levels.INFO)
     llm.generate_in_context(ctx, function(result, err)
+        local pos = api.nvim_buf_is_loaded(buf)
+            and api.nvim_buf_get_extmark_by_id(buf, NS, mark, {}) or {}
+        if pos[1] then api.nvim_buf_del_extmark(buf, NS, mark) end
         if err or not result or result == "" then
             vim.notify(loc.t("llm_error") .. (err or ""), vim.log.levels.WARN)
             return
         end
+        if not pos[1] then
+            vim.notify(loc.t("llm_buffer_gone"), vim.log.levels.WARN)
+            return
+        end
+        row = pos[1] + 1
         local inserted
         if ctx.mode == "plan" then
             -- A paragraph dropped into a plan would not be an idea, and the
@@ -151,6 +179,12 @@ function M.run(instruction)
             vim.notify(string.format(loc.t("ideas_inserted"), #inserted), vim.log.levels.INFO)
         else
             inserted = vim.split(llm.to_prose(result), "\n", { plain = true })
+            -- Markdown joins lines that touch, so a paragraph dropped against
+            -- its neighbour would merge into it in the export.
+            local around = api.nvim_buf_get_lines(buf, row - 1, row + 1, false)
+            local function blank(l) return l == nil or l:match("^%s*$") ~= nil end
+            if not blank(around[1]) then table.insert(inserted, 1, "") end
+            if around[2] and not blank(around[2]) then table.insert(inserted, "") end
             api.nvim_buf_set_lines(buf, row, row, false, inserted)
             vim.notify(loc.t("text_inserted"), vim.log.levels.INFO)
         end

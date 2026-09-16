@@ -1,6 +1,7 @@
--- ui.lua's text fitting. The float itself is not opened here: headless Neovim
--- has no usable screen, which is exactly the case `preview` is written to
--- return nil for, and the callers fall back to an inline prompt.
+-- ui.lua's text fitting, and how it opens files. Headless Neovim does open a
+-- float at its default 80 columns, so the nil fallback is checked by shrinking
+-- the screen below what a panel needs.
+local helpers = require("tests.helpers")
 local ui = require("wyt.ui")
 
 describe("ui.truncate", function()
@@ -20,8 +21,8 @@ describe("ui.truncate", function()
     end)
 
     it("never splits a multibyte character in half", function()
-        local out = ui.truncate("¿Qué ocurre a continuación en tu historia?", 12)
-        assert.equals(out, vim.fn.strcharpart(out, 0))
+        -- Width 3 keeps two characters; a byte cut would end inside the é.
+        assert.equals("aé…", ui.truncate("aéxyz", 3))
     end)
 end)
 
@@ -68,7 +69,59 @@ describe("ui.needs_panel", function()
     end)
 end)
 
+describe("ui.open_file", function()
+    local root
+
+    before_each(function()
+        helpers.cleanup(root)
+        root = helpers.project({ type = "essay" })
+        vim.cmd("silent! tabonly")
+    end)
+
+    it("saves the buffer it leaves, so a jump never loses an edit", function()
+        helpers.write(root .. "a.md", "old\n")
+        helpers.write(root .. "b.md", "b\n")
+        vim.cmd("edit " .. vim.fn.fnameescape(root .. "a.md"))
+        vim.api.nvim_buf_set_lines(0, 0, -1, false, { "unsaved edit" })
+        ui.open_file(root .. "b.md")
+        assert.equals("unsaved edit\n", helpers.read(root .. "a.md"))
+    end)
+
+    it("goes back to the tab a file is already in instead of opening another", function()
+        helpers.write(root .. "a.md", "a\n")
+        helpers.write(root .. "b.md", "b\n")
+        vim.cmd("edit " .. vim.fn.fnameescape(root .. "a.md"))
+        ui.open_file(root .. "b.md")
+        local tabs = #vim.api.nvim_list_tabpages()
+        ui.open_file(root .. "a.md")
+        assert.equals(tabs, #vim.api.nvim_list_tabpages())
+        assert.matches("a%.md$", vim.api.nvim_buf_get_name(0))
+    end)
+
+    -- Windows are listed across every tab, so the same file open in a tab left
+    -- behind used to win over the split right next to the writer.
+    it("stays in this tab when the file is on screen here too", function()
+        helpers.write(root .. "a.md", "a\n")
+        vim.cmd("edit " .. vim.fn.fnameescape(root .. "a.md"))
+        vim.cmd("tabnew " .. vim.fn.fnameescape(root .. "a.md"))
+        local here = vim.api.nvim_get_current_tabpage()
+        ui.open_file(root .. "a.md")
+        assert.equals(here, vim.api.nvim_get_current_tabpage())
+    end)
+end)
+
 describe("ui.preview", function()
+    -- Nothing can scroll a panel that takes no focus, so a long question used to
+    -- lose everything past its tenth line.
+    it("grows past ten lines for a long question", function()
+        local win = ui.preview("Title", string.rep("palabra ", 400))
+        local height = vim.api.nvim_win_get_height(win)
+        ui.close(win)
+        assert.truthy(height > 10)
+        -- and still leaves the screen room for the menu underneath
+        assert.truthy(height <= vim.o.lines - 10)
+    end)
+
     it("returns nil rather than erroring when no float can be opened", function()
         local columns = vim.o.columns
         vim.o.columns = 20
