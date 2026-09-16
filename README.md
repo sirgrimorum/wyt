@@ -4,7 +4,7 @@ Plugin de Neovim para la gestión de proyectos literarios siguiendo la metodolog
 
 ## Requisitos
 
-- Neovim >= 0.9
+- Neovim >= 0.10
 - [`telescope.nvim`](https://github.com/nvim-telescope/telescope.nvim)
 - `git` y `curl` en el PATH
 
@@ -150,9 +150,11 @@ if wyt_path then
 end
 ```
 
-Si el bloque corre antes de `lazy.setup()`, los comandos igual aparecen (el módulo queda cacheado
-por `require`), pero el `runtimepath` pierde la ruta y no se carga nada de `plugin/`, `doc/` ni
-`after/`. Para comprobarlo:
+WYT se carga entero con `require`, y `require` busca dentro de `lua/` de cada entrada del
+`runtimepath`: esa línea de `append` es lo que hace que `require('wyt')` encuentre el checkout.
+Si el bloque corre antes de `lazy.setup()`, lazy reconstruye el `runtimepath` y la ruta se pierde:
+lo ya cargado sigue respondiendo en esa sesión, pero el siguiente `require` de un submódulo, y
+cualquier reinicio, falla. Para comprobarlo:
 
 ```vim
 :lua print(vim.o.runtimepath:find('WYT') ~= nil)
@@ -164,7 +166,7 @@ key en texto plano ahí termina publicada. Usa un resolver de [`wyt.secret`](#ap
 ### Prueba rápida sin editar init.lua
 
 ```vim
-:lua vim.opt.runtimepath:append("D:/WYT"); require("wyt").setup()
+:lua vim.opt.runtimepath:append("C:/ruta/a/WYT"); require("wyt").setup()
 ```
 
 Usa barras hacia adelante en Windows: las invertidas son escapes dentro de un string de Lua.
