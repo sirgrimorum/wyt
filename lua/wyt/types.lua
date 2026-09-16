@@ -1,4 +1,4 @@
--- P3: per-text-type configuration — guided questions, paragraph behavior, section depth
+-- P3: per-text-type configuration: guided questions, paragraph behavior, section depth
 local kinds = require("wyt.section_kinds")
 
 local M = {}
@@ -19,8 +19,8 @@ local SCENE = "* * *"
 -- `label` and `blurb` are what the writer reads in the project wizard, and
 -- `label` is also the name the model is given for the type: the raw id would
 -- send `long_novel` into a Spanish prompt. `prose_kind` names the paragraph the
--- model is asked for, since an essay does not want the same one as a novel. All
--- three are noun phrases with their article, so they drop into a sentence.
+-- model is asked for, since an essay does not want the same one as a novel; it
+-- is a noun phrase with its article, so it drops into a sentence.
 M.configs = {
     novel = {
         label = { en = "Novel", es = "Novela" },
@@ -56,18 +56,6 @@ M.configs = {
         group_prompt = {
             en = "What chapter or scene do these ideas form?",
             es = "¿Qué capítulo o escena forman estas ideas?",
-        },
-        group_questions = {
-            en = {
-                "What narrative arc do these ideas form?",
-                "What chapter or section could these ideas become?",
-                "What is the dramatic turning point?",
-            },
-            es = {
-                "¿Qué arco narrativo forman estas ideas?",
-                "¿En qué capítulo o sección podrían convertirse?",
-                "¿Cuál es el punto de giro dramático?",
-            },
         },
         group_name_hint = {
             en = "Chapter or scene title:",
@@ -119,18 +107,6 @@ M.configs = {
         group_prompt = {
             en = "What part, chapter or arc do these ideas form?",
             es = "¿Qué parte, capítulo o arco forman estas ideas?",
-        },
-        group_questions = {
-            en = {
-                "What part or book do these ideas belong to?",
-                "What arc do they complete within it?",
-                "What has to be true before this can happen?",
-            },
-            es = {
-                "¿A qué parte o libro pertenecen estas ideas?",
-                "¿Qué arco completan dentro de ella?",
-                "¿Qué debe ser cierto antes de que esto ocurra?",
-            },
         },
         group_name_hint = {
             en = "Part, chapter or arc title:",
@@ -184,16 +160,6 @@ M.configs = {
             en = "What scene do these ideas form?",
             es = "¿Qué escena forman estas ideas?",
         },
-        group_questions = {
-            en = {
-                "What scene do these ideas form?",
-                "Where does it start, and where does it cut?",
-            },
-            es = {
-                "¿Qué escena forman estas ideas?",
-                "¿Dónde empieza, y dónde corta?",
-            },
-        },
         group_name_hint = {
             en = "Scene name:",
             es = "Nombre de la escena:",
@@ -237,16 +203,6 @@ M.configs = {
         group_prompt = {
             en = "What story beat do these ideas form?",
             es = "¿Qué momento narrativo forman estas ideas?",
-        },
-        group_questions = {
-            en = {
-                "What story beat does this group represent?",
-                "Is this setup, confrontation, or resolution?",
-            },
-            es = {
-                "¿Qué momento narrativo representa este grupo?",
-                "¿Es planteamiento, confrontación o resolución?",
-            },
         },
         group_name_hint = {
             en = "Story beat or section name:",
@@ -292,16 +248,6 @@ M.configs = {
             en = "What central argument unites these ideas?",
             es = "¿Cuál es el argumento central que une estas ideas?",
         },
-        group_questions = {
-            en = {
-                "What paragraph or section does this group form?",
-                "What is the topic sentence for this group?",
-            },
-            es = {
-                "¿Qué párrafo o sección forma este grupo?",
-                "¿Cuál es la oración temática de este grupo?",
-            },
-        },
         group_name_hint = {
             en = "Section or argument name:",
             es = "Nombre de la sección o argumento:",
@@ -345,16 +291,6 @@ M.configs = {
         group_prompt = {
             en = "What topic do these ideas summarize?",
             es = "¿Qué tema resumen estas ideas?",
-        },
-        group_questions = {
-            en = {
-                "What topic does this group summarize?",
-                "Can these ideas be merged into a single point?",
-            },
-            es = {
-                "¿Qué tema resume este grupo?",
-                "¿Pueden estas ideas unirse en un solo punto?",
-            },
         },
         group_name_hint = {
             en = "Topic being summarized:",
@@ -443,10 +379,6 @@ end
 --- defined, so the caller can fall back to `group_name_hint`.
 function M.group_prompt(type_name, lang, kind_id)
     return localized(guide(type_name, kind_id, "group_prompt"), lang)
-end
-
-function M.group_questions(type_name, lang, kind_id)
-    return localized(guide(type_name, kind_id, "group_questions"), lang)
 end
 
 function M.group_name_hint(type_name, lang, kind_id)
