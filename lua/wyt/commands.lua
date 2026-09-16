@@ -8,14 +8,33 @@ function M.setup_command()
     vim.api.nvim_create_user_command("WYTConfig", function(args)
         -- O1: lazy require
         local config = require("wyt.config")
-        if #args.fargs ~= 2 then
+        if #args.fargs > 2 then
             -- O6: vim.notify instead of print
-            vim.notify(loc.t("config_usage") or "[WYT] Usage: :WYTConfig <provider> <api_key>", vim.log.levels.WARN)
+            vim.notify(loc.t("config_usage"), vim.log.levels.WARN)
             return
         end
         local provider = args.fargs[1]
         local key = args.fargs[2]
-        config.setup({ llm_provider = provider, api_key = key })
+        if key then
+            -- Typing the key on the command line writes it to :history, which
+            -- Neovim persists to the shada file. Scrub by pattern, not by index:
+            -- the newest entry is not this command when it runs from a mapping
+            -- or a script, and deleting it would take an unrelated line out of
+            -- the writer's history. The ": register keeps the line until the
+            -- next command and cannot be written, which is why the notice asks
+            -- for the prompt instead.
+            vim.notify(string.format(loc.t("config_key_on_cmdline"), provider), vim.log.levels.WARN)
+            vim.fn.histdel("cmd", "WYTConfig")
+        else
+            key = vim.fn.inputsecret(loc.pad(string.format(loc.t("config_key_prompt"), provider)))
+            if key == "" then
+                vim.notify(loc.t("config_cancelled"), vim.log.levels.WARN)
+                return
+            end
+        end
+        -- Wrapped, so the key lands in config's private cache and never in
+        -- config.options, which :checkhealth reads and anyone can vim.print.
+        config.setup({ llm_provider = provider, api_key = function() return key end })
         vim.notify(loc.t("config_updated") .. provider, vim.log.levels.INFO)
     end, {
         nargs = "+",
@@ -35,8 +54,11 @@ function M.setup_command()
         -- P9: persist language to config.wyt.yml so it survives session restarts
         if project.setup() then
             local config_content = project.read_file(project.config_path) or ""
-            if config_content:match("lang:%s*%w+") then
-                config_content = config_content:gsub("lang:%s*%w+", "lang: " .. lang)
+            -- The whole line, not just a bare word: a hand-edited `lang: "es"`
+            -- matched nothing and the key was appended a second time, leaving
+            -- two of them in the file.
+            if config_content:match("%f[%w_]lang:") then
+                config_content = config_content:gsub("%f[%w_]lang:[^\r\n]*", "lang: " .. lang)
             else
                 config_content = config_content .. "lang: " .. lang .. "\n"
             end
@@ -44,7 +66,7 @@ function M.setup_command()
             project.commit_changes("Set language to: " .. lang)
             vim.notify("[WYT] Language set to " .. lang .. " and saved to project config", vim.log.levels.INFO)
         else
-            vim.notify("[WYT] Language set to: " .. lang .. " (session only — no project found)", vim.log.levels.INFO)
+            vim.notify("[WYT] Language set to: " .. lang .. " (session only: no project found)", vim.log.levels.INFO)
         end
     end, {
         nargs = 1,
@@ -88,21 +110,9 @@ end
 
 function M.generate_text_command()
     vim.api.nvim_create_user_command("WYTGenerate", function(args)
-        local llm = require("wyt.llm")
-        local prompt = args.args
-        -- P8: async — insert result at cursor once the callback fires
-        local buf = vim.api.nvim_get_current_buf()
-        local row = vim.api.nvim_win_get_cursor(0)[1]
-        vim.notify(loc.t("llm_generating"), vim.log.levels.INFO)
-        llm.generate_text(prompt, function(result, err)
-            if err or not result then
-                vim.notify(loc.t("llm_error") .. (err or ""), vim.log.levels.WARN)
-                return
-            end
-            local result_lines = vim.split(result, "\n", { plain = true })
-            vim.api.nvim_buf_set_lines(buf, row, row, false, result_lines)
-            vim.notify("[WYT] Text generated and inserted at cursor", vim.log.levels.INFO)
-        end)
+        -- P8: async: the result is inserted once the callback fires. What is
+        -- generated depends on where the cursor is; see wyt.generate.
+        require("wyt.generate").run(args.args)
     end, {
         nargs = "?",
         desc = loc.t("generate_text")
@@ -127,7 +137,10 @@ function M.goto_command()
         if not project.setup() then return end
         local arg = args.fargs[1]
         local root = project.project_root
-        local sep = package.config:sub(1,1)
+        -- F14: plan/config/text/parent are all relative to the *current section*;
+        -- only export is a root-level file. `text` and `parent` were resolving
+        -- against the root, so from a section they hit the wrong file.
+        local section = project.current_section_dir
         local target_path = nil
 
         if arg == "plan" then
@@ -135,12 +148,15 @@ function M.goto_command()
         elseif arg == "config" then
             target_path = project.section_config_path
         elseif arg == "text" then
-            target_path = root .. "text.wyt.md"
+            target_path = section .. "text.wyt.md"
         elseif arg == "export" then
             target_path = root .. "export.wyt.md"
         elseif arg == "parent" then
-            local parent = root:match("^(.*"..sep..")[^"..sep.."]+"..sep.."$")
-            if parent and parent ~= "" and parent ~= root then
+            -- Match either separator; package.config's "\" never matched a
+            -- forward-slash root on Windows, so parent lookup always failed
+            local parent = section:match("^(.*[\\/])[^\\/]+[\\/]$")
+            if section == root then parent = nil end  -- already at the project root
+            if parent then
                 local parent_plan = parent .. "plan.wyt.md"
                 -- O4: fs_stat instead of vim.fn.filereadable
                 if (vim.uv or vim.loop).fs_stat(parent_plan) then
@@ -159,8 +175,7 @@ function M.goto_command()
         end
 
         if target_path then
-            -- F5: fnameescape prevents path injection
-            vim.cmd("edit " .. vim.fn.fnameescape(target_path))
+            require("wyt.ui").edit_file(target_path)
         end
     end, {
         nargs = 1,

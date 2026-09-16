@@ -4,6 +4,7 @@ local llm = require("wyt.llm")
 local project = require("wyt.project")
 local plan = require("wyt.plan")
 local group = require("wyt.group")
+local ui = require("wyt.ui")
 
 local M = {}
 
@@ -20,20 +21,65 @@ local function multi_select(...)
     return require("wyt.group").multi_select(...)
 end
 
--- P14: show guided questions for the project type, then ask how to brainstorm
+-- A section's plan is not the root plan; the orienting question differs there.
+local function in_subsection()
+    return project.section_plan_path ~= "" and project.section_plan_path ~= project.plan_path
+end
+
+-- Guided brainstorming: explain the run once, wait for the writer to start,
+-- then ask the questions one at a time. Listing every question up front was
+-- noise the writer had to hold in their head while answering the first one.
+local function run_guided(questions, type_label, callback)
+    if #questions == 0 then
+        callback({})
+        return
+    end
+
+    vim.notify(
+        loc.t("guided_questions_title") .. type_label .. ":\n"
+            .. string.format(loc.t("guided_intro"), #questions),
+        vim.log.levels.INFO
+    )
+
+    local collected = {}
+    local function ask_next(i)
+        if i > #questions then
+            callback(collected)
+            return
+        end
+        -- The question is the prompt; a second line just pushed the input away
+        -- from what it is answering. A question too long for the prompt line
+        -- goes in a panel instead, and the counter stays on the prompt so the
+        -- writer still knows where they are in the run.
+        local counter = string.format("(%d/%d)", i, #questions)
+        local question = string.format("%s %s %s",
+            counter, questions[i], loc.t("question_skip_hint"))
+        local title = string.format("%s %s", counter, loc.t("answer_prompt"))
+        ui.ask_input({ title = title, question = question }, function(answer)
+            -- nil is <Esc>: stop here and keep what has been answered.
+            -- An empty string is a deliberate skip of this one question.
+            if answer == nil then
+                callback(collected)
+                return
+            end
+            answer = vim.trim(answer)
+            if answer ~= "" then
+                collected[#collected + 1] = answer
+            end
+            ask_next(i + 1)
+        end)
+    end
+    ask_next(1)
+end
+
+-- P14: ask how to brainstorm, then collect one or more raw idea strings
 local function show_guided_questions_and_proceed(callback)
     local types_mod = require("wyt.types")
     local project_type = project.get_project_type()
-    local questions = types_mod.idea_questions(project_type, project.lang)
-
-    -- Show questions as a hint notification
-    if #questions > 0 then
-        local hint = loc.t("guided_questions_title") .. project_type .. ":\n"
-        for i, q in ipairs(questions) do
-            hint = hint .. "  " .. i .. ". " .. q .. "\n"
-        end
-        vim.notify(hint, vim.log.levels.INFO)
-    end
+    -- Inside a section with an archetype, its questions replace the type's: a
+    -- Characters section asks about wounds and wants, not about the next scene.
+    local kind = project.get_section_kind()
+    local questions = types_mod.idea_questions(project_type, project.lang, kind)
 
     -- Ask whether to enter free idea or answer questions one by one
     vim.ui.select(
@@ -41,26 +87,19 @@ local function show_guided_questions_and_proceed(callback)
         { prompt = loc.t("brainstorm_mode") },
         function(choice)
             if choice == loc.t("answer_questions") then
-                -- Collect one idea per answered question
-                local collected = {}
-                local function ask_next(i)
-                    if i > #questions then
-                        callback(collected)
-                        return
-                    end
-                    vim.ui.input({ prompt = questions[i] .. "\n" .. loc.t("question_prompt") }, function(answer)
-                        if answer and answer ~= "" then
-                            table.insert(collected, answer)
-                        end
-                        ask_next(i + 1)
-                    end)
-                end
-                ask_next(1)
-            else
-                -- Free-form: single idea
-                vim.ui.input({ prompt = loc.t("idea_name") }, function(idea_name)
-                    if idea_name and idea_name ~= "" then
-                        callback({ idea_name })
+                -- The localized name, never the id: the writer chose "Novela
+                -- larga" in the wizard and has never seen "long_novel".
+                run_guided(questions, types_mod.label(project_type, project.lang), callback)
+            elseif choice == loc.t("free_idea") then
+                -- Free-form: one idea, prompted by the type's single orienting
+                -- question, or the generic prompt when the type defines none.
+                local single = types_mod.idea_prompt(project_type, project.lang, in_subsection(), kind)
+                ui.ask_input({
+                    title = loc.t("answer_prompt"),
+                    question = single or loc.t("idea_name"),
+                }, function(idea_name)
+                    if idea_name and vim.trim(idea_name) ~= "" then
+                        callback({ vim.trim(idea_name) })
                     end
                 end)
             end
@@ -77,20 +116,122 @@ function M.new_idea()
     show_guided_questions_and_proceed(function(idea_names)
         if not idea_names or #idea_names == 0 then return end
 
-        local function process_idea(idea_name, use_llm_improve, on_done)
-            if use_llm_improve then
+        -- Improve one idea. The generated version is never applied silently:
+        -- it is offered as a menu, and a genuine ambiguity comes back as a
+        -- pickable question. Any failure mode falls back to the user's text.
+        local MAX_QUESTIONS = 2
+        local function improve_with_review(idea_name, on_done)
+            local answers = {}
+            local no_more_questions = false
+            local request
+
+            local function present(text)
+                local keep  = loc.t("keep_result")
+                local edit  = loc.t("edit_result")
+                local again = loc.t("try_again")
+                local mine  = loc.t("keep_mine")
+                -- A generated sentence is normally too long for a select prompt,
+                -- which renders on one line; it goes in a panel then and the
+                -- prompt keeps the short title.
+                ui.ask_select({
+                    title = loc.t("llm_result_title"),
+                    question = text,
+                    prompt = loc.t("llm_result_action"),
+                }, { keep, edit, again, mine },
+                    function(choice)
+                        if choice == keep then
+                            on_done(text)
+                        elseif choice == edit then
+                            ui.ask_input({
+                                title = loc.t("llm_result_title"),
+                                question = loc.t("llm_review_idea"),
+                                default = text,
+                            }, function(edited)
+                                -- <Esc> backs out to the menu; empty keeps the
+                                -- writer's own idea, as the prompt says.
+                                if edited == nil then return present(text) end
+                                edited = vim.trim(edited)
+                                on_done(edited ~= "" and edited or idea_name)
+                            end)
+                        elseif choice == again then
+                            request({ avoid = text })
+                        else
+                            -- "keep mine", or cancelled with <Esc>
+                            on_done(idea_name)
+                        end
+                    end)
+            end
+
+            local function ask(question, options)
+                local skip = loc.t("llm_skip_question")
+                local items = vim.list_extend(vim.deepcopy(options), { skip })
+                -- In a guided batch the model asks about one idea out of
+                -- several, so the idea under discussion is shown above the
+                -- question rather than left for the writer to infer. The model
+                -- writes the question, so it goes in the panel too instead of
+                -- being cut off as a prompt.
+                ui.ask_select({
+                    title = loc.t("llm_question_title"),
+                    question = idea_name .. "\n\n" .. question,
+                    prompt = loc.t("answer_prompt"),
+                }, items, function(answer)
+                    if answer == nil then return on_done(idea_name) end -- <Esc>: keep theirs
+                    if answer == skip then
+                        -- nothing more to tell it; demand an answer this time
+                        no_more_questions = true
+                        request({})
+                        return
+                    end
+                    answers[#answers + 1] = { question = question, answer = answer }
+                    request({})
+                end)
+            end
+
+            request = function(extra)
                 vim.notify(loc.t("llm_generating"), vim.log.levels.INFO)
-                llm.improve_idea(idea_name, project.lang, function(result, err)
-                    if err or not result then
+                llm.improve_idea(idea_name, project.lang, function(res, err)
+                    if err or not res then
                         vim.notify(loc.t("llm_error") .. (err or ""), vim.log.levels.WARN)
                         on_done(idea_name)
-                    else
-                        on_done(result)
+                        return
                     end
-                end)
-            else
-                on_done(idea_name)
+                    if res.kind == "question" then
+                        ask(res.question, res.options)
+                        return
+                    end
+                    if res.kind == "unusable" then
+                        vim.notify(loc.t("llm_unusable_reply"), vim.log.levels.WARN)
+                        on_done(idea_name)
+                        return
+                    end
+                    -- Unstructured reply that is still a question: unanswerable
+                    if llm.looks_like_question(res.text) and not llm.looks_like_question(idea_name) then
+                        vim.notify(loc.t("llm_returned_question"), vim.log.levels.WARN)
+                        on_done(idea_name)
+                        return
+                    end
+                    present(res.text)
+                end, {
+                    context = project.description_context(plan_content),
+                    answers = answers,
+                    avoid = extra.avoid,
+                    no_questions = no_more_questions or #answers >= MAX_QUESTIONS,
+                })
             end
+
+            request({})
+        end
+
+        -- Sequential: the review prompt for idea N must close before N+1 starts
+        local function improve_all(list, i, acc, on_done)
+            if i > #list then
+                on_done(acc)
+                return
+            end
+            improve_with_review(list[i], function(final)
+                acc[#acc + 1] = final
+                improve_all(list, i + 1, acc, on_done)
+            end)
         end
 
         -- For each collected idea, optionally improve and add
@@ -109,8 +250,15 @@ function M.new_idea()
             end
             project.write_file(project.section_plan_path, plan_content)
             project.commit_changes("Add ideas: " .. table.concat(ideas_list, ", "))
-            vim.notify(loc.t("idea_added") .. table.concat(ideas_list, ", "), vim.log.levels.INFO)
-            vim.cmd("e! " .. vim.fn.fnameescape(project.section_plan_path))
+            -- The confirmation has to fit on one command line. Listing every
+            -- idea, plus the file message from :edit, overflowed it and forced
+            -- Neovim's "Press ENTER" prompt, which reads as one more step.
+            if #ideas_list == 1 then
+                vim.notify(ui.fit_message(loc.t("idea_added"), ideas_list[1]), vim.log.levels.INFO)
+            else
+                vim.notify(string.format(loc.t("ideas_added_count"), #ideas_list), vim.log.levels.INFO)
+            end
+            vim.cmd("silent edit! " .. vim.fn.fnameescape(project.section_plan_path))
             -- Position cursor at last added idea
             local last_idea = ideas_list[#ideas_list]
             local lines = api.nvim_buf_get_lines(0, 0, -1, false)
@@ -123,29 +271,25 @@ function M.new_idea()
             vim.cmd("normal! zz")
         end
 
+        local function ask_groups_and_add(final_ideas)
+            local function add_idea(selected_groups)
+                add_ideas_batch(final_ideas, selected_groups)
+            end
+            if #groups > 0 then
+                multi_select(groups, { prompt = loc.t("add_to_group") }, add_idea)
+            else
+                add_idea({})
+            end
+        end
+
         -- Ask LLM improvement once for the whole batch
         vim.ui.select({ loc.t("yes"), loc.t("no") }, { prompt = loc.t("use_llm") }, function(use_llm)
-            local improve = use_llm == loc.t("yes")
-            if improve and #idea_names == 1 then
-                process_idea(idea_names[1], true, function(final_idea)
-                    local function add_idea(selected_groups)
-                        add_ideas_batch({ final_idea }, selected_groups)
-                    end
-                    if #groups > 0 then
-                        multi_select(groups, { prompt = loc.t("add_to_group") }, add_idea)
-                    else
-                        add_idea({})
-                    end
-                end)
+            -- F15: improvement used to be skipped silently for batches of more
+            -- than one idea; every collected idea is offered now.
+            if use_llm == loc.t("yes") then
+                improve_all(idea_names, 1, {}, ask_groups_and_add)
             else
-                local function add_idea(selected_groups)
-                    add_ideas_batch(idea_names, selected_groups)
-                end
-                if #groups > 0 then
-                    multi_select(groups, { prompt = loc.t("add_to_group") }, add_idea)
-                else
-                    add_idea({})
-                end
+                ask_groups_and_add(idea_names)
             end
         end)
     end)

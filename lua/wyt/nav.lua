@@ -30,8 +30,10 @@ local function build_tree(project_mod, dir, indent, entries)
         local groups = project_mod.get_groups(plan_content)
         for _, group_name in ipairs(groups) do
             local slug = project_mod.slugify(group_name)
-            local group_dir = dir .. slug .. "/"
-            if uv().fs_stat(group_dir .. "plan.wyt.md") then
+            -- An empty slug points the section at its own parent, and the walk
+            -- never ends. Such a group has no folder: skip it.
+            local group_dir = slug ~= "" and (dir .. slug .. "/") or nil
+            if group_dir and uv().fs_stat(group_dir .. "plan.wyt.md") then
                 table.insert(entries, { label = indent .. slug .. "/", path = nil })
                 build_tree(project_mod, group_dir, indent .. "  ", entries)
             end
@@ -60,7 +62,7 @@ function M.navigate()
         if not choice then return end
         for _, e in ipairs(entries) do
             if e.label == choice and e.path then
-                vim.cmd("edit " .. vim.fn.fnameescape(e.path))
+                require("wyt.ui").edit_file(e.path)
                 return
             end
         end

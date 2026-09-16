@@ -1,5 +1,7 @@
 -- P15: paragraph placeholder expansion workflow for text.wyt.md
 local api = vim.api
+local ui = require("wyt.ui")
+local types = require("wyt.types")
 local M = {}
 
 local function placeholder_pattern(project_mod)
@@ -32,8 +34,15 @@ local function do_expand(buf, line_nr, idea_name, project_mod, loc)
             if choice == loc.t("expand_with_llm") then
                 vim.notify(loc.t("llm_generating"), vim.log.levels.INFO)
                 local plan_content = project_mod.read_file(project_mod.section_plan_path) or ""
-                local context = plan_content:match("^# ([^\n]+)") or ""
-                require("wyt.llm").expand_idea(idea_name, context, project_mod.lang, function(result, err)
+                -- The same frame every other generation gets, plus the plan this
+                -- placeholder sits in. Expanding used to know only that title,
+                -- so it never learned what kind of text it was writing for.
+                local context = project_mod.description_context(plan_content)
+                local plan_title = plan_content:match("^#%s+([^\n]+)")
+                if plan_title then context = context .. ". " .. plan_title end
+                local project_type = project_mod.get_project_type()
+                local lang = project_mod.lang
+                require("wyt.llm").expand_idea(idea_name, context, lang, function(result, err)
                     if err or not result or result == "" then
                         if err then vim.notify(loc.t("llm_error") .. err, vim.log.levels.WARN) end
                         return
@@ -41,9 +50,18 @@ local function do_expand(buf, line_nr, idea_name, project_mod, loc)
                     local new_lines = vim.split(result, "\n", { plain = true })
                     api.nvim_buf_set_lines(buf, line_nr - 1, line_nr, false, new_lines)
                     vim.notify(loc.t("placeholder_expanded"), vim.log.levels.INFO)
-                end)
+                end, {
+                    prose_kind = types.prose_kind(project_type, lang),
+                    -- A summary's placeholder holds a whole group's ideas.
+                    merge = types.multi_idea_paragraph(project_type),
+                })
             else
-                vim.ui.input({ prompt = idea_name .. ":" }, function(text)
+                -- The placeholder holds a whole idea, so it rarely fits a prompt
+                -- line; the panel shows it in full while the writer types.
+                ui.ask_input({
+                    title = loc.t("paragraph_text"),
+                    question = idea_name .. ":",
+                }, function(text)
                     if not text or text == "" then return end
                     local new_lines = vim.split(text, "\n", { plain = true })
                     api.nvim_buf_set_lines(buf, line_nr - 1, line_nr, false, new_lines)

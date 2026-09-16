@@ -4,6 +4,10 @@ M.translations = {
     en = {
         no_project = "[WYT] No project found in current directory. Please navigate to your project root.",
         config_updated = "[WYT] Configuration updated: ",
+        config_usage = "[WYT] Usage: :WYTConfig <provider>",
+        config_key_on_cmdline = "[WYT] Key passed on the command line: prefer :WYTConfig %s and enter it at the prompt.",
+        config_key_prompt = "API key for %s:",
+        config_cancelled = "[WYT] Cancelled: provider unchanged.",
         provider_not_supported = "[WYT] Provider not supported.",
         result = "[WYT] Result:\n",
         set_provider = "Set LLM provider and API Key",
@@ -12,7 +16,19 @@ M.translations = {
         choose_type = "Choose literary text type:",
         choose_path = "Enter base path for the project:",
         choose_name = "Enter project name:",
+        choose_folder = 'Root folder name ("." = use the base path itself):',
+        wizard_cancelled = "[WYT] Project creation cancelled.",
+name_required = "[WYT] The project needs a name.",
+        project_exists = "[WYT] A WYT project already exists at: ",
+        folder_not_empty_title = "Folder not empty",
+        nested_project_title = "Inside another project",
+        llm_buffer_gone = "[WYT] The reply arrived after the file was closed, so nothing was written.",
+        group_name_has_no_slug = "[WYT] A section folder is named after its group, and nothing in this name survives as a folder name: ",
+        folder_not_empty = "%s already holds %d entries. WYT versions the project with git and commits everything in this folder on every save, those files included. Use it anyway?",
+        nested_project = "This folder sits inside the project at %s. WYT reads the outermost project as the root, so the new one would be read as a section of it: its own export and navigation would answer for the outer project. Create it here anyway?",
         choose_content_type = "Choose main section content type:",
+        section_type = "Section type",
+        choose_section_kind = "What is this section for?",
         content = "Content",
         definition = "Definition",
         has_sections = "Will the main section have sub-sections?",
@@ -21,9 +37,7 @@ M.translations = {
         open_where = "Open project in:",
         same_window = "Same window",
         new_window = "New window",
-        plan_intro = "Project plan and guide.",
         text_intro = "Start writing your text here.",
-        export_intro = "Final exported text.",
         project_created = "[WYT] Project created at: ",
         new_usage = "[WYT] Usage: :WYTNew p<tab>",
         new_desc = "Create new WYT entity ([p]roject, [i]dea, [g]roup, etc.)",
@@ -31,6 +45,7 @@ M.translations = {
         use_llm = "Use LLM to improve/redact the idea?",
         add_to_group = "Add idea to an existing group?",
         idea_added = "[WYT] Idea added: ",
+        ideas_added_count = "[WYT] %d ideas added",
         no_ideas = "[WYT] No ideas found to group.",
         select_ideas = "Select ideas to group:",
         group_action = "Add to existing group or create new?",
@@ -62,9 +77,17 @@ M.translations = {
         the_group = "The group",
         is_edited = "is edited. Re-implement?",
         is_not_implemented = "is not implemented.",
+        -- Short titles: a prompt too long to read as one moves into a panel
+        -- under these, and the panel's title becomes the prompt.
+        group_edited_title = "Edited group",
+        reimplement = "Re-implement?",
+        group_name_title = "Group name",
+        answer_prompt = "Answer",
+        paragraph_text = "Paragraph text",
         group_tag = "Group",
         groups_section = "Groups",
         ideas_section = "Ideas",
+        description_section = "Description",
         implemented = "Implemented",
         edited = "Edited",
         implementing = "Implementing the group ",
@@ -73,14 +96,28 @@ M.translations = {
         nav_tab_desc = "WYT: navigate to related file",
         -- P1: LLM
         llm_generating = "[WYT] Generating text...",
-        llm_no_api_key = "[WYT] API key not set. Use :WYTConfig <provider> <api_key>",
+        text_inserted = "[WYT] Text inserted at cursor",
+        ideas_inserted = "[WYT] %d ideas inserted",
+        llm_no_api_key = "[WYT] API key not set. Use :WYTConfig <provider>, or set api_key in setup()",
         llm_error = "[WYT] Generation failed: ",
         -- P3/P14: guided questions
         brainstorm_mode = "How would you like to brainstorm?",
         free_idea = "Enter a free-form idea",
         answer_questions = "Answer guided questions (each answer becomes an idea)",
-        question_prompt = "Your answer (leave blank to skip):",
+        question_skip_hint = "(blank to skip)",
+        llm_question_title = "Improving this idea",
         guided_questions_title = "Guiding questions for your ",
+        guided_intro = "%d questions, one at a time. Each answer becomes its own idea.\nLeave an answer blank to skip it, or press <Esc> to stop and keep the rest.",
+        llm_review_idea = "Review the improved idea (empty = keep yours):",
+        llm_returned_question = "[WYT] The model replied with a question instead of a rewrite. Keeping your text.",
+        llm_unusable_reply = "[WYT] The model's reply could not be used. Keeping your text.",
+        llm_result_title = "Improved idea",
+        llm_result_action = "What do you want to do with it?",
+        keep_result = "Keep this version",
+        edit_result = "Edit this version",
+        try_again = "Generate another",
+        keep_mine = "Keep my original",
+        llm_skip_question = "Skip / not sure",
         -- P2: export
         export_generating = "[WYT] Generating export...",
         export_generated = "[WYT] Export generated at: ",
@@ -105,6 +142,10 @@ M.translations = {
     es = {
         no_project = "[WYT] No se encontró ningún proyecto en el directorio actual. Por favor, navega a la raíz de tu proyecto.",
         config_updated = "[WYT] Configuración actualizada: ",
+        config_usage = "[WYT] Uso: :WYTConfig <proveedor>",
+        config_key_on_cmdline = "[WYT] Key escrita en la línea de comandos: mejor usa :WYTConfig %s y escríbela cuando la pida.",
+        config_key_prompt = "API key para %s:",
+        config_cancelled = "[WYT] Cancelado: el proveedor no cambió.",
         provider_not_supported = "[WYT] Proveedor no soportado.",
         result = "[WYT] Resultado:\n",
         set_provider = "Configura el proveedor LLM y la API Key",
@@ -113,7 +154,19 @@ M.translations = {
         choose_type = "Elige el tipo de texto literario:",
         choose_path = "Ingresa la ruta base para el proyecto:",
         choose_name = "Ingresa el nombre del proyecto:",
+        choose_folder = 'Nombre de la carpeta raíz ("." = usar la ruta base tal cual):',
+        wizard_cancelled = "[WYT] Creación del proyecto cancelada.",
+name_required = "[WYT] El proyecto necesita un nombre.",
+        project_exists = "[WYT] Ya existe un proyecto WYT en: ",
+        folder_not_empty_title = "Carpeta con contenido",
+        nested_project_title = "Dentro de otro proyecto",
+        llm_buffer_gone = "[WYT] La respuesta llegó con el archivo ya cerrado, así que no se escribió nada.",
+        group_name_has_no_slug = "[WYT] La carpeta de una sección toma el nombre del grupo, y de este nombre no queda nada que sirva como nombre de carpeta: ",
+        folder_not_empty = "%s ya contiene %d elementos. WYT versiona el proyecto con git y hace commit de todo lo que hay en esta carpeta en cada guardado, esos archivos incluidos. ¿Usarla de todos modos?",
+        nested_project = "Esta carpeta está dentro del proyecto en %s. WYT toma como raíz el proyecto más externo, así que el nuevo se leería como una sección suya: su exportación y su navegación responderían por el proyecto exterior. ¿Crearlo aquí de todos modos?",
         choose_content_type = "Elige el tipo de contenido de la sección principal:",
+        section_type = "Tipo de sección",
+        choose_section_kind = "¿Para qué es esta sección?",
         content = "Contenido",
         definition = "Definición",
         has_sections = "¿La sección principal tendrá sub-secciones?",
@@ -122,9 +175,7 @@ M.translations = {
         open_where = "Abrir proyecto en:",
         same_window = "Misma ventana",
         new_window = "Nueva ventana",
-        plan_intro = "Plan y guía del proyecto.",
         text_intro = "Comienza a escribir tu texto aquí.",
-        export_intro = "Texto final exportado.",
         project_created = "[WYT] Proyecto creado en: ",
         new_usage = "[WYT] Uso: :WYTNew p<tab>",
         new_desc = "Crear nueva entidad WYT ([p]royecto, [i]dea, [g]rupo, etc.)",
@@ -132,6 +183,7 @@ M.translations = {
         use_llm = "¿Usar LLM para mejorar/redactar la idea?",
         add_to_group = "¿Agregar la idea a un grupo existente?",
         idea_added = "[WYT] Idea agregada: ",
+        ideas_added_count = "[WYT] %d ideas agregadas",
         no_ideas = "[WYT] No se encontraron ideas para agrupar.",
         select_ideas = "Selecciona ideas para agrupar:",
         group_action = "¿Agregar a grupo existente o crear uno nuevo?",
@@ -163,9 +215,17 @@ M.translations = {
         the_group = "El grupo",
         is_edited = "está editado. ¿Re-implementar?",
         is_not_implemented = "no está implementado.",
+        -- Títulos cortos: un prompt demasiado largo para leerse como título pasa
+        -- a un panel bajo estos, y el título del panel se vuelve el prompt.
+        group_edited_title = "Grupo editado",
+        reimplement = "¿Re-implementar?",
+        group_name_title = "Nombre del grupo",
+        answer_prompt = "Respuesta",
+        paragraph_text = "Texto del párrafo",
         group_tag = "Grupo",
         groups_section = "Grupos",
         ideas_section = "Ideas",
+        description_section = "Descripción",
         implemented = "Implementado",
         edited = "Editado",
         implementing = "Implementando el grupo ",
@@ -174,14 +234,28 @@ M.translations = {
         nav_tab_desc = "WYT: navegar al archivo relacionado",
         -- P1: LLM
         llm_generating = "[WYT] Generando texto...",
-        llm_no_api_key = "[WYT] API key no configurada. Usa :WYTConfig <proveedor> <api_key>",
+        text_inserted = "[WYT] Texto insertado en el cursor",
+        ideas_inserted = "[WYT] %d ideas insertadas",
+        llm_no_api_key = "[WYT] API key no configurada. Usa :WYTConfig <proveedor>, o define api_key en setup()",
         llm_error = "[WYT] Error al generar: ",
         -- P3/P14: preguntas orientadoras
         brainstorm_mode = "¿Cómo quieres generar ideas?",
         free_idea = "Ingresar una idea libre",
         answer_questions = "Responder preguntas orientadoras (cada respuesta se convierte en idea)",
-        question_prompt = "Tu respuesta (deja en blanco para saltar):",
+        question_skip_hint = "(vacío para saltar)",
+        llm_question_title = "Mejorando esta idea",
         guided_questions_title = "Preguntas orientadoras para tu ",
+        guided_intro = "%d preguntas, una por una. Cada respuesta se convierte en una idea.\nDeja la respuesta vacía para saltarla, o pulsa <Esc> para terminar y conservar el resto.",
+        llm_review_idea = "Revisa la idea mejorada (vacío = conservar la tuya):",
+        llm_returned_question = "[WYT] El modelo respondió con una pregunta en vez de reescribir. Se conserva tu texto.",
+        llm_unusable_reply = "[WYT] No se pudo usar la respuesta del modelo. Se conserva tu texto.",
+        llm_result_title = "Idea mejorada",
+        llm_result_action = "¿Qué quieres hacer con ella?",
+        keep_result = "Conservar esta versión",
+        edit_result = "Editar esta versión",
+        try_again = "Generar otra",
+        keep_mine = "Conservar la mía",
+        llm_skip_question = "Omitir / no estoy seguro",
         -- P2: exportar
         export_generating = "[WYT] Generando exportación...",
         export_generated = "[WYT] Exportación generada en: ",
@@ -213,11 +287,26 @@ function M.set_lang(lang)
     end
 end
 
+--- `set_lang` only accepts a language that exists, but the project's own
+--- `lang:` is read straight off a hand-edited config, so an unknown one reaches
+--- here. English is the fallback rather than an error: a prompt in the wrong
+--- language beats a stack trace on every string in the plugin.
 function M.t(key, lang)
-    lang = lang or M.lang
-    return M.translations[lang][key] or key
+    local strings = M.translations[lang or M.lang] or M.translations.en
+    return strings[key] or key
 end
 
+--- Normalise any string used as a `vim.ui.input` prompt: exactly one trailing
+--- space, so the cursor never sits flush against the colon. Use for prompts the
+--- caller assembled itself (question text, type hints, interpolated names).
+function M.pad(str)
+    return (tostring(str):gsub("%s*$", "")) .. " "
+end
+
+--- Translated string ready to be used as a `vim.ui.input` prompt.
+function M.prompt(key, lang)
+    return M.pad(M.t(key, lang))
+end
 
 function M.get_lang()
     return M.lang

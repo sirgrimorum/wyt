@@ -2,21 +2,19 @@ local api = vim.api
 local loc = require("wyt.localization")
 local project = require("wyt.project")
 local plan = require("wyt.plan")
+local types = require("wyt.types")
+local ui = require("wyt.ui")
 
 local M = {}
 
-local function escape_pattern(text)
-    return text:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
-end
-
 local function rename_group(content, old_name, new_name)
-    local old_header = "## " .. escape_pattern(project.t("group_tag")) .. ": " .. escape_pattern(old_name)
+    local old_header = "## " .. vim.pesc(project.t("group_tag")) .. ": " .. vim.pesc(old_name)
     local new_header = "## " .. project.t("group_tag") .. ": " .. new_name
-    local old_group_marker = "%[" .. escape_pattern(project.t("group_tag")) .. ": " .. escape_pattern(old_name) .. "%]"
+    local old_group_marker = "%[" .. vim.pesc(project.t("group_tag")) .. ": " .. vim.pesc(old_name) .. "%]"
     local new_group_marker = "[" .. project.t("group_tag") .. ": " .. new_name .. "]"
 
     local new_content = content:gsub(old_group_marker, new_group_marker)
-    return new_content:gsub(escape_pattern(old_header), new_header)
+    return new_content:gsub(vim.pesc(old_header), new_header)
 end
 
 function M.mark_ideas_as_grouped(content, ideas, group_name)
@@ -135,7 +133,7 @@ function M.multi_select(items, opts, callback)
 end
 
 function M.new_group(line1, line2)
-    -- O7: removed vim.cmd("write") — read from open buffer instead of forcing a save
+    -- O7: removed vim.cmd("write"), read from open buffer instead of forcing a save
     local plan_content
     for _, buf in ipairs(api.nvim_list_bufs()) do
         if api.nvim_buf_is_loaded(buf) and api.nvim_buf_get_name(buf) == project.section_plan_path then
@@ -183,7 +181,9 @@ function M.new_group(line1, line2)
 
     local function proceed_group()
         local function finish(group_name)
-            vim.cmd("e! " .. vim.fn.fnameescape(project.section_plan_path))  -- F5
+            -- silent: the file message from :edit, stacked on the confirmation,
+            -- overflows the command line into a "Press ENTER" prompt
+            vim.cmd("silent edit! " .. vim.fn.fnameescape(project.section_plan_path))  -- F5
             if group_name and group_name ~= "" then
                 local group_header = "## " .. project.t("group_tag") .. ": " .. group_name
                 local lines = api.nvim_buf_get_lines(0, 0, -1, false)
@@ -201,64 +201,66 @@ function M.new_group(line1, line2)
             vim.cmd("normal! zz")
         end
         local function new_group_name()
-            -- P14: show guided questions for group naming
-            local types_mod = require("wyt.types")
+            local llm = require("wyt.llm")
             local project_type = project.get_project_type()
-            local questions = types_mod.group_questions(project_type, project.lang)
-            if #questions > 0 then
-                local hint = loc.t("guided_questions_title") .. project_type .. ":\n"
-                for i, q in ipairs(questions) do
-                    hint = hint .. "  " .. i .. ". " .. q .. "\n"
+            -- P14: one orienting question, used as the prompt for the name.
+            -- The numbered list of group questions made no sense here: the
+            -- writer names one group, they do not answer each question in turn.
+            -- Raw, not padded: ui.ask_input pads whichever of the question or
+            -- the short title ends up on the prompt line. Inside a section with
+            -- an archetype, the archetype names the group: a Characters section
+            -- asks which character this is.
+            local kind = project.get_section_kind()
+            local question = types.group_prompt(project_type, project.lang, kind)
+                or types.group_name_hint(project_type, project.lang, kind)
+
+            local function create_with(name)
+                name = name and vim.trim(name) or ""
+                if name == "" then return end
+                local updated_content = plan_content
+                for _, idea in ipairs(selected_ideas) do
+                    updated_content = plan.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. name, idea)
                 end
-                vim.notify(hint, vim.log.levels.INFO)
+                updated_content = M.mark_ideas_as_grouped(updated_content, selected_ideas, name)
+                project.write_file(project.section_plan_path, updated_content)
+                project.commit_changes("Created group: " .. name)
+                vim.notify(ui.fit_message(loc.t("group_created"), name), vim.log.levels.INFO)
+                finish(name)
             end
-            local name_hint = types_mod.group_name_hint(project_type, project.lang)
+
+            -- Both branches ask the same question; the LLM one only pre-fills
+            -- the answer, so the suggestion is edited in place or accepted.
+            local function ask_name(suggested)
+                ui.ask_input({
+                    title = loc.t("group_name_title"),
+                    question = question,
+                    default = suggested,
+                }, function(name)
+                    if name == nil then return end -- <Esc>: no group
+                    if vim.trim(name) == "" and suggested then
+                        name = suggested
+                    end
+                    create_with(name)
+                end)
+            end
+
             vim.ui.select({ loc.t("yes"), loc.t("no") }, { prompt = loc.t("use_llm") }, function(use_llm)
                 if use_llm == loc.t("yes") and #selected_ideas > 0 then
                     vim.notify(loc.t("llm_generating"), vim.log.levels.INFO)
-                    require("wyt.llm").suggest_group_name(selected_ideas, project_type, project.lang, function(suggested, err)
-                        if err or not suggested or suggested == "" then
-                            if err then vim.notify(loc.t("llm_error") .. err, vim.log.levels.WARN) end
-                            vim.ui.input({ prompt = name_hint }, function(name)
-                                if not name or name == "" then return end
-                                local updated_content = plan_content
-                                for _, idea in ipairs(selected_ideas) do
-                                    updated_content = plan.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. name, idea)
-                                end
-                                updated_content = M.mark_ideas_as_grouped(updated_content, selected_ideas, name)
-                                project.write_file(project.section_plan_path, updated_content)
-                                project.commit_changes("Created group: " .. name)
-                                vim.notify(loc.t("group_created") .. name, vim.log.levels.INFO)
-                                finish(name)
-                            end)
-                        else
-                            vim.ui.input({ prompt = name_hint, default = suggested }, function(name)
-                                if not name or name == "" then name = suggested end
-                                local updated_content = plan_content
-                                for _, idea in ipairs(selected_ideas) do
-                                    updated_content = plan.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. name, idea)
-                                end
-                                updated_content = M.mark_ideas_as_grouped(updated_content, selected_ideas, name)
-                                project.write_file(project.section_plan_path, updated_content)
-                                project.commit_changes("Created group: " .. name)
-                                vim.notify(loc.t("group_created") .. name, vim.log.levels.INFO)
-                                finish(name)
-                            end)
+                    -- The model is given the type's name, not its id: "un grupo
+                    -- de ideas de un long_novel" is half English and misspelt.
+                    local type_label = types.label(project_type, project.lang)
+                    llm.suggest_group_name(selected_ideas, type_label, project.lang, function(suggested, err)
+                        if err then vim.notify(loc.t("llm_error") .. err, vim.log.levels.WARN) end
+                        -- A name that is really a question is no name at all
+                        if suggested and suggested ~= "" and llm.looks_like_question(suggested) then
+                            vim.notify(loc.t("llm_returned_question"), vim.log.levels.WARN)
+                            suggested = nil
                         end
+                        ask_name(suggested ~= "" and suggested or nil)
                     end)
                 else
-                    vim.ui.input({ prompt = name_hint }, function(name)
-                        if not name or name == "" then return end
-                        local updated_content = plan_content
-                        for _, idea in ipairs(selected_ideas) do
-                            updated_content = plan.add_item_to_section(updated_content, project.t("group_tag") .. ": " .. name, idea)
-                        end
-                        updated_content = M.mark_ideas_as_grouped(updated_content, selected_ideas, name)
-                        project.write_file(project.section_plan_path, updated_content)
-                        project.commit_changes("Created group: " .. name)
-                        vim.notify(loc.t("group_created") .. name, vim.log.levels.INFO)
-                        finish(name)
-                    end)
+                    ask_name(nil)
                 end
             end)
         end
@@ -267,8 +269,13 @@ function M.new_group(line1, line2)
                 if action == loc.t("add_to_existing_group") then
                     vim.ui.select(groups, {prompt = loc.t("select_group")}, function(group_name)
                         if group_name then
-                            vim.ui.input({prompt = loc.t("edit_group_name") .. " [" .. group_name .. "]: "}, function(new_name)
-                                local final_name = new_name and new_name ~= "" and new_name or group_name
+                            local rename_q = loc.t("edit_group_name") .. " [" .. group_name .. "]:"
+                            ui.ask_input({
+                                title = loc.t("group_name_title"),
+                                question = rename_q,
+                            }, function(new_name)
+                                if new_name == nil then return end -- <Esc>: add nothing
+                                local final_name = new_name ~= "" and new_name or group_name
                                 local updated_content = rename_group(plan_content, group_name, final_name)
                                 -- P4: rename section folder when group name changes
                                 if final_name ~= group_name then
@@ -331,6 +338,12 @@ local function find_group_bounds(lines, cursor)
         end
         end_idx = i
     end
+    -- The blank lines that follow a group belong to the gap between groups, not to
+    -- the group itself. The last group in the file has none, so counting them in
+    -- would make it swap as a shorter block and move the separator to the wrong side.
+    while end_idx > start_idx and lines[end_idx]:match("^%s*$") do
+        end_idx = end_idx - 1
+    end
     return start_idx, end_idx
 end
 
@@ -392,10 +405,11 @@ function M.move_group(direction)
         end
         if not target_start then return end
         -- O8: use shared helper; current is above target, so current=a, target=b
-        local target_block_size = target_end - target_start + 1
         local new_lines = swap_line_blocks(lines, start_idx, end_idx, target_start, target_end)
         api.nvim_buf_set_lines(buf, 0, -1, false, new_lines)
-        api.nvim_win_set_cursor(0, {start_idx + target_block_size, 0})
+        -- The target block and the untouched gap now sit before the moved group:
+        -- start_idx + (target size) + (gap size) collapses to start_idx + target_end - end_idx.
+        api.nvim_win_set_cursor(0, {start_idx + target_end - end_idx, 0})
     end
 end
 

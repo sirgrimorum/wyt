@@ -3,11 +3,11 @@ local M = {}
 function M.check()
     vim.health.start("wyt")
 
-    -- Neovim version
-    if vim.fn.has("nvim-0.9") == 1 then
-        vim.health.ok("Neovim >= 0.9")
+    -- Neovim version: the LLM call and the key lookups use vim.system (0.10)
+    if vim.fn.has("nvim-0.10") == 1 then
+        vim.health.ok("Neovim >= 0.10")
     else
-        vim.health.error("Neovim >= 0.9 is required")
+        vim.health.error("Neovim >= 0.10 is required")
     end
 
     -- telescope.nvim (required for multi-select)
@@ -25,7 +25,14 @@ function M.check()
     if vim.fn.executable("git") == 1 then
         vim.health.ok("git found in PATH")
     else
-        vim.health.warn("git not found in PATH — version control features will not work")
+        vim.health.warn("git not found in PATH: version control features will not work")
+    end
+
+    -- curl (the LLM transport)
+    if vim.fn.executable("curl") == 1 then
+        vim.health.ok("curl found in PATH")
+    else
+        vim.health.error("curl not found in PATH: generation will not work")
     end
 
     -- setup() was called
@@ -38,10 +45,22 @@ function M.check()
         else
             vim.health.warn("Unknown LLM provider: " .. tostring(provider))
         end
-        if config.options.api_key and config.options.api_key ~= "" then
-            vim.health.ok("API key is set")
+        -- Report the source only. The key itself is never printed, and
+        -- resolvers are not invoked here: :checkhealth should not unlock a
+        -- keychain or pop an input prompt as a side effect.
+        local source = config.api_key_source()
+        if source == "resolver" then
+            vim.health.ok("API key: lazy resolver (fetched on first request, not stored on disk)")
+        elseif source == "literal" then
+            vim.health.warn(
+                "API key: literal string in your config",
+                {
+                    "A literal key sits in plaintext in a file that is often git-tracked.",
+                    "Prefer a resolver: api_key = require('wyt.secret').os_store()",
+                }
+            )
         else
-            vim.health.warn("API key is empty — :WYTGenerate will not work until configured with :WYTConfig")
+            vim.health.warn("API key is not configured: :WYTGenerate will not work until set with :WYTConfig")
         end
     else
         vim.health.error(
