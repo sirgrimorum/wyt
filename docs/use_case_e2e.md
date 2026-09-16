@@ -1,4 +1,4 @@
-# WYT — End-to-End Use Case
+# WYT: End-to-End Use Case
 
 A complete walkthrough of the WYT methodology using every command, keymap, and option.
 The example project is a **short essay** titled *"The Silence of Cities"*.
@@ -28,11 +28,11 @@ Verify the plugin is healthy before starting:
 :checkhealth wyt
 ```
 
-Expected output:
-- Neovim >= 0.9 ✓
-- `telescope.nvim` installed ✓
-- `git` executable found ✓
-- (optional) current buffer is a WYT project
+It reports, in this order: the Neovim version (0.10 or newer), whether
+`telescope.nvim`, `git` and `curl` are there, whether `setup()` ran and which
+provider it set, where the API key comes from (never the key itself), and
+whether the current buffer sits inside a WYT project. Anything but an error is
+fine to start with: only a missing `curl` or an old Neovim stops generation.
 
 ---
 
@@ -138,7 +138,7 @@ Save the file:
 ```
 
 The `BufWritePost` autocmd fires automatically:
-- `git add . && git commit -m "Save: plan.wyt.md"` runs in the background
+- `git add . && git commit -m "Save: plan.wyt.md"` runs as part of the save
 - No user action required
 
 ---
@@ -427,8 +427,8 @@ placeholder, the idea itself wrapped in square brackets.
 ```
 
 The marker is written in the project's language, so a project still on `lang: es`
-gets `*Crea un párrafo sobre: [...]*`. Either form is recognised on expansion and
-on export.
+gets `*Crea un párrafo sobre: [...]*`. The export strips either form; expansion
+recognises only the project's current language.
 
 A `summary` is the exception: it folds the whole group into a single placeholder
 holding every idea separated by `; `. See the
@@ -543,17 +543,18 @@ what is sent from where.
 
 ---
 
-## 12. Change Language Mid-Project
+## 12. The Project Language Is Chosen Once
 
-```vim
-:WYTSetLang en
-```
+This walkthrough stays in Spanish, and so should a real project once it has
+groups. `:WYTSetLang en` persists `lang: en` to `config.wyt.yml` and switches
+every prompt and generation to English, but it does not rewrite what is already
+on disk.
 
-- Updates `localization` module in memory
-- Persists `lang: en` to the current project's `config.wyt.yml`
-- Auto-commit fires with the config change
-
-All subsequent UI strings, guided questions, and LLM prompts use English.
+The markers WYT has written are in the old language, and it only recognises the
+current one. After the switch, every `## Grupo:` header stops being a group:
+`:WYTNav`, `:WYTSearch`, `:WYTExport` and the rename in §16 no longer see those
+sections, and the export prints the markers as plain headings. Switch back with
+`:WYTSetLang es` and they return.
 
 ---
 
@@ -577,7 +578,7 @@ Select ideas related to definitions → name the group `Key Concepts`.
 Position cursor on that group header, press `<S-Tab>` → implement as section.
 
 The section is new, so WYT asks what it is for. Choose
-**Key concepts (the terms the argument rests on)**.
+**Conceptos clave (los términos en que se apoya el argumento)**.
 
 The section's `config.wyt.yml` gets `section_kind: key_concepts` and the
 `content_type: definition` that archetype implies, while `type` stays the
@@ -585,9 +586,11 @@ project's literary type. The answer is asked once, when the section is created:
 re-implementing the group later keeps it, and a section created *inside* a
 reference section inherits it without asking again.
 
-From now on, `:WYTNew i` inside that section asks "How would you define it in
-one sentence?" rather than the essay's argument questions, and `:WYTNew g` asks
-"Which concept is this?" instead of asking for an argument name.
+From now on, `:WYTNew i` inside that section asks about the concept rather than
+the essay's argument: a free idea is prompted with "¿Qué más pertenece a esta
+definición?", and the guided questions start with "¿Cómo lo definirías en una
+frase?". `:WYTNew g` asks "¿De qué concepto se trata?" instead of asking for an
+argument name.
 
 ### Search across reference sections
 
@@ -622,7 +625,7 @@ not to be published.
 :WYTNav
 ```
 
-Opens a Telescope picker showing the hierarchical project tree. Each section is
+Opens a selection menu showing the hierarchical project tree. Each section is
 a directory line, its files indented under it, and the sections come in the
 order their groups have in the plan, not in alphabetical order:
 
@@ -668,7 +671,8 @@ section**; only `export` is a root-level file.
 
 `WYTGoto parent` goes up exactly one level, so from a section of this essay it
 opens the root `plan.wyt.md`, and from a section nested two deep it opens the
-section above it, not the root. From the root it notifies "already at root".
+section above it, not the root. From the root it notifies
+`[WYT] No hay sección padre.`
 
 ---
 
