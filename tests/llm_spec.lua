@@ -7,6 +7,11 @@ local llm = require("wyt.llm")
 local types = require("wyt.types")
 
 describe("llm.to_single_line", function()
+    it("strips a list index but keeps a year", function()
+        assert.equals("The Silence of Cities", llm.to_single_line("1. The Silence of Cities"))
+        assert.equals("1984. The Year", llm.to_single_line("1984. The Year"))
+    end)
+
     it("takes the first line that says something", function()
         assert.equals("The real answer", llm.to_single_line("\n\n  \nThe real answer\nmore"))
     end)
@@ -23,6 +28,11 @@ describe("llm.to_single_line", function()
 
     it("unwraps surrounding quotes, which models add to names", function()
         assert.equals("The Silence of Cities", llm.to_single_line('"The Silence of Cities"'))
+    end)
+
+    it("keeps a quotation that is part of the sentence", function()
+        local titled = "Ella relee " .. string.char(0xC2, 0xAB) .. "Rayuela" .. string.char(0xC2, 0xBB)
+        assert.equals(titled, llm.to_single_line(titled))
     end)
 
     it("returns empty for a reply with nothing in it", function()
@@ -43,10 +53,8 @@ describe("llm.to_prose", function()
     end)
 
     it("drops list markers but keeps the text", function()
-        local out = llm.to_prose("- first point\n- second point")
-        assert.has_no_match("^%s*[-*]%s", out)
-        assert.matches("first point", out)
-        assert.matches("second point", out)
+        -- Exact: a pattern anchored at ^ only ever looked at the first line.
+        assert.equals("first point\nsecond point", llm.to_prose("- first point\n- second point"))
     end)
 
     it("leaves plain prose alone", function()
@@ -61,6 +69,14 @@ describe("llm.looks_like_question", function()
 
     it("accepts a real name", function()
         assert.falsy(llm.looks_like_question("The empty platform"))
+    end)
+
+    -- The opener is two bytes, so it is matched whole: inside a `[...]` class it
+    -- would eat the 0xC2 off every Spanish question instead.
+    it("spots a Spanish question by either mark", function()
+        local opener = string.char(0xC2, 0xBF)
+        assert.truthy(llm.looks_like_question(opener .. "De qui" .. string.char(0xC3, 0xA9) .. "n es la idea"))
+        assert.truthy(llm.looks_like_question("De qui" .. string.char(0xC3, 0xA9) .. "n es la idea?"))
     end)
 end)
 
@@ -277,14 +293,21 @@ end)
 describe("llm.improve_idea", function()
     local restore
 
-    local function answer(reply)
+    local function answer(reply, opts)
         if restore then restore() end
         local _, r = helpers.capture_prompt(reply)
         restore = r
         local result, err
-        llm.improve_idea("vague idea", "en", function(res, e) result, err = res, e end, {})
+        llm.improve_idea("vague idea", "en", function(res, e) result, err = res, e end, opts or {})
         return result, err
     end
+
+    it("refuses a question once questions are off, however the model replies", function()
+        local reply = '{"question": "Which city?", "options": ["Bogota", "Lima"]}'
+        assert.equals("unusable", answer(reply, { no_questions = true }).kind)
+        local both = '{"question": "Which city?", "options": ["Bogota"], "idea": "A clear sentence."}'
+        assert.equals("A clear sentence.", answer(both, { no_questions = true }).text)
+    end)
 
     it("returns the rewritten sentence from a JSON reply", function()
         local result = answer('{"idea": "A clear sentence."}')

@@ -2,16 +2,21 @@
 -- All public functions are async: they accept a callback(result, err)
 local M = {}
 
+local NL = string.char(10)
+
 local function get_opts()
     local config = require("wyt.config")
     local key, err = config.get_api_key()
     return config.options.llm_provider, key, err
 end
 
--- Quote a value for curl's config-file syntax. vim.json.encode never emits raw
--- control characters, so escaping backslash and double quote is sufficient.
+-- Quote a value for curl's config-file syntax. A raw newline ends the line and
+-- turns what follows into another curl option, and the header line carries the
+-- API key: a newline pasted in with a key would otherwise be able to write a
+-- file or change the URL. curl reads these escapes back inside a quoted value.
 local function curl_quote(s)
     local escaped = s:gsub("\\", "\\\\"):gsub('"', '\\"')
+        :gsub("\n", "\\n"):gsub("\r", "\\r"):gsub("\t", "\\t")
     return '"' .. escaped .. '"'
 end
 
@@ -27,11 +32,20 @@ local function curl_request(url, headers, body, callback)
     end
     table.insert(lines, "data-binary = " .. curl_quote(body))
 
-    vim.system(
-        { "curl", "-s", "--config", "-" },
-        { text = true, stdin = table.concat(lines, "\n") .. "\n" },
-        callback
-    )
+    -- -sS: quiet, but still report why a request failed. Under -s alone the
+    -- stderr this reads back is always empty, so the error had no detail at all.
+    local cmd = { "curl", "-sS", "--config", "-" }
+    local stdin = table.concat(lines, NL) .. NL
+    -- vim.system throws when curl is not installed, which would leave the
+    -- caller's callback hanging forever.
+    local ok, err = pcall(vim.system, cmd, { text = true, stdin = stdin }, callback)
+    if not ok then
+        -- `callback` reads a finished process, so hand it one that failed: the
+        -- writer gets the reason, not a stack trace from the response handler.
+        vim.schedule(function()
+            callback({ code = -1, stdout = "", stderr = "curl could not be run: " .. tostring(err) })
+        end)
+    end
 end
 
 -- Shared response handling for both providers.
@@ -39,7 +53,9 @@ end
 local function handle_response(result, callback, extract)
     vim.schedule(function()
         if result.code ~= 0 then
-            callback(nil, "curl error: " .. (result.stderr or "exit " .. result.code))
+            local detail = result.stderr ~= nil and result.stderr ~= "" and result.stderr
+                or ("exit " .. result.code)
+            callback(nil, "curl error: " .. detail)
             return
         end
         local ok, data = pcall(vim.json.decode, result.stdout)
@@ -47,12 +63,21 @@ local function handle_response(result, callback, extract)
             callback(nil, "JSON parse error: " .. tostring(data))
             return
         end
+        -- A body that is not an object (null, a bare number) has no fields to read.
+        if type(data) ~= "table" then
+            callback(nil, "unexpected response: " .. tostring(result.stdout):sub(1, 200))
+            return
+        end
         if data.error then
             local message = data.error.message or vim.inspect(data.error)
             callback(nil, data.error.type and (data.error.type .. ": " .. message) or message)
             return
         end
-        callback(extract(data) or "", nil)
+        -- A JSON null decodes to vim.NIL, which is truthy: a refusal with
+        -- "content": null used to reach the callback as userdata and blow up in
+        -- the first gsub, leaving the rest of a batch unfinished.
+        local text = extract(data)
+        callback(type(text) == "string" and text or "", nil)
     end)
 end
 
@@ -161,19 +186,20 @@ local BULLETS = { "- ", "* ", "• ", "– ", "— " }
 local OPEN_QUOTES = { '"', "'", "“", "«", "‘" }
 local CLOSE_QUOTES = { '"', "'", "”", "»", "’" }
 
+-- Only a matched pair comes off. Stripping each side on its own turned
+-- `Ella relee <<Rayuela>>` into a sentence missing its closing mark, and that
+-- text becomes an idea, a group name, and a folder slug.
 local function strip_wrapping_quotes(s)
     local changed = true
     while changed do
         changed = false
-        for _, q in ipairs(OPEN_QUOTES) do
-            if s:sub(1, #q) == q then
-                s = s:sub(#q + 1)
-                changed = true
-            end
-        end
-        for _, q in ipairs(CLOSE_QUOTES) do
-            if #s >= #q and s:sub(-#q) == q then
-                s = s:sub(1, #s - #q)
+        for i, open_q in ipairs(OPEN_QUOTES) do
+            local close_q = CLOSE_QUOTES[i]
+            if #s > #open_q + #close_q
+                and s:sub(1, #open_q) == open_q
+                and s:sub(-#close_q) == close_q
+            then
+                s = s:sub(#open_q + 1, #s - #close_q)
                 changed = true
             end
         end
@@ -194,7 +220,9 @@ local function strip_decoration(line)
     -- the hashes into its folder slug and its `## Group:` line. `#silence` with
     -- no space is a hashtag the writer may have wanted, so it stays.
     line = line:gsub("^#+%s+", "")
-    line = line:gsub("^%d+[%.%)]%s+", "")       -- "1. " / "1) "
+    -- Two digits at most: a model numbering its answers never reaches a hundred,
+    -- while "1984. " opening a title or a paragraph is a year the writer meant.
+    line = line:gsub("^%d%d?[%.%)]%s+", "")     -- "1. " / "1) "
     line = line:gsub("^%*%*(.-)%*%*$", "%1")    -- **bold**
     line = line:gsub("^%*(.-)%*$", "%1")        -- *italic*
     return vim.trim(strip_wrapping_quotes(line))
@@ -223,7 +251,7 @@ function M.to_prose(text)
     for _, line in ipairs(vim.split(text, "\n", { plain = true })) do
         if not is_heading(line) then
             line = line:gsub("^%s*[%-%*%+]%s+", "")
-            line = line:gsub("^%s*%d+[%.%)]%s+", "")
+            line = line:gsub("^%s*%d%d?[%.%)]%s+", "")
             kept[#kept + 1] = line
         end
     end
@@ -232,7 +260,7 @@ function M.to_prose(text)
 end
 
 --- True when a reply is a clarifying question rather than the answer. The model
---- has no one to ask — the caller keeps the user's own text instead.
+--- has no one to ask, so the caller keeps the user's own text instead.
 function M.looks_like_question(text)
     if not text then return false end
     return text:match("%?%s*$") ~= nil or text:match("^%s*¿") ~= nil
@@ -336,7 +364,10 @@ function M.improve_idea(idea_text, lang, callback, opts)
         end
         local data = extract_json(raw)
         if data then
-            if type(data.question) == "string" and data.question ~= "" then
+            -- Once questions are off, a question is refused here rather than
+            -- trusted to the prompt: a model that keeps asking would otherwise
+            -- loop for as long as the writer keeps skipping.
+            if not opts.no_questions and type(data.question) == "string" and data.question ~= "" then
                 local options = normalize_options(data.options)
                 if options then
                     callback({

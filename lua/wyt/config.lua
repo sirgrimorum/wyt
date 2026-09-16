@@ -44,11 +44,6 @@ function M.get_api_key()
     return resolved_key
 end
 
---- Drop the cached secret (e.g. after locking the machine, or to re-prompt).
-function M.clear_api_key()
-    resolved_key = nil
-end
-
 --- Where the key comes from, for diagnostics. Never returns the key itself.
 --- @return string one of "resolver", "literal", "unset"
 function M.api_key_source()

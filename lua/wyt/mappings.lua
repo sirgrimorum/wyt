@@ -18,7 +18,7 @@ local function handle_move(direction)
     end
 end
 
--- F8: buffer-local keymaps — called from autocmd.lua on BufEnter plan.wyt.md
+-- F8: buffer-local keymaps: called from autocmd.lua on BufEnter plan.wyt.md
 -- Keeps keys scoped to wyt buffers only; does not pollute all buffers in the session
 function M.setup_buf(buf)
     vim.keymap.set("n", "<S-Up>", function() handle_move("up") end, {
