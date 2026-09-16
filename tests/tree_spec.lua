@@ -32,6 +32,18 @@ describe("nav.navigate", function()
 
     before_each(function() helpers.cleanup(root) end)
 
+    -- A name with no ASCII letter or digit slugifies to "", which used to make
+    -- the section folder the parent itself and the walk endless.
+    it("skips a group whose name leaves nothing to name a folder with", function()
+        root = helpers.project({ type = "novel", name = "A City" })
+        helpers.write(root .. "plan.wyt.md",
+            helpers.read(root .. "plan.wyt.md") .. "\n## Group: " .. string.char(0xC2, 0xAB) .. string.char(0xC2, 0xBB) .. "\n")
+        local labels = nav_labels()
+        -- The root's own two files and nothing else: no "/" folder row for a
+        -- section that cannot exist.
+        assert.same({ "plan.wyt.md", "config.wyt.yml" }, labels)
+    end)
+
     it("lists the root's own files before anything nested", function()
         root = helpers.project({ type = "novel", name = "A City" })
         local labels = nav_labels()
@@ -108,7 +120,9 @@ describe("search collects only definition sections", function()
         section(root, "", "Chapter One", { type = "novel", text = "The platform was empty.\n" })
         local items, messages = hits_for("platform")
         assert.same({}, items)
-        assert.truthy(#messages > 0, "should have said there is nothing to search")
+        -- The specific message: any early exit ("no project") also shows no hits.
+        assert.equals(require("wyt.localization").t("no_definitions_found", "en"),
+            messages[#messages] and messages[#messages].msg)
     end)
 
     it("reaches a definition section nested inside a content one", function()

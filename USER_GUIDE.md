@@ -1,4 +1,4 @@
-# Guía de usuario — WYT.nvim
+# Guía de usuario de WYT.nvim
 
 Esta guía describe los comandos, los atajos de teclado y las reglas que WYT
 aplica a un proyecto. Para verlo todo en uso, de principio a fin, consulta el
@@ -42,7 +42,11 @@ dos ocurre depende de la profundidad del tipo, más abajo.
 - `:WYTNew p`
   Crea un nuevo proyecto literario.
   _Sigue los prompts interactivos: idioma, tipo, ruta, nombre, carpeta raíz,
-  tipo de contenido y dónde abrirlo._
+  tipo de contenido, sub-secciones (solo si el tipo admite más de un nivel) y
+  dónde abrirlo. Si la carpeta raíz ya tiene archivos, pide confirmación: cada
+  guardado hace commit de todo lo que hay en ella. Si la carpeta está dentro de
+  otro proyecto también pregunta: WYT toma como raíz el proyecto más externo, así
+  que el nuevo se leería como una sección suya._
 
 - `:WYTNew i`
   Agrega una idea al plan actual, libre o respondiendo las preguntas
@@ -53,11 +57,16 @@ dos ocurre depende de la profundidad del tipo, más abajo.
 
 ### Configuración
 
-- `:WYTConfig <proveedor> <api_key>`
-  Configura el proveedor LLM (`openai` o `claude`) y la API Key.
+- `:WYTConfig <proveedor>`
+  Configura el proveedor LLM (`openai` o `claude`) y pide la API key sin eco,
+  fuera del historial.
 
 - `:WYTSetLang <en|es>`
   Cambia el idioma del plugin y lo guarda en el `config.wyt.yml` del proyecto.
+  _No reescribe lo que ya está escrito. WYT solo reconoce las marcas en el idioma
+  actual, así que en un proyecto con grupos los `## Grupo:` dejan de ser grupos
+  para la navegación, la búsqueda y el export. Elige el idioma al crear el
+  proyecto; si cambias, vuelve al anterior y todo reaparece._
 
 ### Navegación
 
@@ -130,7 +139,7 @@ Lo que se envía según el archivo:
 | `text.wyt.md`, después del último párrafo | el párrafo anterior | el párrafo que sigue | prosa |
 | `plan.wyt.md`, dentro de un grupo | las ideas que ya están en ese grupo | ideas nuevas que no repitan las existentes | ideas `- ` |
 | `plan.wyt.md`, bajo `## Ideas` | las ideas sueltas que ya hay | ideas nuevas para la sección | ideas `- ` |
-| cualquier otro archivo | nada más | el párrafo que sigue | prosa |
+| cualquier otro archivo | el párrafo anterior y el siguiente | un puente entre ellos, o el párrafo que sigue | prosa |
 
 Tres formas de usarlo, entonces:
 
@@ -295,12 +304,12 @@ cuando se genera el export.
 
 | Tipo | nivel 2 | nivel 3 | nivel 4 | grupos dentro de `text.wyt.md` |
 |------|---------|---------|---------|--------------------------------|
-| `novel` | capítulo `##` | escena: `* * *` | — | nada |
+| `novel` | capítulo `##` | escena: `* * *` | - | nada |
 | `long_novel` | parte `##` | capítulo `###` | escena: `* * *` | nada |
-| `short_novel` | escena: `* * *` | — | — | nada |
-| `short_story` | — | — | — | escena: `* * *` |
-| `essay` | sección `##` | — | — | nada |
-| `summary` | — | — | — | `##` por grupo |
+| `short_novel` | escena: `* * *` | - | - | nada |
+| `short_story` | - | - | - | escena: `* * *` |
+| `essay` | sección `##` | - | - | nada |
+| `summary` | - | - | - | `##` por grupo |
 
 La raíz es siempre el título del documento, así que ningún tipo declara el nivel
 1. "Nada" quiere decir que los bloques simplemente siguen, separados por una

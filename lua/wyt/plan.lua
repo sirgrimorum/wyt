@@ -8,7 +8,7 @@ local M = {}
 local function get_config_sections(section_dir)
     local config_path = section_dir .. "config.wyt.yml"
     local config_content = project.read_file(config_path)
-    return config_content and config_content:match("sections:%s*true") ~= nil
+    return project.config_value(config_content, "sections") == "true"
 end
 
 local function get_group_tags(line)
@@ -87,6 +87,11 @@ function M.goto_wyt_tab()
         group_name = project.clean_group_name(group_name)
         if sections_enabled then
             local slug = project.slugify(group_name)
+            -- An empty slug would point the section at its own folder and
+            -- reopen this very plan. implement_group says why and stops.
+            if slug == "" then
+                return project.implement_group(current_plan_content, group_name, current_section_dir, sections_enabled, function() end)
+            end
             local section_plan = current_section_dir .. slug .. "/plan.wyt.md"
             local function open()
                 ui.open_file(section_plan)

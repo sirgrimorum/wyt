@@ -121,6 +121,19 @@ describe("what the export leaves out", function()
         assert.has_no_match("Empty", out)
     end)
 
+    it("drops the text parked in `old` fences, including back-to-back ones", function()
+        root = helpers.project({ type = "summary", name = "Notes", sections = false })
+        -- The shape project.implement_group writes: no newline between fences.
+        helpers.write(root .. "text.wyt.md",
+            "## Group: Kept\n\nNew para.\n```old\n\n## Group: Gone\n\nOld para.\n``````old\n"
+            .. "\n## Group: Also gone\n\nOlder para.\n```\n")
+        local out = export_of(root)
+        assert.matches("New para%.", out)
+        assert.has_no_match("Gone", out)
+        assert.has_no_match("Old", out)
+        assert.has_no_match("```", out)
+    end)
+
     it("produces just the title for a project with nothing written", function()
         root = helpers.project({ type = "essay", name = "Empty" })
         assert.equals("# Empty", vim.trim(export_of(root)))
@@ -159,5 +172,20 @@ describe("the export is written where WYTGoto export looks for it", function()
         local root = helpers.project({ type = "essay", name = "On Cities" })
         assert.matches("^# On Cities", export_of(root))
         helpers.cleanup(root)
+    end)
+end)
+
+describe("a group name that slugifies to nothing", function()
+    -- The folder for such a group would be the parent itself, and the walk
+    -- would descend into it until the path got too long to stat.
+    it("is skipped by the export instead of walked into", function()
+        local root = helpers.project({ type = "essay", name = "On Cities", sections = true })
+        section(root, "", "Density", { type = "essay", text = "Density is a choice." .. "\n" })
+        helpers.write(root .. "plan.wyt.md", helpers.read(root .. "plan.wyt.md")
+            .. "\n## Group: " .. string.char(0xC2, 0xAB) .. string.char(0xC2, 0xBB) .. "\n")
+        local out = export_of(root)
+        assert.matches("Density is a choice%.", out)
+        local _, count = out:gsub("Density is a choice", "")
+        assert.equals(1, count)
     end)
 end)
