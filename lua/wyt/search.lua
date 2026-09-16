@@ -11,10 +11,9 @@ local function uv() uv_ref = uv_ref or (vim.uv or vim.loop); return uv_ref end
 -- `text.wyt.md` found nothing of what the writer went looking for.
 local function collect_definition_files(project_mod, dir, results)
     results = results or {}
-    local config_path = dir .. "config.wyt.yml"
     local plan_path   = dir .. "plan.wyt.md"
 
-    if uv().fs_stat(config_path) and project_mod.is_definition_section(dir) then
+    if project_mod.is_definition_section(dir) then
         for _, name in ipairs({ "plan.wyt.md", "text.wyt.md" }) do
             if uv().fs_stat(dir .. name) then
                 table.insert(results, dir .. name)
@@ -28,8 +27,10 @@ local function collect_definition_files(project_mod, dir, results)
         local groups = project_mod.get_groups(plan_content)
         for _, group_name in ipairs(groups) do
             local slug = project_mod.slugify(group_name)
-            local group_dir = dir .. slug .. "/"
-            if uv().fs_stat(group_dir .. "plan.wyt.md") then
+            -- An empty slug points the section at its own parent, and the walk
+            -- never ends. Such a group has no folder: skip it.
+            local group_dir = slug ~= "" and (dir .. slug .. "/") or nil
+            if group_dir and uv().fs_stat(group_dir .. "plan.wyt.md") then
                 collect_definition_files(project_mod, group_dir, results)
             end
         end

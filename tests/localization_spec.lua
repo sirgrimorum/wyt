@@ -47,9 +47,8 @@ describe("loc.t", function()
         assert.equals("Ideas", loc.t("ideas_section", "de"))
     end)
 
-    it("returns something printable for a key that does not exist", function()
-        local value = loc.t("no_such_key_anywhere", "en")
-        assert.truthy(value == nil or type(value) == "string")
+    it("returns the key itself for a key that does not exist", function()
+        assert.equals("no_such_key_anywhere", loc.t("no_such_key_anywhere", "en"))
     end)
 end)
 

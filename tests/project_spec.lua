@@ -85,6 +85,14 @@ describe("project.description_context", function()
         helpers.cleanup(root)
     end)
 
+    it("falls back to the project's Description inside a section", function()
+        local root = helpers.project({ type = "novel", description = "A city that forgets." })
+        -- A section plan is written as a title and Ideas, with no Description.
+        local ctx = project.description_context("# Chapter One\n\n## Ideas\n")
+        assert.equals("Novel. A city that forgets.", ctx)
+        helpers.cleanup(root)
+    end)
+
     it("survives a plan with no Description section at all", function()
         local root = helpers.project({ type = "essay", plan = "# Fixture\n\n## Ideas\n\n" })
         assert.equals("Essay", project.description_context(project.read_file(project.section_plan_path)))
@@ -249,10 +257,30 @@ describe("project.mark_group_status", function()
     end)
 end)
 
+describe("project root detection on Windows", function()
+    -- With 'shellslash' a buffer name arrives with "/", while package.config
+    -- still says "\": matching only that separator found no root at all.
+    it("finds the root from a buffer named with forward slashes", function()
+        if vim.fn.has("win32") == 0 then return end
+        local shellslash = vim.o.shellslash
+        vim.o.shellslash = true
+        local ok, err = pcall(function()
+            local root = helpers.project({ name = "Fixture" })
+            assert.matches("/plan%.wyt%.md$", vim.api.nvim_buf_get_name(0))
+            local norm = function(p) return (p:gsub("\\", "/")) end
+            assert.equals(norm(root), norm(project.project_root))
+            helpers.cleanup(root)
+        end)
+        vim.o.shellslash = shellslash
+        assert(ok, err)
+    end)
+end)
+
 describe("project.setup", function()
     it("resolves the root, the plan and the config from the open buffer", function()
         local root = helpers.project({ name = "Fixture" })
-        assert.truthy(project.project_root:find("p", 1, true))
+        local norm = function(p) return (p:gsub("\\", "/")) end
+        assert.equals(norm(root), norm(project.project_root))
         assert.matches("plan%.wyt%.md$", project.section_plan_path)
         assert.matches("config%.wyt%.yml$", project.config_path)
         helpers.cleanup(root)
@@ -262,5 +290,115 @@ describe("project.setup", function()
         local root = helpers.project({ lang = "es" })
         assert.equals("es", project.lang)
         helpers.cleanup(root)
+    end)
+end)
+
+describe("project.implement_group", function()
+    -- Without a slug the section folder is the parent itself: its plan gets
+    -- renamed to plan.old.wyt.md and rewritten with the group's own ideas.
+    it("refuses a group name that leaves nothing to name a folder with", function()
+        local root = helpers.project({ type = "novel", name = "A City" })
+        local before = project.read_file(root .. "plan.wyt.md")
+        local name = string.char(0xC2, 0xAB) .. string.char(0xC2, 0xBB)
+        local messages, restore = helpers.capture_notify()
+        local ran = false
+        project.implement_group(before .. "\n## Group: " .. name .. "\n", name, root, true,
+            function() ran = true end)
+        restore()
+        assert.falsy(ran)
+        assert.is_nil(project.read_file(root .. "plan.old.wyt.md"))
+        assert.equals(before, project.read_file(root .. "plan.wyt.md"))
+        assert.equals(1, #messages)
+        assert.matches(name, messages[1].msg, 1, true)
+        helpers.cleanup(root)
+    end)
+end)
+
+describe("project.normalize_path", function()
+    it("expands ~ into an absolute path", function()
+        local home = vim.fs.normalize(vim.fn.expand("~"))
+        assert.equals(home .. "/writing", project.normalize_path("~/writing"))
+    end)
+
+    -- vim.fn.expand() runs a backtick expression through the shell, and this
+    -- string is whatever was typed at the wizard's prompt.
+    it("leaves a backtick expression as a literal folder name", function()
+        local out = project.normalize_path("`echo hacked`")
+        assert.matches("/`echo hacked`$", out, 1, true)
+    end)
+
+    it("takes the trailing separator off", function()
+        assert.has_no_match("/$", project.normalize_path(vim.fn.getcwd() .. "/"))
+    end)
+end)
+
+describe("project.config_value", function()
+    -- WYT writes every scalar bare, but the config is a file the writer edits by
+    -- hand, and YAML lets the value be quoted. Reading `type: "novel"` as no
+    -- type at all sent the whole project back to the essay outline.
+    it("reads a quoted value", function()
+        assert.equals("novel", project.config_value('type: "novel"', "type"))
+        assert.equals("es", project.config_value("lang: 'es'", "lang"))
+    end)
+
+    it("reads a bare value", function()
+        assert.equals("short_story", project.config_value("type: short_story", "type"))
+    end)
+
+    it("does not read `type` off the end of `content_type`", function()
+        assert.equals("novel", project.config_value("content_type: definition\ntype: novel", "type"))
+        assert.equals("definition", project.config_value("content_type: definition", "content_type"))
+    end)
+
+    it("is nil for a missing or empty key", function()
+        assert.is_nil(project.config_value("lang: en", "type"))
+        assert.is_nil(project.config_value("type:", "type"))
+    end)
+end)
+
+describe("project.enclosing_project", function()
+    it("finds the project a folder sits inside", function()
+        local root = helpers.project()
+        assert.equals(root:sub(1, -2), project.enclosing_project(root .. "notes"))
+        helpers.cleanup(root)
+    end)
+
+    it("is nil outside any project", function()
+        assert.is_nil(project.enclosing_project(vim.fn.tempname() .. "/elsewhere"))
+    end)
+end)
+
+describe("project.new_project", function()
+    -- Esc is a cancel and Enter on a blank name is not, so the wizard asks
+    -- again rather than throwing away the three answers already given.
+    it("asks for the name again when it comes back empty", function()
+        local base = vim.fn.tempname()
+        vim.fn.mkdir(base, "p")
+        local _, restore_notify = helpers.capture_notify()
+        local log, restore_ui = helpers.scripted_ui({ "en", "short_story", base, "", "A Piece", nil })
+        project.new_project()
+
+        assert.equals(6, #log)
+        assert.equals(log[4].prompt, log[5].prompt)
+        assert.equals(0, #vim.fn.readdir(base))
+        restore_ui(); restore_notify()
+        vim.fn.delete(base, "rf")
+    end)
+
+    -- The root walk takes the outermost project, so a project created inside
+    -- another one is read as a section of it.
+    it("asks before creating a project inside another one", function()
+        local outer = helpers.project()
+        notes, restore_notify = helpers.capture_notify()
+        local loc = require("wyt.localization")
+        log, restore_ui = helpers.scripted_ui({ "en", "short_story", outer, "Inner", "inner", loc.t("no", "en") })
+        project.new_project()
+
+        -- The long warning goes in a panel, so the menu prompt is its title.
+        assert.equals(loc.t("nested_project_title", "en"), log[#log].prompt)
+        assert.same({ loc.t("yes", "en"), loc.t("no", "en") }, log[#log].items)
+        assert.is_nil((vim.uv or vim.loop).fs_stat(outer .. "inner/config.wyt.yml"))
+        restore_ui(); restore_notify()
+        helpers.cleanup(outer)
     end)
 end)

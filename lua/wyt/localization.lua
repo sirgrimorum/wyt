@@ -4,6 +4,10 @@ M.translations = {
     en = {
         no_project = "[WYT] No project found in current directory. Please navigate to your project root.",
         config_updated = "[WYT] Configuration updated: ",
+        config_usage = "[WYT] Usage: :WYTConfig <provider>",
+        config_key_on_cmdline = "[WYT] Key passed on the command line: prefer :WYTConfig %s and enter it at the prompt.",
+        config_key_prompt = "API key for %s:",
+        config_cancelled = "[WYT] Cancelled: provider unchanged.",
         provider_not_supported = "[WYT] Provider not supported.",
         result = "[WYT] Result:\n",
         set_provider = "Set LLM provider and API Key",
@@ -14,7 +18,14 @@ M.translations = {
         choose_name = "Enter project name:",
         choose_folder = 'Root folder name ("." = use the base path itself):',
         wizard_cancelled = "[WYT] Project creation cancelled.",
+name_required = "[WYT] The project needs a name.",
         project_exists = "[WYT] A WYT project already exists at: ",
+        folder_not_empty_title = "Folder not empty",
+        nested_project_title = "Inside another project",
+        llm_buffer_gone = "[WYT] The reply arrived after the file was closed, so nothing was written.",
+        group_name_has_no_slug = "[WYT] A section folder is named after its group, and nothing in this name survives as a folder name: ",
+        folder_not_empty = "%s already holds %d entries. WYT versions the project with git and commits everything in this folder on every save, those files included. Use it anyway?",
+        nested_project = "This folder sits inside the project at %s. WYT reads the outermost project as the root, so the new one would be read as a section of it: its own export and navigation would answer for the outer project. Create it here anyway?",
         choose_content_type = "Choose main section content type:",
         section_type = "Section type",
         choose_section_kind = "What is this section for?",
@@ -26,9 +37,7 @@ M.translations = {
         open_where = "Open project in:",
         same_window = "Same window",
         new_window = "New window",
-        plan_intro = "Project plan and guide.",
         text_intro = "Start writing your text here.",
-        export_intro = "Final exported text.",
         project_created = "[WYT] Project created at: ",
         new_usage = "[WYT] Usage: :WYTNew p<tab>",
         new_desc = "Create new WYT entity ([p]roject, [i]dea, [g]roup, etc.)",
@@ -133,6 +142,10 @@ M.translations = {
     es = {
         no_project = "[WYT] No se encontró ningún proyecto en el directorio actual. Por favor, navega a la raíz de tu proyecto.",
         config_updated = "[WYT] Configuración actualizada: ",
+        config_usage = "[WYT] Uso: :WYTConfig <proveedor>",
+        config_key_on_cmdline = "[WYT] Key escrita en la línea de comandos: mejor usa :WYTConfig %s y escríbela cuando la pida.",
+        config_key_prompt = "API key para %s:",
+        config_cancelled = "[WYT] Cancelado: el proveedor no cambió.",
         provider_not_supported = "[WYT] Proveedor no soportado.",
         result = "[WYT] Resultado:\n",
         set_provider = "Configura el proveedor LLM y la API Key",
@@ -143,7 +156,14 @@ M.translations = {
         choose_name = "Ingresa el nombre del proyecto:",
         choose_folder = 'Nombre de la carpeta raíz ("." = usar la ruta base tal cual):',
         wizard_cancelled = "[WYT] Creación del proyecto cancelada.",
+name_required = "[WYT] El proyecto necesita un nombre.",
         project_exists = "[WYT] Ya existe un proyecto WYT en: ",
+        folder_not_empty_title = "Carpeta con contenido",
+        nested_project_title = "Dentro de otro proyecto",
+        llm_buffer_gone = "[WYT] La respuesta llegó con el archivo ya cerrado, así que no se escribió nada.",
+        group_name_has_no_slug = "[WYT] La carpeta de una sección toma el nombre del grupo, y de este nombre no queda nada que sirva como nombre de carpeta: ",
+        folder_not_empty = "%s ya contiene %d elementos. WYT versiona el proyecto con git y hace commit de todo lo que hay en esta carpeta en cada guardado, esos archivos incluidos. ¿Usarla de todos modos?",
+        nested_project = "Esta carpeta está dentro del proyecto en %s. WYT toma como raíz el proyecto más externo, así que el nuevo se leería como una sección suya: su exportación y su navegación responderían por el proyecto exterior. ¿Crearlo aquí de todos modos?",
         choose_content_type = "Elige el tipo de contenido de la sección principal:",
         section_type = "Tipo de sección",
         choose_section_kind = "¿Para qué es esta sección?",
@@ -155,9 +175,7 @@ M.translations = {
         open_where = "Abrir proyecto en:",
         same_window = "Misma ventana",
         new_window = "Nueva ventana",
-        plan_intro = "Plan y guía del proyecto.",
         text_intro = "Comienza a escribir tu texto aquí.",
-        export_intro = "Texto final exportado.",
         project_created = "[WYT] Proyecto creado en: ",
         new_usage = "[WYT] Uso: :WYTNew p<tab>",
         new_desc = "Crear nueva entidad WYT ([p]royecto, [i]dea, [g]rupo, etc.)",
@@ -289,7 +307,6 @@ end
 function M.prompt(key, lang)
     return M.pad(M.t(key, lang))
 end
-
 
 function M.get_lang()
     return M.lang

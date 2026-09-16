@@ -8,7 +8,7 @@ local M = {}
 -- O10: per-buffer root cache; avoids re-walking the directory tree on every command
 local _root_cache = {}
 
--- F13: every path this module builds is `dir .. "config.wyt.yml"`, so a root
+-- Every path this module builds is `dir .. "config.wyt.yml"`, so a root
 -- without its trailing separator silently produces "D:\WYTconfig.wyt.yml".
 local function ensure_trailing_sep(path)
     if path:match("[\\/]$") then return path end
@@ -21,9 +21,9 @@ local function find_project_root_from_buffer()
     if buf_path == "" then return cwd end
     if _root_cache[buf_path] then return _root_cache[buf_path] end  -- O10: cache hit
 
-    -- F13: match either separator. On Windows package.config reports "\" while
+    -- Match either separator. On Windows package.config reports "\" while
     -- the buffer name commonly uses "/", which made every walk-up fail and fall
-    -- back to the cwd — the "no project found" report from :WYTNav/:WYTSearch.
+    -- back to the cwd, the "no project found" report from :WYTNav/:WYTSearch.
     local dir = buf_path:match("^(.*[\\/])")
     local last_valid = nil
     while dir and dir ~= "" do
@@ -82,8 +82,7 @@ end
 local function get_project_lang()
     local config_content = M.read_file(M.config_path)
     if not config_content then return "en" end
-    local lang = config_content:match("lang:%s*(%w+)")
-    return lang or "en"
+    return M.config_value(config_content, "lang") or "en"
 end
 
 function M.get_section_dir()
@@ -91,7 +90,7 @@ function M.get_section_dir()
     return plan_path:match("^(.*[\\/])") or vim.fn.getcwd() .. "/"
 end
 
--- F11: was missing `local` — leaked as globals
+-- F11: was missing `local`, leaked as globals
 local function set_root_data()
     -- F2/O10: always re-detect from current buffer (uses per-buffer cache internally)
     -- removed early return that caused stale root when switching projects
@@ -140,32 +139,52 @@ function M.t(key)
     return loc.t(key, M.lang)
 end
 
+--- The value of a top-level `key:` in a config file's text, or nil when the key
+--- is absent or empty. YAML allows the scalar to be quoted and WYT writes it
+--- bare, so a hand-edited `type: "novel"` used to read as no type at all and
+--- fall back to essay. The frontier keeps `type` from matching the tail of
+--- `content_type`, and `%w` alone would read `short_story` as `short`.
+function M.config_value(content, key)
+    local raw = (content or ""):match("%f[%w_]" .. key .. ":%s*([^\r\n]*)")
+    if not raw then return nil end
+    raw = vim.trim(raw)
+    local value = raw:match('^"(.*)"$') or raw:match("^'(.*)'$") or raw:match("^[%w_]*")
+    if value == "" then return nil end
+    return value
+end
+
 function M.get_project_type()
     local config_content = M.read_file(M.config_path)
     if not config_content then return "essay" end
-    -- `%w` excludes `_`, so this used to read `short_story` as `short` and fall
-    -- back to essay for every type whose name has an underscore. The frontier
-    -- keeps the key itself from matching the tail of `content_type:`.
-    return config_content:match("%f[%w_]type:%s*([%w_]+)") or "essay"
+    return M.config_value(config_content, "type") or "essay"
 end
 
---- The frame every generation is given: the literary type, plus the plan's
---- Description section when it has one. Kept short, since it is prepended to
---- every prompt. The type goes in under its name in the writer's language, not
---- as the id: `long_novel` inside a Spanish prompt is noise the model has to
---- decode before it can use it.
-function M.description_context(plan_content)
-    local ctx = types.label(M.get_project_type(), M.lang)
+--- The Description section of `plan_content`, on one line, or nil.
+local function description_in(plan_content)
     local header = "## " .. M.t("description_section")
     local start = (plan_content or ""):find(header, 1, true)
-    if start then
-        local rest = plan_content:sub(start + #header)
-        local desc = rest:match("^(.-)\n## ") or rest
-        desc = vim.trim((desc:gsub("%s+", " ")))
-        if desc ~= "" then
-            ctx = ctx .. ". " .. desc:sub(1, 400)
-        end
+    if not start then return nil end
+    local rest = plan_content:sub(start + #header)
+    local desc = vim.trim(((rest:match("^(.-)\n## ") or rest):gsub("%s+", " ")))
+    if desc == "" then return nil end
+    -- By character, not by byte: a cut through an accent would hand the API a
+    -- broken UTF-8 sequence.
+    return vim.fn.strcharpart(desc, 0, 400)
+end
+
+--- The frame every generation is given: the literary type, plus the project's
+--- Description. Kept short, since it is prepended to every prompt. The type goes
+--- in under its name in the writer's language, not as the id: `long_novel`
+--- inside a Spanish prompt is noise the model has to decode before it can use it.
+function M.description_context(plan_content)
+    local ctx = types.label(M.get_project_type(), M.lang)
+    -- A section's own plan has no Description, so the frame falls back to the
+    -- root's: what the piece is about does not change inside a chapter.
+    local desc = description_in(plan_content)
+    if not desc and M.plan_path ~= "" then
+        desc = description_in(M.read_file(M.plan_path) or "")
     end
+    if desc then ctx = ctx .. ". " .. desc end
     return ctx
 end
 
@@ -175,7 +194,7 @@ end
 function M.section_level(dir)
     local root = M.project_root
     if not root or root == "" then return 1 end
-    -- F13 again: the two paths can disagree on the separator, so normalise
+    -- The two paths can disagree on the separator, so normalise
     -- before measuring one against the other.
     local norm = function(p) return (p:gsub("\\", "/")) end
     local rel = norm(dir):sub(#norm(root) + 1)
@@ -188,13 +207,13 @@ end
 --- reference material the writer searches, kept out of the export.
 function M.is_definition_section(section_dir)
     local cfg = M.read_file(section_dir .. "config.wyt.yml") or ""
-    return cfg:match("content_type:%s*definition") ~= nil
+    return M.config_value(cfg, "content_type") == "definition"
 end
 
 -- `prose` is the absence of an archetype, so it reads back as nil: the section
 -- is guided by the project type alone.
 local function kind_in(config_content)
-    local kind = (config_content or ""):match("section_kind:%s*([%w_]+)")
+    local kind = M.config_value(config_content, "section_kind")
     if not kind or kind == "prose" then return nil end
     return kind
 end
@@ -244,20 +263,40 @@ function M.commit_changes(msg)
 end
 
 -- Absolute, separator-normalised path with no trailing slash.
--- Empty input means "the current working directory"; `~`, `$VARS` and relative
--- paths (`.`, `../foo`) are all expanded.
-local function normalize_path(p)
+--- The wizard's answer for where the project goes, as an absolute path with
+--- forward slashes and no trailing separator. Empty input means the current
+--- working directory; `~`, `$VARS` and relative paths are all expanded.
+function M.normalize_path(p)
     p = vim.trim(p or "")
     if p == "" then p = vim.fn.getcwd() end
-    p = vim.fn.expand(p)
-    p = vim.fn.fnamemodify(p, ":p")
+    -- vim.fs.normalize, not vim.fn.expand: expand() also resolves wildcards
+    -- and runs a backtick expression as a shell command, and this string is
+    -- typed into a prompt.
+    p = vim.fn.fnamemodify(vim.fs.normalize(p), ":p")
     p = p:gsub("[\\/]+$", "")
     return (p:gsub("\\", "/"))
 end
 
+--- The project `dir` would sit inside, or nil. The root walk takes the
+--- outermost project of a contiguous chain, so a project created inside another
+--- one is read as a section of it: its export and its navigation answer for the
+--- outer project instead. The wizard asks before creating one.
+function M.enclosing_project(dir)
+    local parent = (dir or ""):match("^(.*)[\\/][^\\/]+$")
+    while parent and parent ~= "" do
+        if uv.fs_stat(parent .. "/config.wyt.yml") and uv.fs_stat(parent .. "/plan.wyt.md") then
+            return parent
+        end
+        local up = parent:match("^(.*)[\\/][^\\/]+$")
+        if up == parent then return nil end
+        parent = up
+    end
+    return nil
+end
+
 function M.new_project()
     local opts = {}
-    -- F12: every prompt after the language step must speak the chosen language,
+    -- Every prompt after the language step must speak the chosen language,
     -- so the wizard uses its own `t` instead of the module-wide loc.t default.
     local t = function(key) return loc.t(key, opts.lang or loc.get_lang()) end
     local p = function(key) return loc.pad(t(key)) end
@@ -280,10 +319,22 @@ function M.new_project()
             opts.type = type
             vim.ui.input({prompt = p("choose_path"), default = vim.fn.getcwd()}, function(base_path)
                 if not base_path then return cancelled() end
-                opts.base_path = normalize_path(base_path)
-                vim.ui.input({prompt = p("choose_name")}, function(name)
-                    if not name or vim.trim(name) == "" then return cancelled() end
-                    opts.name = vim.trim(name)
+                opts.base_path = M.normalize_path(base_path)
+                -- Enter on a blank name is not Esc. Cancelling on it threw away
+                -- the three answers already given, so ask again instead.
+                local function ask_name(on_name)
+                    vim.ui.input({prompt = p("choose_name")}, function(name)
+                        if not name then return cancelled() end
+                        name = vim.trim(name)
+                        if name == "" then
+                            vim.notify(t("name_required"), vim.log.levels.WARN)
+                            return ask_name(on_name)
+                        end
+                        on_name(name)
+                    end)
+                end
+                ask_name(function(name)
+                    opts.name = name
                     vim.ui.input({prompt = p("choose_folder"), default = slugify(opts.name)}, function(folder)
                         if not folder then return cancelled() end
                         folder = vim.trim(folder)
@@ -295,54 +346,82 @@ function M.new_project()
                             vim.notify(t("project_exists") .. root, vim.log.levels.ERROR)
                             return
                         end
-                        vim.ui.select({t("content"), t("definition")}, {prompt = t("choose_content_type")}, function(content_type)
-                            if not content_type then return cancelled() end
-                            opts.content_type = content_type == t("content") and "content" or "definition"
-                            local function ask_where_to_open()
-                                vim.ui.select({t("same_window"), t("new_window")}, {prompt = t("open_where")}, function(open_where)
-                                    if not open_where then return cancelled() end
-                                    mkdir(root)
-                                    M.write_file(root .. "/config.wyt.yml", string.format(
-                                        "lang: %s\ntype: %s\ncontent_type: %s\nsections: %s\nname: %s\n",
-                                        opts.lang, opts.type, opts.content_type, tostring(opts.sections), opts.name
-                                    ))
-                                    local plan_template = string.format(
-                                        "# %s\n\n## %s\n\n## %s\n\n## %s\n",
-                                        opts.name,
-                                        loc.t("description_section", opts.lang),
-                                        loc.t("ideas_section", opts.lang),
-                                        loc.t("groups_section", opts.lang)
-                                    )
-                                    M.write_file(root .. "/plan.wyt.md", plan_template)
-                                    M.write_file(root .. "/export.wyt.md", "")
-                                    run_git_init(root)
-                                    -- the rest of the session now speaks the project language
-                                    loc.set_lang(opts.lang)
-                                    local file_to_open = root .. "/plan.wyt.md"
-                                    -- F5: fnameescape prevents path injection for names with spaces/special chars
-                                    if open_where == t("new_window") then
-                                        vim.cmd("tabnew " .. vim.fn.fnameescape(file_to_open))
-                                    else
-                                        vim.cmd("edit " .. vim.fn.fnameescape(file_to_open))
-                                    end
-                                    -- O6: vim.notify instead of print
-                                    vim.notify(t("project_created") .. root, vim.log.levels.INFO)
-                                end)
-                            end
+                        local function ask_content_type()
+                            vim.ui.select({t("content"), t("definition")}, {prompt = t("choose_content_type")}, function(content_type)
+                                if not content_type then return cancelled() end
+                                opts.content_type = content_type == t("content") and "content" or "definition"
+                                local function ask_where_to_open()
+                                    vim.ui.select({t("same_window"), t("new_window")}, {prompt = t("open_where")}, function(open_where)
+                                        if not open_where then return cancelled() end
+                                        mkdir(root)
+                                        M.write_file(root .. "/config.wyt.yml", string.format(
+                                            "lang: %s\ntype: %s\ncontent_type: %s\nsections: %s\nname: %s\n",
+                                            opts.lang, opts.type, opts.content_type, tostring(opts.sections), opts.name
+                                        ))
+                                        local plan_template = string.format(
+                                            "# %s\n\n## %s\n\n## %s\n\n## %s\n",
+                                            opts.name,
+                                            loc.t("description_section", opts.lang),
+                                            loc.t("ideas_section", opts.lang),
+                                            loc.t("groups_section", opts.lang)
+                                        )
+                                        M.write_file(root .. "/plan.wyt.md", plan_template)
+                                        M.write_file(root .. "/export.wyt.md", "")
+                                        run_git_init(root)
+                                        -- the rest of the session now speaks the project language
+                                        loc.set_lang(opts.lang)
+                                        local file_to_open = root .. "/plan.wyt.md"
+                                        -- Through ui, like every other open: it
+                                        -- escapes the path and writes whatever
+                                        -- was on screen before moving off it.
+                                        if open_where == t("new_window") then
+                                            ui.open_file(file_to_open)
+                                        else
+                                            ui.edit_file(file_to_open)
+                                        end
+                                        -- O6: vim.notify instead of print
+                                        vim.notify(t("project_created") .. root, vim.log.levels.INFO)
+                                    end)
+                                end
 
-                            -- Only types that allow more than one plan level can
-                            -- have sub-sections, so the others are not asked a
-                            -- question with one possible answer.
-                            if types.section_depth(opts.type) > 1 then
-                                vim.ui.select({t("yes"), t("no")}, {prompt = t("has_sections")}, function(has_sections)
-                                    if not has_sections then return cancelled() end
-                                    opts.sections = has_sections == t("yes")
+                                -- Only types that allow more than one plan level can
+                                -- have sub-sections, so the others are not asked a
+                                -- question with one possible answer.
+                                if types.section_depth(opts.type) > 1 then
+                                    vim.ui.select({t("yes"), t("no")}, {prompt = t("has_sections")}, function(has_sections)
+                                        if not has_sections then return cancelled() end
+                                        opts.sections = has_sections == t("yes")
+                                        ask_where_to_open()
+                                    end)
+                                else
+                                    opts.sections = false
                                     ask_where_to_open()
-                                end)
-                            else
-                                opts.sections = false
-                                ask_where_to_open()
-                            end
+                                end
+                            end)
+                        end
+
+                        local function ask_folder_not_empty()
+                            -- Every save runs `git add .` in the root, so a folder that
+                            -- already holds files has all of them committed from now on.
+                            local entries = uv.fs_stat(root) and vim.fn.readdir(root) or {}
+                            if #entries == 0 then return ask_content_type() end
+                            ui.ask_select({
+                                title = t("folder_not_empty_title"),
+                                question = string.format(t("folder_not_empty"), root, #entries),
+                            }, { t("yes"), t("no") }, function(choice)
+                                if choice ~= t("yes") then return cancelled() end
+                                ask_content_type()
+                            end)
+                        end
+
+                        local outer = M.enclosing_project(root)
+                        if not outer then return ask_folder_not_empty() end
+                        ui.ask_select({
+                            title = t("nested_project_title"),
+                            question = string.format(t("nested_project"), outer),
+                        }, { t("yes"), t("no") }, function(choice)
+                            if choice ~= t("yes") then return cancelled() end
+                            ask_folder_not_empty()
                         end)
                     end)
                 end)
@@ -411,6 +490,13 @@ function M.implement_group(current_plan_content, group_name, section_dir, sectio
     local ideas = M.get_ideas(current_plan_content, "## " .. M.t("group_tag") .. ": " .. group_name)
     if sections_enabled then
         local slug = slugify(group_name)
+        -- A name with no ASCII letter or digit slugifies to nothing, and the
+        -- section folder would be the parent itself: every walker below would
+        -- then descend into it forever.
+        if slug == "" then
+            vim.notify(M.t("group_name_has_no_slug") .. group_name, vim.log.levels.WARN)
+            return
+        end
         local group_section_dir = section_dir .. slug .. "/"
         local config_path = group_section_dir .. "config.wyt.yml"
 
