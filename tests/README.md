@@ -5,9 +5,16 @@ nvim --headless -l tests/runner.lua              # everything
 nvim --headless -l tests/runner.lua types llm    # only those specs
 ```
 
-Exits 1 if anything fails, so it works from CI or a git hook. There is nothing
-to install: plenary.nvim is deliberately not a dependency, and the runner
-provides the `describe` / `it` / `assert` surface the specs use.
+Exits 1 if anything fails, if a named spec does not exist, or if no spec ran, so
+it works from CI or a git hook, from any directory. There is nothing to
+install: plenary.nvim is deliberately not a dependency, and the runner provides
+the `describe` / `it` / `assert` surface the specs use.
+
+After every `it`, the runner puts back the seams specs stub (`vim.notify`,
+`vim.ui.select` and `input`, `vim.health`, `llm.generate_text`,
+`ui.edit_file`, `vim.o.columns`, the localization language), so a test that
+fails mid-stub cannot change what later specs run against. Stub anything else
+and restore it yourself.
 
 ## Files
 
@@ -15,16 +22,18 @@ provides the `describe` / `it` / `assert` surface the specs use.
 |---|---|
 | `runner.lua` | the harness, and the only entry point |
 | `helpers.lua` | a project on disk, scripted `vim.ui`, a captured LLM prompt |
+| `config_spec.lua` | the API key's lazy resolve and cache, and the plain resolvers |
 | `types_spec.lua` | every text type's guides, depth, outline and archetypes |
 | `llm_spec.lua` | every prompt built, and the stripping done to every reply |
 | `project_spec.lua` | root resolution, config reads, plan parsing |
 | `plan_spec.lua` | the plan-editing helpers |
-| `group_spec.lua` | tagging an idea with the group that claimed it |
-| `generate_spec.lua` | what `:WYTGenerate` reads from around the cursor |
+| `group_spec.lua` | moving groups, naming one, tagging the ideas it claimed |
+| `idea_spec.lua` | what the guided brainstorm tells the writer |
+| `generate_spec.lua` | what `:WYTGenerate` reads around the cursor, and what it inserts |
 | `text_spec.lua` | finding a placeholder and expanding it |
 | `export_spec.lua` | the finished document, per type, end to end |
 | `tree_spec.lua` | the section walk `:WYTNav` and `:WYTSearch` share |
-| `ui_spec.lua` | fitting text that a prompt line would truncate |
+| `ui_spec.lua` | fitting text a prompt line would truncate, and opening files |
 | `localization_spec.lua` | key parity between the two languages |
 | `smoke_spec.lua` | every module loads, every command is registered |
 
@@ -61,11 +70,15 @@ recording what it was told.
 - **The curl transport in `llm.lua`.** Every spec stubs `generate_text`; nothing
   here makes a network call or needs an API key.
 - **`secret.lua`'s OS stores.** Keychain, libsecret and DPAPI need the real OS.
-- **Floating windows.** Headless Neovim has no usable screen, which is the case
-  `ui.preview` returns nil for; the specs check that fallback, not the float.
-- **The project wizard's full run.** Its steps are covered piecewise
-  (`types.menu_label`, the config it writes); the nine-prompt sequence itself is
-  only exercised by hand.
+  The file, environment and command resolvers are covered.
+- **What a floating window looks like.** Headless Neovim does open one, at its
+  default 80 columns, so flows that reach a long question really open a panel;
+  nothing checks its contents, and the nil fallback is checked by shrinking the
+  screen.
+- **The guided flows end to end.** The project wizard, `:WYTNew i`, and moving
+  or syncing ideas are exercised by hand. Their pieces are covered
+  (`types.menu_label`, the prompts they build, the files they write), and
+  `group.new_group` is driven through once.
 
 ## Landmines these specs were written around
 
