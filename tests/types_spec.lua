@@ -40,7 +40,7 @@ describe("every type is fully configured", function()
 
     it("defines question lists in both languages", function()
         for _, id in ipairs(types.names()) do
-            for _, field in ipairs({ "idea_questions", "group_questions" }) do
+            for _, field in ipairs({ "idea_questions" }) do
                 for _, lang in ipairs(LANGS) do
                     local list = types.configs[id][field][lang]
                     assert.truthy(list and #list > 0, id .. "." .. field .. " is empty in " .. lang)

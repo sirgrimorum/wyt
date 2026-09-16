@@ -4,6 +4,61 @@
 local helpers = require("tests.helpers")
 local group = require("wyt.group")
 
+describe("group.move_group", function()
+    local root
+
+    before_each(function()
+        helpers.cleanup(root)
+        root = helpers.project({ type = "essay", lang = "en" })
+    end)
+
+    -- The last group has no blank line after it, which is the case that used to
+    -- carry the separator to the wrong side of the swap.
+    local plan = { "## Ideas", "- a", "", "## Group: One", "- x", "", "## Group: Two", "- y" }
+    local swapped = { "## Ideas", "- a", "", "## Group: Two", "- y", "", "## Group: One", "- x" }
+
+    local function move(from_row, direction)
+        vim.api.nvim_buf_set_lines(0, 0, -1, false, plan)
+        vim.api.nvim_win_set_cursor(0, { from_row, 0 })
+        group.move_group(direction)
+        return vim.api.nvim_buf_get_lines(0, 0, -1, false), vim.api.nvim_win_get_cursor(0)[1]
+    end
+
+    it("moves the last group up and keeps the gap between the two", function()
+        local lines, row = move(7, "up")
+        assert.same(swapped, lines)
+        assert.equals(4, row)
+    end)
+
+    it("moves a group down past the last one and follows it with the cursor", function()
+        local lines, row = move(4, "down")
+        assert.same(swapped, lines)
+        assert.equals(7, row)
+    end)
+end)
+
+describe("group.new_group asks the model with the type's name", function()
+    it("never sends the type id, in a Spanish project", function()
+        local root = helpers.project({ type = "long_novel", lang = "es", plan = "# F\n\n## Ideas\n- una idea\n" })
+        vim.api.nvim_win_set_cursor(0, { 4, 0 })
+        -- What the BufEnter autocmd does in use; the suite registers no autocmds.
+        require("wyt.localization").set_lang("es")
+        local multi_select = group.multi_select
+        group.multi_select = function(_, opts, cb) cb(opts.preselected) end
+        local captured, restore = helpers.capture_prompt("El andén vacío")
+        local _, restore_ui = helpers.scripted_ui({ "Sí", "" })
+        helpers.capture_notify()
+        local ok, err = pcall(group.new_group)
+        group.multi_select = multi_select
+        restore()
+        restore_ui()
+        assert(ok, err)
+        assert.matches("Novela larga", captured.prompt)
+        assert.has_no_match("long_novel", captured.prompt)
+        helpers.cleanup(root)
+    end)
+end)
+
 describe("group.mark_ideas_as_grouped", function()
     local root
 

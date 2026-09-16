@@ -29,14 +29,14 @@ end
 -- Guided brainstorming: explain the run once, wait for the writer to start,
 -- then ask the questions one at a time. Listing every question up front was
 -- noise the writer had to hold in their head while answering the first one.
-local function run_guided(questions, project_type, callback)
+local function run_guided(questions, type_label, callback)
     if #questions == 0 then
         callback({})
         return
     end
 
     vim.notify(
-        loc.t("guided_questions_title") .. project_type .. ":\n"
+        loc.t("guided_questions_title") .. type_label .. ":\n"
             .. string.format(loc.t("guided_intro"), #questions),
         vim.log.levels.INFO
     )
@@ -87,12 +87,17 @@ local function show_guided_questions_and_proceed(callback)
         { prompt = loc.t("brainstorm_mode") },
         function(choice)
             if choice == loc.t("answer_questions") then
-                run_guided(questions, project_type, callback)
+                -- The localized name, never the id: the writer chose "Novela
+                -- larga" in the wizard and has never seen "long_novel".
+                run_guided(questions, types_mod.label(project_type, project.lang), callback)
             elseif choice == loc.t("free_idea") then
                 -- Free-form: one idea, prompted by the type's single orienting
                 -- question, or the generic prompt when the type defines none.
                 local single = types_mod.idea_prompt(project_type, project.lang, in_subsection(), kind)
-                vim.ui.input({ prompt = loc.pad(single or loc.t("idea_name")) }, function(idea_name)
+                ui.ask_input({
+                    title = loc.t("answer_prompt"),
+                    question = single or loc.t("idea_name"),
+                }, function(idea_name)
                     if idea_name and vim.trim(idea_name) ~= "" then
                         callback({ vim.trim(idea_name) })
                     end
@@ -100,11 +105,6 @@ local function show_guided_questions_and_proceed(callback)
             end
         end
     )
-end
-
--- Project context for the LLM: type plus the plan's Description section.
-local project_context = function(plan_content)
-    return project.description_context(plan_content)
 end
 
 function M.new_idea()
@@ -147,8 +147,11 @@ function M.new_idea()
                                 question = loc.t("llm_review_idea"),
                                 default = text,
                             }, function(edited)
-                                edited = edited and vim.trim(edited) or ""
-                                on_done(edited ~= "" and edited or text)
+                                -- <Esc> backs out to the menu; empty keeps the
+                                -- writer's own idea, as the prompt says.
+                                if edited == nil then return present(text) end
+                                edited = vim.trim(edited)
+                                on_done(edited ~= "" and edited or idea_name)
                             end)
                         elseif choice == again then
                             request({ avoid = text })
@@ -172,7 +175,8 @@ function M.new_idea()
                     question = idea_name .. "\n\n" .. question,
                     prompt = loc.t("answer_prompt"),
                 }, items, function(answer)
-                    if not answer or answer == skip then
+                    if answer == nil then return on_done(idea_name) end -- <Esc>: keep theirs
+                    if answer == skip then
                         -- nothing more to tell it; demand an answer this time
                         no_more_questions = true
                         request({})
@@ -208,7 +212,7 @@ function M.new_idea()
                     end
                     present(res.text)
                 end, {
-                    context = project_context(plan_content),
+                    context = project.description_context(plan_content),
                     answers = answers,
                     avoid = extra.avoid,
                     no_questions = no_more_questions or #answers >= MAX_QUESTIONS,

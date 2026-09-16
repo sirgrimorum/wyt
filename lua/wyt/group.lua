@@ -7,18 +7,14 @@ local ui = require("wyt.ui")
 
 local M = {}
 
-local function escape_pattern(text)
-    return text:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
-end
-
 local function rename_group(content, old_name, new_name)
-    local old_header = "## " .. escape_pattern(project.t("group_tag")) .. ": " .. escape_pattern(old_name)
+    local old_header = "## " .. vim.pesc(project.t("group_tag")) .. ": " .. vim.pesc(old_name)
     local new_header = "## " .. project.t("group_tag") .. ": " .. new_name
-    local old_group_marker = "%[" .. escape_pattern(project.t("group_tag")) .. ": " .. escape_pattern(old_name) .. "%]"
+    local old_group_marker = "%[" .. vim.pesc(project.t("group_tag")) .. ": " .. vim.pesc(old_name) .. "%]"
     local new_group_marker = "[" .. project.t("group_tag") .. ": " .. new_name .. "]"
 
     local new_content = content:gsub(old_group_marker, new_group_marker)
-    return new_content:gsub(escape_pattern(old_header), new_header)
+    return new_content:gsub(vim.pesc(old_header), new_header)
 end
 
 function M.mark_ideas_as_grouped(content, ideas, group_name)
@@ -137,7 +133,7 @@ function M.multi_select(items, opts, callback)
 end
 
 function M.new_group(line1, line2)
-    -- O7: removed vim.cmd("write") — read from open buffer instead of forcing a save
+    -- O7: removed vim.cmd("write"), read from open buffer instead of forcing a save
     local plan_content
     for _, buf in ipairs(api.nvim_list_bufs()) do
         if api.nvim_buf_is_loaded(buf) and api.nvim_buf_get_name(buf) == project.section_plan_path then
@@ -205,7 +201,6 @@ function M.new_group(line1, line2)
             vim.cmd("normal! zz")
         end
         local function new_group_name()
-            local types_mod = require("wyt.types")
             local llm = require("wyt.llm")
             local project_type = project.get_project_type()
             -- P14: one orienting question, used as the prompt for the name.
@@ -216,8 +211,8 @@ function M.new_group(line1, line2)
             -- an archetype, the archetype names the group: a Characters section
             -- asks which character this is.
             local kind = project.get_section_kind()
-            local question = types_mod.group_prompt(project_type, project.lang, kind)
-                or types_mod.group_name_hint(project_type, project.lang, kind)
+            local question = types.group_prompt(project_type, project.lang, kind)
+                or types.group_name_hint(project_type, project.lang, kind)
 
             local function create_with(name)
                 name = name and vim.trim(name) or ""
@@ -241,7 +236,8 @@ function M.new_group(line1, line2)
                     question = question,
                     default = suggested,
                 }, function(name)
-                    if (not name or vim.trim(name) == "") and suggested then
+                    if name == nil then return end -- <Esc>: no group
+                    if vim.trim(name) == "" and suggested then
                         name = suggested
                     end
                     create_with(name)
@@ -278,7 +274,8 @@ function M.new_group(line1, line2)
                                 title = loc.t("group_name_title"),
                                 question = rename_q,
                             }, function(new_name)
-                                local final_name = new_name and new_name ~= "" and new_name or group_name
+                                if new_name == nil then return end -- <Esc>: add nothing
+                                local final_name = new_name ~= "" and new_name or group_name
                                 local updated_content = rename_group(plan_content, group_name, final_name)
                                 -- P4: rename section folder when group name changes
                                 if final_name ~= group_name then
