@@ -26,6 +26,24 @@ describe("plan.add_item_to_section", function()
         assert.truthy(result:find("- First idea", 1, true))
     end)
 
+    -- The header was looked for as a pattern, so "(1)" was read as a capture and
+    -- "-2" as a quantifier: the section was not found and a second one with the
+    -- same name was appended to the file.
+    it("finds a section whose name carries pattern magic", function()
+        local content = "# Title\n\n## Group: Cap (1)\n- First idea\n"
+        local result = plan.add_item_to_section(content, "Group: Cap (1)", "New idea")
+        local _, headers = result:gsub("## Group: Cap %(1%)", "")
+        assert.equals(1, headers)
+        assert.truthy(result:find("- New idea", 1, true))
+    end)
+
+    it("finds a section whose name holds a hyphen", function()
+        local content = "# Title\n\n## Group: Nota-2\n- First idea\n"
+        local result = plan.add_item_to_section(content, "Group: Nota-2", "New idea")
+        local _, headers = result:gsub("## Group: Nota%-2", "")
+        assert.equals(1, headers)
+    end)
+
     it("strips newlines from item", function()
         local content = "# Title\n\n## Ideas\n"
         local result = plan.add_item_to_section(content, "Ideas", "idea\nwith newline")

@@ -92,7 +92,10 @@ function M.goto_wyt_tab()
             if slug == "" then
                 return project.implement_group(current_plan_content, group_name, current_section_dir, sections_enabled, function() end)
             end
-            local section_plan = current_section_dir .. slug .. "/plan.wyt.md"
+            -- The folder already on disk when there is one, so a section named
+            -- before accents were folded is opened instead of offered again.
+            local existing = project.group_dir(current_section_dir, group_name)
+            local section_plan = (existing or (current_section_dir .. slug .. "/")) .. "plan.wyt.md"
             local function open()
                 ui.open_file(section_plan)
             end
@@ -228,9 +231,12 @@ function M.add_item_to_section(content, section, item)
     item = item:gsub("\n", "")
     -- F10: `section` is now raw header text (already translated by caller), not a translation key
     local section_header = "## " .. section
-    local section_start = content:find(section_header)
+    -- Plain find, not a pattern: a group called "Cap (1)" or "Nota-2" carries
+    -- pattern magic, so the header was looked for somewhere else or nowhere at
+    -- all, and the miss appended a second section with the same name.
+    local section_start = content:find(section_header, 1, true)
     if section_start then
-        local next_section = content:find("\n## ", section_start + #section_header)
+        local next_section = content:find("\n## ", section_start + #section_header, true)
         local section_end = next_section and (next_section - 1) or #content
         local section_content = content:sub(section_start, section_end)
         local before = content:sub(1, section_start - 1)
