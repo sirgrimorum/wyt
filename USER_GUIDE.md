@@ -1,7 +1,9 @@
 # WYT.nvim User Guide
 
 This guide describes the commands, the key mappings and the rules WYT applies
-to a project. For a one-page summary, see the [quick guide](./docs/quick_guide.md).
+to a project. For a one-page summary, see the [quick guide](./docs/quick_guide.md),
+also available as a
+[printable page](https://sirgrimorum.github.io/wyt/quick_guide.html).
 To see everything in use, start to finish, read the
 [full use case](./docs/use_case_e2e.md).
 
