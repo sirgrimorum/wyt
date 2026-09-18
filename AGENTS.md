@@ -93,4 +93,5 @@ prose.
   file: most explain a decision or a bug that is not visible from the code.
 - Commit messages are one-liners: a conventional prefix and a subject under 72
   characters. No body, no bullet list, no `Co-Authored-By` trailer.
-- `.claude/settings.local.json` is never staged.
+- `.claude/settings.local.json` and `docs/prs/` are gitignored: personal
+  settings, and PR descriptions that belong in the PR itself.

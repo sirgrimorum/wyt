@@ -1,0 +1,5 @@
+# Personal Claude Code settings: permissions and local paths, never shared.
+.claude/settings.local.json
+
+# PR descriptions written during review go into the PR itself, not the repo.
+docs/prs/

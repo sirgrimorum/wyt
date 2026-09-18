@@ -17,7 +17,7 @@ mapping is registered.
 
 ```lua
 {
-  "your_user/wyt.nvim",
+  "sirgrimorum/wyt",
   dependencies = { "nvim-telescope/telescope.nvim" },
   config = function()
     require("wyt").setup({
@@ -32,7 +32,7 @@ mapping is registered.
 
 ```lua
 use({
-  "your_user/wyt.nvim",
+  "sirgrimorum/wyt",
   requires = { "nvim-telescope/telescope.nvim" },
   config = function()
     require("wyt").setup({
@@ -242,6 +242,12 @@ Do not edit the plugin's internal files. Edit your project's files (`plan.wyt.md
 - [Tests](./tests/README.md): how to run the suite and how to write a spec.
 - [AGENTS.md](./AGENTS.md): for contributing, with or without a coding assistant. The decisions
   already made and the traps that have cost time.
+- [Methodology](./docs/metodologia.txt) (Spanish) and [original plan](./docs/plan.md): the WYT
+  method the plugin follows, and the plan it was built from.
+
+## License
+
+[MIT](./LICENSE).
 
 ---
 
