@@ -232,7 +232,8 @@ Do not edit the plugin's internal files. Edit your project's files (`plan.wyt.md
 ## Documentation
 
 - [Quick guide](./docs/quick_guide.md): one page for daily use, the WYT keys and commands plus
-  the Neovim you need to write with it.
+  the Neovim you need to write with it. There is also a
+  [printable version](https://sirgrimorum.github.io/wyt/quick_guide.html) to share or pin up.
 - [User guide](./USER_GUIDE.md): every command and mapping, the automatic behaviour, the text
   types with their depth and paragraph logic, the export's outline map and the section
   archetypes (characters, chronology, turning points, key concepts, sources).
