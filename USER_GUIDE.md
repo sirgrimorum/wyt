@@ -1,406 +1,405 @@
-# Guía de usuario de WYT.nvim
+# WYT.nvim User Guide
 
-Esta guía describe los comandos, los atajos de teclado y las reglas que WYT
-aplica a un proyecto. Para verlo todo en uso, de principio a fin, consulta el
-[caso de uso completo](./docs/use_case_e2e.md).
+This guide describes the commands, the key mappings and the rules WYT applies
+to a project. For a one-page summary, see the [quick guide](./docs/quick_guide.md).
+To see everything in use, start to finish, read the
+[full use case](./docs/use_case_e2e.md).
 
-- [Estructura de un proyecto](#estructura-de-un-proyecto)
-- [Comandos](#comandos)
-- [Cómo usar :WYTGenerate](#cómo-usar-wytgenerate)
+- [Project structure](#project-structure)
+- [Commands](#commands)
+- [How to use :WYTGenerate](#how-to-use-wytgenerate)
 - [Mappings](#mappings)
-- [Comportamiento automático](#comportamiento-automático)
-- [Tipos de texto](#tipos-de-texto)
-- [Mapa de títulos](#mapa-de-títulos)
-- [Arquetipos de sección](#arquetipos-de-sección)
-- [Ejemplo de flujo de trabajo](#ejemplo-de-flujo-de-trabajo)
+- [Automatic behaviour](#automatic-behaviour)
+- [Text types](#text-types)
+- [Outline map](#outline-map)
+- [Section archetypes](#section-archetypes)
+- [Example workflow](#example-workflow)
 
 ---
 
-## Estructura de un proyecto
+## Project structure
 
-Un proyecto WYT son archivos de texto plano en carpetas, versionados con git.
-No hay nada escondido en una base de datos.
+A WYT project is plain text files in folders, versioned with git. Nothing is
+hidden in a database.
 
-| Archivo | Contiene |
-|---------|----------|
-| `config.wyt.yml` | idioma, tipo literario, arquetipo y si este nivel anida sub-secciones |
-| `plan.wyt.md` | la descripción, las ideas sueltas y los grupos en que se reúnen |
-| `text.wyt.md` | la prosa, un párrafo por idea, escrita o generada |
-| `export.wyt.md` | el documento ensamblado, reconstruido por `:WYTExport` |
+| File | Holds |
+|------|-------|
+| `config.wyt.yml` | language, text type, archetype, and whether this level nests sub-sections |
+| `plan.wyt.md` | the description, the loose ideas and the groups they gather into |
+| `text.wyt.md` | the prose, one paragraph per idea, written or generated |
+| `export.wyt.md` | the assembled document, rebuilt by `:WYTExport` |
 
-Un **grupo** es un conjunto de ideas que van juntas. `<S-Tab>` sobre la cabecera
-de un grupo lo convierte en una **sección** propia, con su plan y sus grupos, o
-lo escribe directamente en `text.wyt.md` como un marcador por idea. Cuál de las
-dos ocurre depende de la profundidad del tipo, más abajo.
+A **group** is a set of ideas that belong together. `<S-Tab>` on a group header
+turns it into a **section** of its own, with its own plan and groups, or writes
+it straight into `text.wyt.md` as one placeholder per idea. Which of the two
+happens depends on the type's depth, below.
 
 ---
 
-## Comandos
+## Commands
 
-### Crear entidades
+### Creating things
 
 - `:WYTNew p`
-  Crea un nuevo proyecto literario.
-  _Sigue los prompts interactivos: idioma, tipo, ruta, nombre, carpeta raíz,
-  tipo de contenido, sub-secciones (solo si el tipo admite más de un nivel) y
-  dónde abrirlo. Si la carpeta raíz ya tiene archivos, pide confirmación: cada
-  guardado hace commit de todo lo que hay en ella. Si la carpeta está dentro de
-  otro proyecto también pregunta: WYT toma como raíz el proyecto más externo, así
-  que el nuevo se leería como una sección suya._
+  Creates a new writing project.
+  _Follow the interactive prompts: language, type, path, name, root folder,
+  content type, sub-sections (only if the type allows more than one level) and
+  where to open it. If the root folder already has files, it asks for
+  confirmation: every save commits everything in it. If the folder is inside
+  another project it asks too: WYT takes the outermost project as the root, so
+  the new one would be read as one of its sections._
 
 - `:WYTNew i`
-  Agrega una idea al plan actual, libre o respondiendo las preguntas
-  orientadoras del tipo, una a una.
+  Adds an idea to the current plan, either free or by answering the type's
+  guided questions, one at a time.
 
 - `:WYTNew g`
-  Crea un grupo con las ideas seleccionadas del plan actual.
+  Creates a group from the selected ideas of the current plan.
 
-### Configuración
+### Configuration
 
-- `:WYTConfig <proveedor>`
-  Configura el proveedor LLM (`openai` o `claude`) y pide la API key sin eco,
-  fuera del historial.
+- `:WYTConfig <provider>`
+  Sets the LLM provider (`openai` or `claude`) and asks for the API key with no
+  echo, outside the history.
 
 - `:WYTSetLang <en|es>`
-  Cambia el idioma del plugin y lo guarda en el `config.wyt.yml` del proyecto.
-  _No reescribe lo que ya está escrito. WYT solo reconoce las marcas en el idioma
-  actual, así que en un proyecto con grupos los `## Grupo:` dejan de ser grupos
-  para la navegación, la búsqueda y el export. Elige el idioma al crear el
-  proyecto; si cambias, vuelve al anterior y todo reaparece._
+  Changes the plugin language and saves it in the project's `config.wyt.yml`.
+  _It does not rewrite what is already written. WYT only recognises the markers
+  of the current language, so in a project with groups the `## Group:` headers
+  stop being groups for navigation, search and export. Choose the language when
+  you create the project; if you switch, switch back and everything reappears._
 
-### Navegación
+### Navigation
 
 - `:WYTNav`
-  Selector para navegar entre todos los archivos y secciones del proyecto.
+  Picker to move between every file and section of the project.
 
 - `:WYTGoto <plan|config|text|export|parent>`
-  Navega directamente al archivo indicado:
-  - `plan`: `plan.wyt.md` de la sección actual
-  - `config`: `config.wyt.yml` de la sección actual
-  - `text`: `text.wyt.md` de la sección actual
-  - `export`: `export.wyt.md` de la raíz del proyecto
-  - `parent`: `plan.wyt.md` de la sección padre
+  Goes straight to the given file:
+  - `plan`: `plan.wyt.md` of the current section
+  - `config`: `config.wyt.yml` of the current section
+  - `text`: `text.wyt.md` of the current section
+  - `export`: `export.wyt.md` at the project root
+  - `parent`: `plan.wyt.md` of the parent section
 
 - `:WYTSearch`
-  Busca dentro de las secciones de referencia.
+  Searches the reference sections.
 
-### Escritura y generación
+### Writing and generation
 
-- `:WYTGenerate [instrucción]`
-  Genera en el punto donde está el cursor y lo inserta ahí.
-  _La instrucción es opcional: sin ella, la posición decide la tarea. Ver
-  [Cómo usar :WYTGenerate](#cómo-usar-wytgenerate)._
+- `:WYTGenerate [instruction]`
+  Generates at the cursor and inserts the result there.
+  _The instruction is optional: without it, the position decides the task. See
+  [How to use :WYTGenerate](#how-to-use-wytgenerate)._
 
 - `:WYTExpand`, `:WYTExpand next`, `:WYTExpand prev`
-  Expande el marcador de párrafo en el cursor, o busca el siguiente o el
-  anterior y lo expande.
+  Expands the paragraph placeholder at the cursor, or finds the next or the
+  previous one and expands it.
 
 - `:WYTExport`
-  Ensambla todas las secciones en el `export.wyt.md` de la raíz.
+  Assembles every section into the root's `export.wyt.md`.
 
 - `:checkhealth wyt`
-  Verifica dependencias, proveedor LLM y de dónde sale la API key.
+  Checks dependencies, the LLM provider and where the API key comes from.
 
-`:WYTSearch` lee cada sección cuyo arquetipo la hace material de referencia,
-tanto su `plan.wyt.md` como su `text.wyt.md`. Una sección de Personajes casi
-nunca llega a escribirse en prosa, así que la mayor parte de lo que buscas está
-en el plan: los grupos son las entradas y las ideas bajo cada uno son lo que
-sabes de ella. Cada resultado viene etiquetado con la cabecera bajo la que
-está, de modo que un rasgo te dice de quién es:
+`:WYTSearch` reads every section whose archetype makes it reference material,
+both its `plan.wyt.md` and its `text.wyt.md`. A Characters section is almost
+never written as prose, so most of what you look for is in the plan: the groups
+are the entries and the ideas under each are what you know about it. Each
+result is labelled with the header it sits under, so a trait tells you whose it
+is:
 
 ```
-cast/plan.wyt.md:7 (Ana): - se queda callada cuando tiene miedo
+cast/plan.wyt.md:7 (Ana): - goes quiet when she is afraid
 ```
 
 ---
 
-## Cómo usar :WYTGenerate
+## How to use :WYTGenerate
 
-El cursor no es solo el sitio donde se pega el resultado: es parte de la
-pregunta. Antes de llamar al modelo, WYT lee dónde estás y qué tienes alrededor,
-y arma el prompt con eso. Nunca hace falta explicar el contexto a mano.
+The cursor is not just where the result lands: it is part of the question.
+Before calling the model, WYT reads where you are and what is around you, and
+builds the prompt from that. You never have to explain the context by hand.
 
-Lo que se envía siempre:
+Always sent:
 
-- **El proyecto**: el tipo literario, con su nombre en tu idioma y no con el id,
-  más la descripción del `plan.wyt.md`.
-- **Dónde está el cursor**: la cabecera más cercana por encima, ya sea la
-  sección o el grupo, sin la marca `Grupo:` ni las etiquetas de estado.
-- **Qué clase de párrafo quiere el tipo**: a un ensayo se le pide uno
-  argumentativo, a una novela uno narrativo, a un resumen uno de notas. La
-  columna "Párrafo que pide al modelo" de [Tipos de texto](#tipos-de-texto) los
-  lista. En `plan.wyt.md` no aplica: ahí se piden ideas, no prosa.
+- **The project**: the text type, under its name in your language rather than
+  its id, plus the description from `plan.wyt.md`.
+- **Where the cursor is**: the nearest header above, section or group, without
+  the `Group:` marker or the status tags.
+- **What kind of paragraph the type wants**: an essay is asked for an
+  argumentative one, a novel for a narrative one, a summary for notes. The
+  "Paragraph asked of the model" column in [Text types](#text-types) lists
+  them. It does not apply in `plan.wyt.md`: there it asks for ideas, not prose.
 
-Lo que se envía según el archivo:
+Sent depending on the file:
 
-| Estás en | Se envía además | Sin instrucción, pide | Se inserta como |
-|----------|-----------------|-----------------------|-----------------|
-| `text.wyt.md`, entre dos párrafos | el párrafo anterior y el siguiente | un párrafo que lleve de uno a otro | prosa |
-| `text.wyt.md`, después del último párrafo | el párrafo anterior | el párrafo que sigue | prosa |
-| `plan.wyt.md`, dentro de un grupo | las ideas que ya están en ese grupo | ideas nuevas que no repitan las existentes | ideas `- ` |
-| `plan.wyt.md`, bajo `## Ideas` | las ideas sueltas que ya hay | ideas nuevas para la sección | ideas `- ` |
-| cualquier otro archivo | el párrafo anterior y el siguiente | un puente entre ellos, o el párrafo que sigue | prosa |
+| You are in | Also sent | With no instruction, asks for | Inserted as |
+|------------|-----------|-------------------------------|-------------|
+| `text.wyt.md`, between two paragraphs | the previous and the next paragraph | a paragraph that leads from one to the other | prose |
+| `text.wyt.md`, after the last paragraph | the previous paragraph | the paragraph that follows | prose |
+| `plan.wyt.md`, inside a group | the ideas already in that group | new ideas that do not repeat the existing ones | `- ` ideas |
+| `plan.wyt.md`, under `## Ideas` | the loose ideas already there | new ideas for the section | `- ` ideas |
+| any other file | the previous and the next paragraph | a bridge between them, or the paragraph that follows | prose |
 
-Tres formas de usarlo, entonces:
+So there are three ways to use it:
 
-**Un conector entre párrafos.** Deja el cursor en la línea en blanco que separa
-dos párrafos y ejecuta `:WYTGenerate` sin argumentos. El modelo recibe los dos
-párrafos y escribe el puente.
-
-```vim
-:WYTGenerate
-:WYTGenerate que sea una sola frase, seca
-```
-
-**Lluvia de ideas en un grupo o sección.** Deja el cursor en la cabecera del
-grupo, o en cualquiera de sus ideas, dentro de `plan.wyt.md`. El modelo recibe
-las ideas que ya están ahí y propone hasta cinco nuevas, que se insertan como
-ideas de la lista, no como prosa.
+**A bridge between paragraphs.** Put the cursor on the blank line between two
+paragraphs and run `:WYTGenerate` with no arguments. The model gets both
+paragraphs and writes the bridge.
 
 ```vim
 :WYTGenerate
-:WYTGenerate ideas que contradigan las anteriores
+:WYTGenerate make it a single, dry sentence
 ```
 
-**Cualquier otra cosa, con instrucción.** La instrucción sustituye a la tarea por
-defecto, pero el contexto se sigue enviando igual, así que no tienes que repetir
-de qué va el proyecto ni en qué grupo estás.
+**Brainstorming in a group or section.** Put the cursor on the group header, or
+on any of its ideas, inside `plan.wyt.md`. The model gets the ideas already
+there and proposes up to five new ones, inserted as list ideas, not prose.
 
 ```vim
-:WYTGenerate describe el lugar con tres detalles concretos
-:WYTGenerate reescribe el párrafo anterior en tercera persona
+:WYTGenerate
+:WYTGenerate ideas that contradict the previous ones
 ```
 
-En un plan, el resultado se convierte siempre en ideas de una línea con su `- `,
-aunque el modelo responda con una lista numerada o con prosa. Un párrafo suelto
-dentro de un `plan.wyt.md` no sería una idea, y la sincronización automática lo
-arrastraría a todos los grupos.
+**Anything else, with an instruction.** The instruction replaces the default
+task, but the context is still sent, so you never repeat what the project is
+about or which group you are in.
+
+```vim
+:WYTGenerate describe the place with three concrete details
+:WYTGenerate rewrite the previous paragraph in the third person
+```
+
+In a plan, the result always becomes one-line ideas with their `- `, even when
+the model answers with a numbered list or with prose. A loose paragraph inside
+a `plan.wyt.md` would not be an idea, and the automatic sync would drag it into
+every group.
 
 ---
 
 ## Mappings
 
-> **Nota:** todos los mappings son de buffer y funcionan en modo normal (`n`),
-> solo en archivos WYT. No pisan tus atajos en el resto de buffers.
+> **Note:** every mapping is buffer-local and works in normal mode (`n`), only
+> in WYT files. They do not override your keys in any other buffer.
 
-| Tecla | Archivo | Acción |
-|-------|---------|--------|
-| `<S-Tab>` | `plan.wyt.md` | Navegación según el contexto: implementar el grupo como sección, entrar en la sección, o volver al plan padre |
-| `<S-Up>` | `plan.wyt.md` | Mueve la idea o el grupo actual hacia arriba |
-| `<S-Down>` | `plan.wyt.md` | Mueve la idea o el grupo actual hacia abajo |
-| `<leader>we` | `text.wyt.md` | Expande el marcador en el cursor |
-| `]w` | `text.wyt.md` | Salta al siguiente marcador y lo expande |
-| `[w` | `text.wyt.md` | Salta al marcador anterior y lo expande |
+| Key | File | Action |
+|-----|------|--------|
+| `<S-Tab>` | `plan.wyt.md` | Context navigation: implement the group as a section, enter the section, or go back to the parent plan |
+| `<S-Up>` | `plan.wyt.md` | Moves the current idea or group up |
+| `<S-Down>` | `plan.wyt.md` | Moves the current idea or group down |
+| `<leader>we` | `text.wyt.md` | Expands the placeholder at the cursor |
+| `]w` | `text.wyt.md` | Jumps to the next placeholder and expands it |
+| `[w` | `text.wyt.md` | Jumps to the previous placeholder and expands it |
 
-Toda navegación de WYT, por mapping o por comando, hace dos cosas antes de
-moverse: guarda el archivo actual si tiene cambios sin escribir, lo que además
-dispara el commit automático, y busca una ventana que ya muestre el destino.
-Así no se pierde trabajo en un salto, y ir y volver entre un plan y su sección
-reutiliza las dos pestañas en lugar de acumular copias.
-
----
-
-## Comportamiento automático
-
-Esto ocurre solo, sin que tengas que ejecutar nada:
-
-| Disparador | Archivo | Efecto |
-|------------|---------|--------|
-| `BufEnter` | `plan.wyt.md` | Lee el idioma del config, lo aplica y activa los mappings del buffer |
-| `BufEnter` | `text.wyt.md` | Igual, con los mappings de texto |
-| `TextChanged`, `InsertLeave` | `*plan.wyt.md` | Sincroniza con 300 ms de espera: las ideas de los grupos se reflejan en la sección `## Ideas` |
-| `BufWritePost` | `*plan.wyt.md` | Commit automático: `"Save: plan.wyt.md"` |
-| `BufWritePost` | `*text.wyt.md` | Commit automático: `"Save: text.wyt.md"` |
-
-Cada guardado hace commit, así que la historia del proyecto es la historia de la
-escritura. Nunca necesitas tocar git a mano.
-
-El texto que devuelve el modelo se limpia antes de entrar en un archivo: se le
-quitan los títulos, los bloques de código y las viñetas. Un `#` inventado por el
-modelo se leería como estructura y acabaría siendo una sección del export.
+Every WYT navigation, by mapping or by command, does two things before moving:
+it saves the current file if it has unwritten changes, which also fires the
+automatic commit, and it looks for a window already showing the destination. So
+no work is lost in a jump, and going back and forth between a plan and its
+section reuses the two tabs instead of piling up copies.
 
 ---
 
-## Tipos de texto
+## Automatic behaviour
 
-| Nombre en el menú | Tipo | Preguntas orientadoras | Párrafo que pide al modelo | Lógica de párrafos | Profundidad máxima |
+This happens on its own, with nothing to run:
+
+| Trigger | File | Effect |
+|---------|------|--------|
+| `BufEnter` | `plan.wyt.md` | Reads the language from the config, applies it and sets the buffer mappings |
+| `BufEnter` | `text.wyt.md` | The same, with the text mappings |
+| `TextChanged`, `InsertLeave` | `*plan.wyt.md` | Syncs after a 300 ms wait: the ideas in the groups are mirrored in the `## Ideas` section |
+| `BufWritePost` | `*plan.wyt.md` | Automatic commit: `"Save: plan.wyt.md"` |
+| `BufWritePost` | `*text.wyt.md` | Automatic commit: `"Save: text.wyt.md"` |
+
+Every save commits, so the project's history is the history of the writing. You
+never need to touch git by hand.
+
+Text the model returns is cleaned before it enters a file: headings, code
+blocks and list markers are removed. A `#` invented by the model would be read
+as structure and end up as a section of the export.
+
+---
+
+## Text types
+
+| Name in the menu | Type | Guided questions | Paragraph asked of the model | Paragraph logic | Max depth |
 |---|---|---|---|---|---|
-| Novela | `novel` | Arco, personaje, escena | Un párrafo narrativo | 1 idea → 1 párrafo | 3 niveles |
-| Novela larga | `long_novel` | Hilo conductor, parte, trama secundaria, cronología | Un párrafo narrativo | 1 idea → 1 párrafo | 4 niveles |
-| Novela corta | `short_novel` | Escena, deseo, consecuencia | Un párrafo narrativo | 1 idea → 1 párrafo | 2 niveles |
-| Cuento | `short_story` | Foco narrativo, tono | Un párrafo literario | 1 idea → 1 párrafo | 1 nivel |
-| Ensayo | `essay` | Argumento, evidencia, perspectiva | Un párrafo argumentativo | 1 idea → 1 párrafo | 2 niveles |
-| Resumen | `summary` | Punto clave, síntesis | Un párrafo de notas conciso | Varias ideas → 1 párrafo | 1 nivel |
+| Novel | `novel` | Arc, character, scene | A narrative paragraph | 1 idea → 1 paragraph | 3 levels |
+| Long novel | `long_novel` | Main thread, part, subplot, chronology | A narrative paragraph | 1 idea → 1 paragraph | 4 levels |
+| Short novel | `short_novel` | Scene, desire, consequence | A narrative paragraph | 1 idea → 1 paragraph | 2 levels |
+| Short story | `short_story` | Narrative focus, tone | A literary paragraph | 1 idea → 1 paragraph | 1 level |
+| Essay | `essay` | Argument, evidence, perspective | An argumentative paragraph | 1 idea → 1 paragraph | 2 levels |
+| Summary | `summary` | Key point, synthesis | A concise paragraph of notes | Several ideas → 1 paragraph | 1 level |
 
-**Nombre en el menú** es lo que ves al crear el proyecto, junto a una línea que
-dice qué le hace ese tipo al texto final. El **tipo** de la segunda columna es
-el id que se guarda en `config.wyt.yml`; nunca aparece en pantalla.
+**Name in the menu** is what you see when you create the project, next to a
+line saying what that type does to the final text. The **type** in the second
+column is the id stored in `config.wyt.yml`; it never appears on screen.
 
-**Preguntas orientadoras** es el segundo modo de `:WYTNew i`. Llegan de una en
-una y cada respuesta se convierte en una idea. El tipo decide cuáles son, y el
-arquetipo de una sección puede reemplazarlas por las suyas.
+**Guided questions** is the second mode of `:WYTNew i`. They come one at a
+time and each answer becomes an idea. The type decides which they are, and a
+section's archetype can replace them with its own.
 
-**Párrafo que pide al modelo** es lo que cambia en el prompt cuando expandes un
-marcador o usas `:WYTGenerate`: a un ensayo se le pide un párrafo argumentativo
-y a una novela uno narrativo. Al modelo también se le da el nombre del tipo en
-tu idioma, nunca el id: *Novela larga*, no `long_novel`.
+**Paragraph asked of the model** is what changes in the prompt when you expand
+a placeholder or use `:WYTGenerate`: an essay is asked for an argumentative
+paragraph and a novel for a narrative one. The model is also given the type's
+name in your language, never the id: *Long novel*, not `long_novel`.
 
-**Profundidad máxima** cuenta niveles de plan, siendo el plan raíz el nivel 1.
-Una sección creada con `<S-Tab>` recibe `sections: true` mientras esté por
-debajo del límite, así que sus propios grupos se vuelven secciones a su vez; en
-el límite recibe `sections: false` y sus grupos van directos a `text.wyt.md`.
-Un `essay` anida entonces un nivel de secciones bajo la raíz, una `novel` dos,
-una `long_novel` tres, y `short_story` y `summary` ninguno: sus grupos van
-directos al texto. El asistente solo pregunta "¿Tendrá sub-secciones?" a los
-tipos que permiten más de un nivel.
+**Max depth** counts plan levels, the root plan being level 1. A section
+created with `<S-Tab>` gets `sections: true` while it is below the limit, so
+its own groups become sections in turn; at the limit it gets `sections: false`
+and its groups go straight to `text.wyt.md`. So an `essay` nests one level of
+sections under the root, a `novel` two, a `long_novel` three, and `short_story`
+and `summary` none: their groups go straight to the text. The wizard only asks
+"Will the main section have sub-sections?" for types that allow more than one
+level.
 
-**Lógica de párrafos** decide qué escribe `<S-Tab>` en `text.wyt.md`. Todos los
-tipos menos `summary` escriben un marcador por idea. `summary` condensa: el
-grupo entero se vuelve un solo marcador con todas sus ideas separadas por `;`,
-y al expandirlo se obtiene un párrafo que las funde.
+**Paragraph logic** decides what `<S-Tab>` writes into `text.wyt.md`. Every
+type except `summary` writes one placeholder per idea. `summary` condenses: the
+whole group becomes a single placeholder holding all its ideas separated by
+`;`, and expanding it gives one paragraph that merges them.
 
-### Hacer que una rama baje un nivel más
+### Taking one branch a level deeper
 
-La profundidad del tipo es solo el valor por defecto **al crear** una sección.
-Lo que de verdad gobierna a una sección es su propio `sections:`, y ese
-interruptor lo puedes editar a mano. Si una rama concreta necesita un nivel más
-del que su tipo reparte, abre el `config.wyt.yml` de esa sección y pon
-`sections: true`:
+The type's depth is only the default **at creation**. What actually governs a
+section is its own `sections:`, and you can edit that switch by hand. If one
+branch needs a level more than its type hands out, open that section's
+`config.wyt.yml` and set `sections: true`:
 
 ```yaml
 type: essay
 section_kind: prose
 content_type: definition
-sections: true    # esta sección anida, aunque el ensayo ya estuviera en su límite
+sections: true    # this section nests, even though the essay was at its limit
 ```
 
-A partir de ahí, `<S-Tab>` sobre un grupo de esa sección crea una sub-sección en
-lugar de mandar el grupo a `text.wyt.md`. El cambio es **local a esa rama**: sus
-secciones hermanas siguen con `sections: false` y siguen escribiendo texto, y
-las sub-secciones nuevas se crean con el valor que les toca por el tipo, así que
-el árbol no se desborda solo. No hay ninguna clave global de profundidad, ni
-hace falta: para un ensayo que quieres entero en tres niveles, el sitio correcto
-es el tipo.
+From then on, `<S-Tab>` on a group of that section creates a sub-section
+instead of sending the group to `text.wyt.md`. The change is **local to that
+branch**: its sibling sections keep `sections: false` and keep writing text,
+and the new sub-sections are created with the value their type gives them, so
+the tree does not run away on its own. There is no global depth key, and none
+is needed: for an essay you want entirely in three levels, the type is the
+right place.
 
-Dos detalles que conviene tener claros:
+Two details worth knowing:
 
-- El interruptor solo decide lo que pasa **de ahí en adelante**. Ponerlo a
-  `false` en una sección que ya tiene sub-secciones no las borra ni las saca del
-  export; solo hace que el próximo `<S-Tab>` escriba texto en vez de crear otra.
-- El [mapa de títulos](#mapa-de-títulos) solo declara niveles hasta la
-  profundidad propia del tipo. Un nivel de más no lleva título: sus bloques
-  simplemente salen uno tras otro, separados por una línea en blanco, dentro del
-  título del nivel que sí está declarado. El export no se rompe, pero tampoco
-  titula. Si quieres títulos ahí, el tipo es el sitio donde declararlos.
+- The switch only decides what happens **from then on**. Setting it to `false`
+  on a section that already has sub-sections does not delete them or drop them
+  from the export; it only makes the next `<S-Tab>` write text instead of
+  creating another.
+- The [outline map](#outline-map) only declares levels up to the type's own
+  depth. An extra level gets no title: its blocks simply follow one another,
+  separated by a blank line, inside the title of the level that is declared.
+  The export does not break, but it does not title either. If you want titles
+  there, the type is where to declare them.
 
 ---
 
-## Mapa de títulos
+## Outline map
 
-Los mismos nombres, colocados igual, se componen distinto según la forma: un
-ensayo titula sus secciones, una novela titula sus capítulos pero nunca sus
-escenas. Cada tipo declara en qué se convierte un nombre de un nivel dado
-cuando se genera el export.
+The same names, placed the same way, compose differently depending on the
+form: an essay titles its sections, a novel titles its chapters but never its
+scenes. Each type declares what a name at a given level becomes when the export
+is built.
 
-| Tipo | nivel 2 | nivel 3 | nivel 4 | grupos dentro de `text.wyt.md` |
-|------|---------|---------|---------|--------------------------------|
-| `novel` | capítulo `##` | escena: `* * *` | - | nada |
-| `long_novel` | parte `##` | capítulo `###` | escena: `* * *` | nada |
-| `short_novel` | escena: `* * *` | - | - | nada |
-| `short_story` | - | - | - | escena: `* * *` |
-| `essay` | sección `##` | - | - | nada |
-| `summary` | - | - | - | `##` por grupo |
+| Type | level 2 | level 3 | level 4 | groups inside `text.wyt.md` |
+|------|---------|---------|---------|-----------------------------|
+| `novel` | chapter `##` | scene: `* * *` | - | nothing |
+| `long_novel` | part `##` | chapter `###` | scene: `* * *` | nothing |
+| `short_novel` | scene: `* * *` | - | - | nothing |
+| `short_story` | - | - | - | scene: `* * *` |
+| `essay` | section `##` | - | - | nothing |
+| `summary` | - | - | - | `##` per group |
 
-La raíz es siempre el título del documento, así que ningún tipo declara el nivel
-1. "Nada" quiere decir que los bloques simplemente siguen, separados por una
-línea en blanco: los párrafos de un ensayo no quieren un título cada uno, y los
-de una novela tampoco.
+The root is always the document title, so no type declares level 1. "Nothing"
+means the blocks simply follow, separated by a blank line: the paragraphs of an
+essay do not want a title each, and neither do those of a novel.
 
-Las líneas `## Grupo: ...` dentro de `text.wyt.md` son marcas del propio WYT,
-puestas ahí para poder volver a encontrar un grupo cuando se reimplementa. En el
-export se resuelven con este mapa, no se copian al documento. Los marcadores sin
-expandir se descartan igual: una instrucción que te escribiste a ti mismo no es
-parte del texto.
+The `## Group: ...` lines inside `text.wyt.md` are WYT's own markers, put there
+so a group can be found again when it is re-implemented. In the export they are
+resolved with this map, not copied into the document. Unexpanded placeholders
+are dropped too: a note you wrote to yourself is not part of the text.
 
-El mismo proyecto, ensamblado como tres tipos distintos:
+The same project, assembled as three different types:
 
 ```
-ENSAYO                               NOVELA                                 RESUMEN
-# El silencio de las ciudades        # Anochecer                            # Notas de la reunión
+ESSAY                                NOVEL                                  SUMMARY
+# The silence of cities              # Nightfall                            # Meeting notes
 
-## El espacio urbano                 ## Capítulo uno                        ## Lo que se decidió
+## Urban space                       ## Chapter one                         ## What was decided
 
-La ciudad zumba antes del alba.      La verja llevaba años sin aceite.      El lanzamiento pasa a marzo.
+The city hums before dawn.           The gate had gone years without oil.   The launch moves to March.
 
-Las plazas contenían el aliento.     * * *                                  ## Lo que queda abierto
+The squares held their breath.       * * *                                  ## What is still open
 
-## La economía de la atención        Llegó con tres inviernos de retraso.   Nadie se ha hecho cargo.
+## The attention economy             She arrived three winters late.        Nobody has taken it on.
 
-La calle suena ahora en la mesa.     ## Capítulo dos
-```
-
----
-
-## Arquetipos de sección
-
-Un arquetipo dice para qué es una sección. Se pregunta una sola vez, cuando
-`<S-Tab>` la crea, y a partir de ahí decide tres cosas: las preguntas
-orientadoras de esa sección, si llega al export, y si `:WYTSearch` la ve.
-
-| Arquetipo | Para | Se exporta |
-|-----------|------|------------|
-| Prosa | el texto mismo; guiada por el tipo del proyecto | sí |
-| Personajes | un grupo por personaje: deseo, necesidad, herida, voz | no, pero es buscable |
-| Escenario | los lugares y las reglas del mundo | no, pero es buscable |
-| Cronología | cuándo ocurre cada cosa, en orden de la historia | no, pero es buscable |
-| Puntos de giro | lo que lo cambia todo, y lo que cuesta | no, pero es buscable |
-| Temas | de qué trata la obra por debajo | no, pero es buscable |
-| Conceptos clave | los términos en que se apoya el argumento | no, pero es buscable |
-| Fuentes | la evidencia que citas | no, pero es buscable |
-| Contraargumentos | las objeciones que responde el ensayo | sí |
-
-Cuáles se ofrecen depende del tipo:
-
-| Tipo | Arquetipos ofrecidos |
-|------|----------------------|
-| `novel`, `long_novel`, `short_novel`, `short_story` | Prosa, Personajes, Escenario, Cronología, Puntos de giro, Temas |
-| `essay` | Prosa, Conceptos clave, Fuentes, Contraargumentos, Temas |
-| `summary` | Prosa, Conceptos clave, Fuentes |
-
-Una sección de referencia se trabaja como cualquier otra: sus grupos son las
-entradas (un personaje, un concepto, una fecha) y las ideas bajo cada uno son lo
-que sabes. Si le das a un personaje una sección propia, hereda el arquetipo sin
-volver a preguntar, porque una sección de una sección de Personajes sigue siendo
-sobre personajes.
-
-Contraargumentos es el único arquetipo con forma de referencia que sí se
-exporta: las objeciones se escriben dentro del ensayo, no solo se recopilan.
-
----
-
-## Ejemplo de flujo de trabajo
-
-```
-:WYTNew p          crear el proyecto y su repositorio git
-:WYTNew i (×N)     reunir ideas, libres o con las preguntas del tipo
-:WYTNew g (×N)     agrupar las ideas que van juntas
-<S-Up>/<S-Down>    ordenar grupos e ideas
-<S-Tab>            convertir un grupo en sección, o en texto
-<S-Tab>            entrar en la sección y refinarla con :WYTNew i/g
-]w  [w             expandir los marcadores en párrafos
-:WYTGenerate       insertar texto generado donde haga falta
-:WYTSearch         consultar personajes, cronología o conceptos al escribir
-:WYTNav            recorrer el árbol del proyecto
-:WYTGoto parent    volver al plan padre
-:WYTExport         ensamblar el export final
+The street now rings at the table.   ## Chapter two
 ```
 
 ---
 
-## Requisitos
+## Section archetypes
 
-- [telescope.nvim](https://github.com/nvim-telescope/telescope.nvim) instalado y
-  configurado.
+An archetype says what a section is for. It is asked once, when `<S-Tab>`
+creates the section, and from then on it decides three things: that section's
+guided questions, whether it reaches the export, and whether `:WYTSearch` sees
+it.
 
-¿Tienes dudas o sugerencias?
-Consulta el [README](./README.md) o abre un issue en el repositorio.
+| Archetype | For | Exported |
+|-----------|-----|----------|
+| Prose | the text itself; guided by the project's type | yes |
+| Characters | one group per character: want, need, wound, voice | no, but searchable |
+| Setting | the places and the rules of the world | no, but searchable |
+| Chronology | when each thing happens, in story order | no, but searchable |
+| Turning points | what changes everything, and what it costs | no, but searchable |
+| Themes | what the work is about underneath | no, but searchable |
+| Key concepts | the terms the argument rests on | no, but searchable |
+| Sources | the evidence you cite | no, but searchable |
+| Counterarguments | the objections the essay answers | yes |
+
+Which ones are offered depends on the type:
+
+| Type | Archetypes offered |
+|------|--------------------|
+| `novel`, `long_novel`, `short_novel`, `short_story` | Prose, Characters, Setting, Chronology, Turning points, Themes |
+| `essay` | Prose, Key concepts, Sources, Counterarguments, Themes |
+| `summary` | Prose, Key concepts, Sources |
+
+A reference section is worked like any other: its groups are the entries (a
+character, a concept, a date) and the ideas under each are what you know. If
+you give a character a section of their own, it inherits the archetype without
+asking again, because a section of a Characters section is still about
+characters.
+
+Counterarguments is the only reference-shaped archetype that is exported: the
+objections are written into the essay, not just collected.
+
+---
+
+## Example workflow
+
+```
+:WYTNew p          create the project and its git repository
+:WYTNew i (×N)     gather ideas, free or with the type's questions
+:WYTNew g (×N)     group the ideas that belong together
+<S-Up>/<S-Down>    order groups and ideas
+<S-Tab>            turn a group into a section, or into text
+<S-Tab>            enter the section and refine it with :WYTNew i/g
+]w  [w             expand the placeholders into paragraphs
+:WYTGenerate       insert generated text where it is needed
+:WYTSearch         look up characters, chronology or concepts while writing
+:WYTNav            walk the project tree
+:WYTGoto parent    go back to the parent plan
+:WYTExport         assemble the final export
+```
+
+---
+
+## Requirements
+
+- [telescope.nvim](https://github.com/nvim-telescope/telescope.nvim) installed
+  and configured.
+
+Questions or suggestions? See the [README](./README.md) or open an issue in the
+repository.

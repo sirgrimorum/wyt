@@ -81,7 +81,7 @@ question earlier, each entry naming the type and what it does to the finished
 text, so the answer above reads `Ensayo: ...` and not `essay`. The ids
 `novel`, `long_novel`, `short_novel`, `short_story`, `essay` and `summary` are
 what gets written to `config.wyt.yml`; they are never shown and never sent to
-the model. See the [User Guide](../USER_GUIDE.md#tipos-de-texto).
+the model. See the [User Guide](../USER_GUIDE.md#text-types).
 
 **Has sections?** is only asked for a type that allows more than one plan level:
 `short_story` and `summary` are single-level, so the wizard writes
@@ -337,7 +337,7 @@ Position cursor on the group header line:
 Press `<S-Tab>`.
 
 Since this group has no section yet, the plugin asks what the section is *for*,
-listing the [archetypes](../USER_GUIDE.md#arquetipos-de-sección) of the project's
+listing the [archetypes](../USER_GUIDE.md#section-archetypes) of the project's
 type. Pick **Prose (the text itself)** here; §13 covers the others. `<Esc>`
 cancels and nothing is created.
 
@@ -432,7 +432,7 @@ recognises only the project's current language.
 
 A `summary` is the exception: it folds the whole group into a single placeholder
 holding every idea separated by `; `. See the
-[User Guide](../USER_GUIDE.md#tipos-de-texto).
+[User Guide](../USER_GUIDE.md#text-types).
 
 Group is tagged `[Implemented]` in plan. Auto-commit fires.
 
@@ -538,7 +538,7 @@ An argument replaces the default task, and keeps the context:
 :WYTGenerate ideas que contradigan las anteriores
 ```
 
-The [User Guide](../USER_GUIDE.md#cómo-usar-wytgenerate) has the full table of
+The [User Guide](../USER_GUIDE.md#how-to-use-wytgenerate) has the full table of
 what is sent from where.
 
 ---
@@ -565,7 +565,7 @@ and a list of turning points; an essay needs its key concepts and its sources.
 WYT calls these **archetypes**, and the archetype you pick decides three things:
 the questions the section asks you from then on, whether it reaches the export,
 and whether `:WYTSearch` can see it. The
-[User Guide](../USER_GUIDE.md#arquetipos-de-sección) lists them per type.
+[User Guide](../USER_GUIDE.md#section-archetypes) lists them per type.
 
 In the root `plan.wyt.md`, create a group called `Key Concepts`:
 
@@ -719,7 +719,7 @@ The plugin:
    - Otherwise → uses `text.wyt.md`
    - Strips unexpanded `*Create a paragraph about: [...]*` placeholders, in
      either language
-3. Applies the type's [outline map](../USER_GUIDE.md#mapa-de-títulos): a section
+3. Applies the type's [outline map](../USER_GUIDE.md#outline-map): a section
    name becomes a heading, a scene break, or nothing, by its plan level
 4. Drops the `## Grupo: ...` markers, which are WYT's own structure and not part
    of the finished text, unless the type says group names are headings

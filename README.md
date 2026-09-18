@@ -1,23 +1,23 @@
 # WYT.nvim
 
-Plugin de Neovim para la gestión de proyectos literarios siguiendo la metodología WYT.
+A Neovim plugin for managing long-form writing projects with the WYT method.
 
-## Requisitos
+## Requirements
 
 - Neovim >= 0.10
 - [`telescope.nvim`](https://github.com/nvim-telescope/telescope.nvim)
-- `git` y `curl` en el PATH
+- `git` and `curl` on the PATH
 
-WYT no se auto-inicializa. Sin una llamada a `require("wyt").setup(...)` no se registra ningún
-comando ni mapping.
+WYT does not initialise itself. Without a call to `require("wyt").setup(...)` no command or
+mapping is registered.
 
-## Instalación
+## Installation
 
 ### lazy.nvim
 
 ```lua
 {
-  "tu_usuario/wyt.nvim",
+  "your_user/wyt.nvim",
   dependencies = { "nvim-telescope/telescope.nvim" },
   config = function()
     require("wyt").setup({
@@ -32,7 +32,7 @@ comando ni mapping.
 
 ```lua
 use({
-  "tu_usuario/wyt.nvim",
+  "your_user/wyt.nvim",
   requires = { "nvim-telescope/telescope.nvim" },
   config = function()
     require("wyt").setup({
@@ -43,20 +43,20 @@ use({
 })
 ```
 
-### Sin plugin manager
+### Without a plugin manager
 
 ```lua
-vim.opt.runtimepath:append("/ruta/a/wyt.nvim")
+vim.opt.runtimepath:append("/path/to/wyt.nvim")
 require("wyt").setup({
   llm_provider = "claude",  -- "openai" | "claude"
   api_key = require("wyt.secret").os_store(),
 })
 ```
 
-Si además usas lazy.nvim, este bloque va **después** de `require('lazy').setup(...)`.
-Ver [Desarrollo local](#desarrollo-local).
+If you also use lazy.nvim, this block goes **after** `require('lazy').setup(...)`.
+See [Local development](#local-development).
 
-## Configuración
+## Configuration
 
 ```lua
 require("wyt").setup({
@@ -67,27 +67,27 @@ require("wyt").setup({
 
 ## API key
 
-`api_key` acepta un string o una función. Si le pasas una función, WYT la llama en la primera
-petición al LLM, no al arrancar, y guarda el resultado en memoria para el resto de la sesión.
-La key nunca queda escrita en tu configuración.
+`api_key` takes a string or a function. If you pass a function, WYT calls it on the first LLM
+request, not at startup, and keeps the result in memory for the rest of the session. The key is
+never written into your configuration.
 
-El módulo `wyt.secret` trae resolvers listos:
+The `wyt.secret` module ships ready-made resolvers:
 
-| Resolver | De dónde lee la key |
+| Resolver | Where it reads the key from |
 | --- | --- |
-| `secret.os_store()` | Almacén nativo del sistema. Recomendado. |
-| `secret.dpapi()` | Windows, archivo cifrado con DPAPI |
+| `secret.os_store()` | The operating system's native store. Recommended. |
+| `secret.dpapi()` | Windows, a DPAPI-encrypted file |
 | `secret.keychain("wyt")` | macOS Keychain |
-| `secret.libsecret("wyt")` | Linux, libsecret o gnome-keyring |
-| `secret.prompt()` | Pregunta una vez por sesión. No toca el disco. |
-| `secret.file("~/.wyt-key")` | Archivo plano. Usa permisos 600. |
-| `secret.command({ "pass", "show", "anthropic" })` | Salida de cualquier comando |
-| `secret.env("ANTHROPIC_API_KEY")` | Variable de entorno. Ver [abajo](#por-qué-no-una-variable-de-entorno). |
+| `secret.libsecret("wyt")` | Linux, libsecret or gnome-keyring |
+| `secret.prompt()` | Asks once per session. Never touches the disk. |
+| `secret.file("~/.wyt-key")` | Plain file. Use permissions 600. |
+| `secret.command({ "pass", "show", "anthropic" })` | The output of any command |
+| `secret.env("ANTHROPIC_API_KEY")` | Environment variable. See [below](#why-not-an-environment-variable). |
 
-### Guardar la key
+### Storing the key
 
-**Windows (DPAPI).** El cifrado queda ligado a tu usuario y a esta máquina, así que el archivo
-no sirve en otro equipo. `Read-Host` mantiene la key fuera del historial de PowerShell.
+**Windows (DPAPI).** The encryption is tied to your user and this machine, so the file is useless
+on another computer. `Read-Host` keeps the key out of the PowerShell history.
 
 ```powershell
 $dir = "$env:LOCALAPPDATA\nvim-data\wyt"
@@ -96,50 +96,50 @@ Read-Host -AsSecureString "API key" | ConvertFrom-SecureString |
   Set-Content -LiteralPath "$dir\api_key.dpapi"
 ```
 
-**macOS (Keychain).** Sin `-w <valor>`, `security` pide la key de forma interactiva.
+**macOS (Keychain).** Without `-w <value>`, `security` asks for the key interactively.
 
 ```bash
 security add-generic-password -s wyt -a "$USER" -w
 ```
 
-**Linux (libsecret).** `secret-tool store` lee la key desde stdin.
+**Linux (libsecret).** `secret-tool store` reads the key from stdin.
 
 ```bash
 secret-tool store --label="WYT" service wyt account default
 ```
 
-### Cambiar de proveedor
+### Switching provider
 
 ```
 :WYTConfig claude
 ```
 
-Sin segundo argumento, WYT pide la key con `inputsecret`, sin eco y sin pasar por `:history`.
-Si la escribes en la línea de comandos, WYT avisa y borra la entrada del historial, pero para
-entonces ya estuvo en pantalla. Usa el prompt.
+With no second argument, WYT asks for the key with `inputsecret`, with no echo and without going
+through `:history`. If you type it on the command line, WYT warns you and deletes the history
+entry, but by then it has already been on screen. Use the prompt.
 
-### Por qué no una variable de entorno
+### Why not an environment variable
 
-Una variable de entorno de usuario la hereda todo proceso que lances: servidores LSP,
-formateadores, scripts de build, jobs de terminal. También aparece en volcados de fallo y en la
-salida de `env`. Un resolver se consulta solo cuando WYT lo necesita.
+A user environment variable is inherited by every process you start: LSP servers, formatters,
+build scripts, terminal jobs. It also shows up in crash dumps and in the output of `env`. A
+resolver is consulted only when WYT needs it.
 
-Esto no protege contra malware que ya corre con tu usuario, porque ese código también puede leer
-tu keychain. Lo que evita es que la key esté disponible de forma ambiental para procesos que no
-tienen nada que ver con WYT.
+This does not protect against malware already running as your user, because that code can read
+your keychain too. What it prevents is the key being ambiently available to processes that have
+nothing to do with WYT.
 
-## Desarrollo local
+## Local development
 
-Para usar un checkout local en vez de la versión instalada, agrega la ruta al `runtimepath` y
-llama a `setup()`:
+To use a local checkout instead of the installed version, add the path to the `runtimepath` and
+call `setup()`:
 
 ```lua
 require('lazy').setup({
-  -- ... tus plugins ...
+  -- ... your plugins ...
 })
 
--- Va DESPUÉS de lazy.setup(): lazy reconstruye el 'runtimepath' y descarta
--- cualquier ruta agregada antes de esa llamada.
+-- Goes AFTER lazy.setup(): lazy rebuilds 'runtimepath' and drops any path
+-- added before that call.
 local wyt_path = os.getenv('WYT_PATH')
 if wyt_path then
   vim.opt.runtimepath:append(wyt_path)
@@ -150,97 +150,98 @@ if wyt_path then
 end
 ```
 
-WYT se carga entero con `require`, y `require` busca dentro de `lua/` de cada entrada del
-`runtimepath`: esa línea de `append` es lo que hace que `require('wyt')` encuentre el checkout.
-Si el bloque corre antes de `lazy.setup()`, lazy reconstruye el `runtimepath` y la ruta se pierde:
-lo ya cargado sigue respondiendo en esa sesión, pero el siguiente `require` de un submódulo, y
-cualquier reinicio, falla. Para comprobarlo:
+WYT is loaded entirely through `require`, and `require` looks inside `lua/` of every
+`runtimepath` entry: that `append` line is what lets `require('wyt')` find the checkout. If the
+block runs before `lazy.setup()`, lazy rebuilds the `runtimepath` and the path is lost: what is
+already loaded keeps answering in that session, but the next `require` of a submodule, and any
+restart, fails. To check:
 
 ```vim
 :lua print(vim.o.runtimepath:find('WYT') ~= nil)
 ```
 
-No escribas la API key literal en `init.lua`. Ese archivo suele estar versionado en git, y una
-key en texto plano ahí termina publicada. Usa un resolver de [`wyt.secret`](#api-key).
+Do not write the API key literally in `init.lua`. That file is usually versioned in git, and a
+plain-text key there ends up published. Use a resolver from [`wyt.secret`](#api-key).
 
-### Prueba rápida sin editar init.lua
+### Quick test without editing init.lua
 
 ```vim
-:lua vim.opt.runtimepath:append("C:/ruta/a/WYT"); require("wyt").setup()
+:lua vim.opt.runtimepath:append("C:/path/to/WYT"); require("wyt").setup()
 ```
 
-Usa barras hacia adelante en Windows: las invertidas son escapes dentro de un string de Lua.
-El cambio dura solo la sesión actual.
+Use forward slashes on Windows: backslashes are escapes inside a Lua string. The change lasts
+only for the current session.
 
-### Definir WYT_PATH
+### Setting WYT_PATH
 
-Solo la ruta del checkout va en una variable de entorno. La API key no.
+Only the checkout path goes in an environment variable. The API key does not.
 
 Windows PowerShell:
 
 ```powershell
-[System.Environment]::SetEnvironmentVariable("WYT_PATH", "C:\tu\ruta", "User")
+[System.Environment]::SetEnvironmentVariable("WYT_PATH", "C:\your\path", "User")
 ```
 
-macOS y Linux, en `~/.bashrc` o `~/.zshrc`:
+macOS and Linux, in `~/.bashrc` or `~/.zshrc`:
 
 ```bash
-export WYT_PATH="/tu/ruta"
+export WYT_PATH="/your/path"
 ```
 
-En ambos casos, reinicia la terminal o recarga el perfil.
+Either way, restart the terminal or reload the profile.
 
-## Verificar la instalación
+## Checking the installation
 
 ```vim
 :checkhealth wyt
 ```
 
-Reporta versión de Neovim, telescope, git, el proveedor LLM y de dónde sale la API key. Nunca
-imprime la key.
+Reports the Neovim version, telescope, git, the LLM provider and where the API key comes from. It
+never prints the key.
 
 ## Tests
 
 ```sh
-nvim --headless -l tests/runner.lua              # todo
-nvim --headless -l tests/runner.lua types llm    # solo esos specs
+nvim --headless -l tests/runner.lua              # everything
+nvim --headless -l tests/runner.lua types llm    # only those specs
 ```
 
-No hay nada que instalar y ninguna llamada al LLM: los tests reemplazan
-`generate_text` por un doble, así que corren sin API key. Sale con código 1 si
-algo falla. Ver [tests/README.md](./tests/README.md) para escribir uno.
+Nothing to install and no LLM calls: the tests replace `generate_text` with a double, so they run
+without an API key. Exits with code 1 if anything fails. See [tests/README.md](./tests/README.md)
+to write one.
 
-## ¿Qué archivos y carpetas crea?
+## What files and folders does it create?
 
-- `plan.wyt.md`: Plan principal del proyecto o sección.
-- `config.wyt.yml`: Configuración de la sección o proyecto.
-- `text.wyt.md`: Texto literario generado.
-- `export.wyt.md`: Exportación final del texto.
-- Estructura de carpetas para secciones y sub-secciones según la metodología.
+- `plan.wyt.md`: the plan of the project or section.
+- `config.wyt.yml`: the configuration of the section or project.
+- `text.wyt.md`: the prose, written or generated.
+- `export.wyt.md`: the final export of the text.
+- A folder structure for sections and sub-sections, following the method.
 
-## ¿Qué archivos debo modificar?
+## Which files should I edit?
 
-No modifiques los archivos internos del plugin. Edita los archivos de tu proyecto
-(`plan.wyt.md`, `text.wyt.md`, etc.) con Neovim y los comandos del plugin.
+Do not edit the plugin's internal files. Edit your project's files (`plan.wyt.md`,
+`text.wyt.md`, and so on) with Neovim and the plugin's commands.
 
-## Uso básico
+## Basic usage
 
-1. Ejecuta `:WYTNew p` para crear un nuevo proyecto literario.
-2. Navega y administra tu proyecto con los comandos y mappings.
-3. Edita y organiza tus ideas, grupos y textos desde los archivos generados.
+1. Run `:WYTNew p` to create a new writing project.
+2. Navigate and manage your project with the commands and mappings.
+3. Edit and organise your ideas, groups and texts in the generated files.
 
-## Documentación
+## Documentation
 
-- [Guía de usuario](./USER_GUIDE.md): la lista completa de comandos y atajos, el
-  comportamiento automático, los tipos de texto con su profundidad y su lógica de
-  párrafos, el mapa de títulos del export y los arquetipos de sección
-  (personajes, cronología, puntos de giro, conceptos clave, fuentes).
-- [Caso de uso completo](./docs/use_case_e2e.md): el recorrido de la metodología
-  de principio a fin, desde un directorio vacío hasta el export final.
-- [Tests](./tests/README.md): cómo correr la suite y cómo escribir un spec.
-- [AGENTS.md](./AGENTS.md): para contribuir, con o sin un asistente de código.
-  Las decisiones ya tomadas y las trampas que han costado tiempo.
+- [Quick guide](./docs/quick_guide.md): one page for daily use, the WYT keys and commands plus
+  the Neovim you need to write with it.
+- [User guide](./USER_GUIDE.md): every command and mapping, the automatic behaviour, the text
+  types with their depth and paragraph logic, the export's outline map and the section
+  archetypes (characters, chronology, turning points, key concepts, sources).
+- [Full use case](./docs/use_case_e2e.md): the method from start to finish, from an empty
+  directory to the final export.
+- [Tests](./tests/README.md): how to run the suite and how to write a spec.
+- [AGENTS.md](./AGENTS.md): for contributing, with or without a coding assistant. The decisions
+  already made and the traps that have cost time.
 
 ---
 
-¿Tienes dudas o sugerencias? ¡Abre un issue o contribuye!
+Questions or suggestions? Open an issue or contribute!

@@ -66,13 +66,17 @@ forever when it is missing, which is why the suite ships its own runner.
 
 ## Docs, and which is which
 
-- `USER_GUIDE.md` is **Spanish** and holds the rules: every command, the text
-  types with their depth and paragraph logic, the export's title map, the
-  section archetypes.
-- `docs/use_case_e2e.md` is **English** and is one worked example, read once,
-  start to finish. It links to the guide rather than restating it.
-- `README.md` is **Spanish**: install, API key handling, local development.
-- `tests/README.md` is **English**: how to run and write a spec.
+All docs are in **English**.
+
+- `USER_GUIDE.md` holds the rules: every command, the text types with their
+  depth and paragraph logic, the export's outline map, the section archetypes.
+- `docs/quick_guide.md` is the one-page daily reference: the WYT loop, keys and
+  commands, and the Neovim a writer needs. It summarises the guide; when a
+  command or mapping changes, update both.
+- `docs/use_case_e2e.md` is one worked example, read once, start to finish. It
+  links to the guide rather than restating it.
+- `README.md`: install, API key handling, local development.
+- `tests/README.md`: how to run and write a spec.
 
 Keep a doc change in the same commit as the behaviour it describes. The
 walkthrough has drifted from the code before in ways that read as plausible;

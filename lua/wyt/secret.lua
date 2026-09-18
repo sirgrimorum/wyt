@@ -73,7 +73,7 @@ end
 
 --- Windows DPAPI. The file holds ciphertext bound to the current user account
 --- on the current machine: copying it elsewhere yields nothing. Store it with
---- the snippet in README.md, "Guardar la key" (it uses Read-Host, so the key
+--- the snippet in README.md, "Storing the key" (it uses Read-Host, so the key
 --- never enters your shell history).
 --- @param path string|nil defaults to M.dpapi_path()
 function M.dpapi(path)
