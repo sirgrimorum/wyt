@@ -239,6 +239,10 @@ describe("project.get_groups and clean_group_name", function()
     it("leaves a name alone that carries no tag", function()
         assert.equals("One", project.clean_group_name("One"))
     end)
+
+    it("reads a plan saved with CRLF", function()
+        assert.same({ "One", "Two" }, project.get_groups("# T\r\n\r\n## Group: One [Implemented]\r\n## Group: Two\r\n"))
+    end)
 end)
 
 describe("project.get_ideas", function()

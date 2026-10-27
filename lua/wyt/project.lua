@@ -507,8 +507,11 @@ local function update_changes_in_buffer(path, content)
 end
 
 
+-- Trimmed first: a plan saved with CRLF hands every header over ending in "\r",
+-- which kept the status tag from matching at the end and named the section's
+-- folder "x-implemented", so the walk never found it.
 function M.clean_group_name(name)
-    return name:gsub("%s*%[" .. M.t("edited") .. "%]$", ""):gsub("%s*%[" .. M.t("implemented") .. "%]$", ""):gsub("%s*$", "")
+    return name:gsub("%s+$", ""):gsub("%s*%[" .. M.t("edited") .. "%]$", ""):gsub("%s*%[" .. M.t("implemented") .. "%]$", ""):gsub("%s*$", "")
 end
 
 function M.get_groups(plan_content)
