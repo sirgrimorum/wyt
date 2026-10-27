@@ -74,8 +74,8 @@ M.configs = {
     long_novel = {
         label = { en = "Long novel", es = "Novela larga" },
         blurb = {
-            en = "Parts and chapters titled, scenes separated inside them.",
-            es = "Partes y capítulos con título, escenas separadas dentro de ellos.",
+            en = "Titled parts and chapters, scenes separated.",
+            es = "Partes y capítulos con título, escenas separadas.",
         },
         prose_kind = { en = "a narrative paragraph", es = "un párrafo narrativo" },
         idea_prompt = {
@@ -262,8 +262,8 @@ M.configs = {
     summary = {
         label = { en = "Summary", es = "Resumen" },
         blurb = {
-            en = "Labelled notes, a whole group condensed into one paragraph.",
-            es = "Notas etiquetadas, y un grupo entero se condensa en un párrafo.",
+            en = "Labelled notes, each group condensed to one paragraph.",
+            es = "Notas etiquetadas; cada grupo, un solo párrafo.",
         },
         prose_kind = { en = "a concise paragraph of notes", es = "un párrafo de notas conciso" },
         idea_prompt = {

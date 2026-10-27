@@ -92,6 +92,17 @@ describe("types.menu_label", function()
             end
         end
     end)
+
+    -- A picker cuts the entry at its width, and the Spanish long novel at 79
+    -- columns lost its end. 64 is the longest entry that was reported whole.
+    it("fits every entry in 64 columns", function()
+        for _, lang in ipairs(LANGS) do
+            for _, id in ipairs(types.names()) do
+                local label = types.menu_label(id, lang)
+                assert.truthy(vim.fn.strdisplaywidth(label) <= 64, "too wide: " .. label)
+            end
+        end
+    end)
 end)
 
 describe("types.prose_kind", function()
