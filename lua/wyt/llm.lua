@@ -555,4 +555,94 @@ function M.suggest_group_name(ideas, type_label, lang, callback)
     end)
 end
 
+-- The summary is only asked for when the writer has been away long enough to
+-- need it; the paragraph is always given word for word by the brief itself,
+-- never by the model.
+local TODAY_PROMPT = {
+    en = {
+        frame = "Project: %s",
+        away = "The writer last wrote %s and is about to start again.",
+        scene = "The scene they were writing:\n<text>\n%s\n</text>",
+        chapter = "The chapter they were writing:\n<text>\n%s\n</text>",
+        last = "Their last paragraph:\n<paragraph>\n%s\n</paragraph>",
+        open = "Still open in the project: %s",
+        summary = 'In "summary", recall in at most three sentences what happens in that text,'
+            .. " so the writer remembers it without rereading it.",
+        prompt = 'In "prompt", ask one short question, or give one invitation, that gets them'
+            .. " writing the next part right now. One sentence. Do not write the text for them.",
+        with_summary = 'Reply with a JSON object only, no code fences: {"summary": "...", "prompt": "..."}',
+        prompt_only = 'Reply with a JSON object only, no code fences: {"prompt": "..."}',
+    },
+    es = {
+        frame = "Proyecto: %s",
+        away = "El autor escribió por última vez %s y está por volver a empezar.",
+        scene = "La escena que estaba escribiendo:\n<text>\n%s\n</text>",
+        chapter = "El capítulo que estaba escribiendo:\n<text>\n%s\n</text>",
+        last = "Su último párrafo:\n<paragraph>\n%s\n</paragraph>",
+        open = "Pendiente en el proyecto: %s",
+        summary = 'En "summary", recuerda en tres frases como máximo qué pasa en ese texto,'
+            .. " para que el autor lo recuerde sin releerlo.",
+        prompt = 'En "prompt", haz una pregunta breve, o una invitación, que lo ponga a escribir'
+            .. " la siguiente parte ahora mismo. Una sola frase. No escribas el texto por él.",
+        with_summary = 'Responde solo con un objeto JSON, sin bloques de código: {"summary": "...", "prompt": "..."}',
+        prompt_only = 'Responde solo con un objeto JSON, sin bloques de código: {"prompt": "..."}',
+    },
+}
+
+-- The end of a long chapter is what the writer is coming back to, so a text
+-- over the budget keeps its last part. Cut by character, not by byte.
+local TODAY_TEXT_BUDGET = 8000
+
+--- The model's half of `:WYTToday`. `ctx` is { lang, project, ago, depth, text,
+--- last_paragraph, open }: `depth` is "paragraph", "scene" or "chapter", and
+--- `text` is the scene or chapter for the two deeper ones.
+--- The callback gets { summary = string|nil, prompt = string|nil }.
+function M.today(ctx, callback)
+    local words = TODAY_PROMPT[ctx.lang] or TODAY_PROMPT.en
+    local parts = {}
+    local function add(template, value)
+        if value and value ~= "" then parts[#parts + 1] = template:format(value) end
+    end
+    local wants_summary = ctx.depth ~= "paragraph" and ctx.text and ctx.text ~= ""
+
+    add(words.frame, ctx.project)
+    add(words.away, ctx.ago)
+    if wants_summary then
+        local over = vim.fn.strchars(ctx.text) - TODAY_TEXT_BUDGET
+        add(ctx.depth == "chapter" and words.chapter or words.scene,
+            over > 0 and vim.fn.strcharpart(ctx.text, over) or ctx.text)
+    end
+    add(words.last, ctx.last_paragraph)
+    add(words.open, ctx.open)
+    if wants_summary then parts[#parts + 1] = words.summary end
+    parts[#parts + 1] = words.prompt
+    parts[#parts + 1] = wants_summary and words.with_summary or words.prompt_only
+
+    M.generate_text(table.concat(parts, "\n"), function(raw, err)
+        if err or not raw then
+            callback(nil, err)
+            return
+        end
+        local data = extract_json(raw)
+        -- A reply that skipped the JSON is still a usable prompt; a summary
+        -- cannot be told apart from one, so it is dropped. One that tried JSON
+        -- and broke it would head the freewrite file with braces and keys.
+        if not data then
+            local line = raw:find("{", 1, true) and "" or M.to_single_line(raw)
+            callback({ prompt = line ~= "" and line or nil })
+            return
+        end
+        local function clean(v, fn)
+            if type(v) ~= "string" then return nil end
+            v = fn(v)
+            return v ~= "" and v or nil
+        end
+        callback({
+            summary = wants_summary and clean(data.summary, M.to_prose) or nil,
+            -- The prompt heads a freewrite file, where a heading would be structure.
+            prompt = clean(data.prompt, M.to_single_line),
+        })
+    end)
+end
+
 return M

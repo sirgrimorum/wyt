@@ -5,8 +5,8 @@ local helpers = require("tests.helpers")
 
 local MODULES = {
     "autocmd", "commands", "config", "export", "generate", "group", "health",
-    "idea", "init", "llm", "localization", "mappings", "nav", "plan", "project",
-    "search", "secret", "section_kinds", "text", "types", "ui",
+    "freewrite", "idea", "init", "llm", "localization", "mappings", "nav", "plan", "project",
+    "search", "secret", "section_kinds", "status", "text", "today", "types", "ui",
 }
 
 describe("every module loads", function()
@@ -29,7 +29,7 @@ end)
 describe("setup registers the commands the docs promise", function()
     local expected = {
         "WYTConfig", "WYTSetLang", "WYTNew", "WYTGenerate",
-        "WYTNav", "WYTGoto", "WYTExport", "WYTExpand", "WYTSearch",
+        "WYTNav", "WYTGoto", "WYTExport", "WYTExpand", "WYTSearch", "WYTToday",
     }
 
     it("creates each one", function()

@@ -352,6 +352,56 @@ describe("llm.improve_idea", function()
     end)
 end)
 
+describe("llm.today", function()
+    it("asks for a prompt only when the writer was away under a day", function()
+        local captured = helpers.capture_prompt('{"prompt": "What does the harbour master want?"}')
+        local got
+        require("wyt.llm").today({ lang = "en", depth = "paragraph", text = "SCENE", last_paragraph = "LAST" },
+            function(r) got = r end)
+        assert.has_no_match("SCENE", captured.prompt)
+        assert.matches("LAST", captured.prompt)
+        assert.has_no_match('"summary"', captured.prompt)
+        assert.equals("What does the harbour master want?", got.prompt)
+        assert.is_nil(got.summary)
+    end)
+
+    it("sends the scene and asks for its summary after a few days", function()
+        local captured = helpers.capture_prompt('```json\n{"summary": "- She arrives.", "prompt": "Who meets her?"}\n```')
+        local got
+        require("wyt.llm").today({ lang = "es", depth = "scene", text = "ESCENA", last_paragraph = "ULTIMO" },
+            function(r) got = r end)
+        assert.matches("La escena que estaba escribiendo", captured.prompt)
+        assert.matches("ESCENA", captured.prompt)
+        -- Markdown the model wraps it in never reaches the brief.
+        assert.equals("She arrives.", got.summary)
+        assert.equals("Who meets her?", got.prompt)
+    end)
+
+    it("keeps a reply that skipped the JSON as the prompt", function()
+        helpers.capture_prompt("Who is waiting on the pier?")
+        local got
+        require("wyt.llm").today({ lang = "en", depth = "chapter", text = "x" }, function(r) got = r end)
+        assert.equals("Who is waiting on the pier?", got.prompt)
+        assert.is_nil(got.summary)
+    end)
+
+    it("keeps the end of a chapter over the budget", function()
+        local captured = helpers.capture_prompt('{"prompt": "Go on."}')
+        local chapter = "START " .. ("ñ"):rep(8000)
+        require("wyt.llm").today({ lang = "en", depth = "chapter", text = chapter }, function() end)
+        assert.falsy(captured.prompt:find("START", 1, true))
+        assert.truthy(captured.prompt:find(("ñ"):rep(8000), 1, true))
+    end)
+
+    it("drops a reply that tried JSON and broke it", function()
+        helpers.capture_prompt('{"summary": "She arrives.", "prompt": "Who')
+        local got
+        require("wyt.llm").today({ lang = "en", depth = "chapter", text = "x" }, function(r) got = r end)
+        assert.is_nil(got.prompt)
+        assert.is_nil(got.summary)
+    end)
+end)
+
 describe("a heading marker never survives into a name", function()
     it("is stripped from a single line, as it is from prose", function()
         assert.equals("A title", llm.to_single_line("## A title"))

@@ -22,6 +22,7 @@ and restore it yourself.
 |---|---|
 | `runner.lua` | the harness, and the only entry point |
 | `helpers.lua` | a project on disk, scripted `vim.ui`, a captured LLM prompt |
+| `drive.lua` | not a spec: a driven session of the real nvim, see below |
 | `config_spec.lua` | the API key's lazy resolve and cache, and the plain resolvers |
 | `types_spec.lua` | every text type's guides, depth, outline and archetypes |
 | `llm_spec.lua` | every prompt built, and the stripping done to every reply |
@@ -33,6 +34,7 @@ and restore it yourself.
 | `text_spec.lua` | finding a placeholder and expanding it |
 | `export_spec.lua` | the finished document, per type, end to end |
 | `tree_spec.lua` | the section walk `:WYTNav` and `:WYTSearch` share |
+| `today_spec.lua` | what `:WYTToday` reads from git and the plans, its menu, and a freewrite |
 | `ui_spec.lua` | fitting text a prompt line would truncate, and opening files |
 | `localization_spec.lua` | key parity between the two languages |
 | `smoke_spec.lua` | every module loads, every command is registered |
@@ -79,6 +81,27 @@ recording what it was told.
   or syncing ideas are exercised by hand. Their pieces are covered
   (`types.menu_label`, the prompts they build, the files they write), and
   `group.new_group` is driven through once.
+
+## A driven session
+
+```sh
+nvim --headless -u NONE -l tests/drive.lua [out_dir]
+```
+
+What the specs leave out above, run for real: your own nvim config (Telescope
+draws the menus), the provider behind your API key, the curl transport, and the
+floating windows' contents. It builds a project whose prose was committed three
+days ago, then types `:WYTToday`, picks the freewrite in the picker, writes and
+saves, recaps again, and runs `:WYTNav` and `:WYTExport`. Keys go in through a
+terminal; the screen is read back over the child's RPC socket, every window and
+float on its tab. Each step's snapshot and `results.txt` land in `out_dir` (a
+dated `wyt-drive-*` folder in the system temp directory by default), and it
+exits 1 when a check fails.
+
+It needs your nvim config to load WYT and a working API key. It costs a few
+model calls, so run it by hand after a change to a flow, not on
+every save. Add a step when a bug only showed up driven: that is how the
+freewrite text once glued to its prompt was found.
 
 ## Landmines these specs were written around
 

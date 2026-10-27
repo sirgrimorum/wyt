@@ -224,7 +224,14 @@ function M.search_command()
     end, { desc = loc.t("search_desc") })
 end
 
+function M.today_command()
+    vim.api.nvim_create_user_command("WYTToday", function()
+        require("wyt.today").open()
+    end, { desc = loc.t("today_desc") })
+end
+
 function M.setup()
+    M.today_command()
     M.setup_command()
     M.generate_text_command()
     M.nav_command()

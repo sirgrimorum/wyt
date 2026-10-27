@@ -27,7 +27,7 @@ function M.setup()
     -- WYT writes needs one, so the buffer never reads them.
     api.nvim_create_autocmd("BufReadPre", {
         group = group,
-        pattern = {"*plan.wyt.md", "*text.wyt.md", "*export.wyt.md", "*config.wyt.yml"},
+        pattern = {"*plan.wyt.md", "*text.wyt.md", "*export.wyt.md", "*config.wyt.yml", "*/freewrite/*.md"},
         callback = function(ev) vim.bo[ev.buf].modeline = false end,
         desc = "WYT: no modelines in project files",
     })
@@ -77,6 +77,43 @@ function M.setup()
             project.commit_changes("Save: " .. vim.fn.expand("%:t"))
         end,
         desc = "WYT: auto-commit on write",
+    })
+
+    -- Free writing has no WYT keys at all: the buffer is only for typing.
+    api.nvim_create_autocmd("BufEnter", {
+        group = group,
+        pattern = "*/freewrite/*.md",
+        callback = function(ev)
+            local freewrite = require("wyt.freewrite")
+            if not freewrite.is_freewrite(vim.fn.fnamemodify(ev.file, ":p")) then return end
+            freewrite.setup_buf()
+        end,
+        desc = "WYT: bare buffer for free writing",
+    })
+
+    api.nvim_create_autocmd("BufWritePost", {
+        group = group,
+        pattern = "*/freewrite/*.md",
+        callback = function(ev)
+            if not require("wyt.freewrite").is_freewrite(vim.fn.fnamemodify(ev.file, ":p")) then return end
+            local project = require("wyt.project")
+            if not project.setup() then return end
+            project.commit_changes("Save: freewrite/" .. vim.fn.fnamemodify(ev.file, ":t"))
+        end,
+        desc = "WYT: auto-commit free writing on write",
+    })
+
+    -- `open` writes the prompt to disk before a word is typed, and a start left
+    -- there would ride into the next `git add .` as a session that never was.
+    api.nvim_create_autocmd("BufUnload", {
+        group = group,
+        pattern = "*/freewrite/*.md",
+        callback = function(ev)
+            local path = vim.fn.fnamemodify(ev.file, ":p")
+            local freewrite = require("wyt.freewrite")
+            if freewrite.is_freewrite(path) and freewrite.is_untouched(path) then os.remove(path) end
+        end,
+        desc = "WYT: drop a freewrite left without a word",
     })
 end
 

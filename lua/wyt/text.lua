@@ -4,11 +4,13 @@ local ui = require("wyt.ui")
 local types = require("wyt.types")
 local M = {}
 
-local function placeholder_pattern(project_mod)
+-- Public: the project status counts what is still to write with the same match.
+function M.placeholder_pattern(project_mod)
     -- create_paragraph ends with ": ", pattern captures idea name inside [...]
     local tag = project_mod.t("create_paragraph"):gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
     return "^%*" .. tag .. "%[(.-)%]%*$"
 end
+local placeholder_pattern = M.placeholder_pattern
 
 local function find_forward(lines, from, pat)
     for i = from, #lines do

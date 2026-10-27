@@ -9,6 +9,7 @@ To see everything in use, start to finish, read the
 
 - [Project structure](#project-structure)
 - [Commands](#commands)
+- [Coming back with :WYTToday](#coming-back-with-wyttoday)
 - [How to use :WYTGenerate](#how-to-use-wytgenerate)
 - [Mappings](#mappings)
 - [Automatic behaviour](#automatic-behaviour)
@@ -30,6 +31,7 @@ hidden in a database.
 | `plan.wyt.md` | the description, the loose ideas and the groups they gather into |
 | `text.wyt.md` | the prose, one paragraph per idea, written or generated |
 | `export.wyt.md` | the assembled document, rebuilt by `:WYTExport` |
+| `freewrite/*.md` | free writing, one file per start, outside the plan; created at the root |
 
 A **group** is a set of ideas that belong together. `<S-Tab>` on a group header
 turns it into a **section** of its own, with its own plan and groups, or writes
@@ -89,6 +91,11 @@ happens depends on the type's depth, below.
 
 ### Writing and generation
 
+- `:WYTToday`
+  The way back into a project: a recap of where you left off, what is still
+  open, a prompt for today, and a menu of where to start.
+  _See [Coming back with :WYTToday](#coming-back-with-wyttoday)._
+
 - `:WYTGenerate [instruction]`
   Generates at the cursor and inserts the result there.
   _The instruction is optional: without it, the position decides the task. See
@@ -114,6 +121,44 @@ is:
 ```
 cast/plan.wyt.md:7 (Ana): - goes quiet when she is afraid
 ```
+
+---
+
+## Coming back with :WYTToday
+
+Every save is a commit, so WYT knows where the last session stopped: the last
+line changed in the newest commit that touched a `text.wyt.md`. Plan saves do
+not count, since a plan is not where the writing stops. The recap grows with the
+time away, so that you do not spend your writing time rereading:
+
+| Away | The recap shows |
+|------|-----------------|
+| under a day | your last paragraph, word for word |
+| 1 day to under a week | that paragraph, and a short summary of its scene (its `## Group:` block) |
+| a week or more | that paragraph, and a summary of the whole `text.wyt.md` it is in |
+
+The last paragraph is always there word for word: a summary brings back what
+happened, but only your own sentence brings back the voice. Below it come the
+open items of the content sections (paragraphs to write, groups to implement,
+ideas without a group), and one prompt: a question meant to get you writing the
+next part right away.
+
+The menu offers, in this order:
+
+- **Continue**: back to the end of that paragraph.
+- **Write**: up to two open placeholders. The ones after the last edit, in the
+  same file, come first.
+- **Freewrite on the prompt**: a new file in `freewrite/`, headed by the prompt
+  as a `>` quote, in insert mode. Just **Freewrite**, on a blank file, when the
+  model gave no prompt.
+
+A freewrite buffer has no WYT keys and no line numbers, columns or signs: it is
+only for typing. It is committed on save like the rest, and a start closed
+without a word is deleted. It is not a section, so the export, `:WYTNav` and
+`:WYTSearch` leave it alone.
+
+The summary and the prompt come from the model, and nothing else in the brief
+does. With no API key, or no connection, the brief still opens without them.
 
 ---
 
@@ -213,6 +258,9 @@ This happens on its own, with nothing to run:
 | `TextChanged`, `InsertLeave` | `*plan.wyt.md` | Syncs after a 300 ms wait: the ideas in the groups are mirrored in the `## Ideas` section |
 | `BufWritePost` | `*plan.wyt.md` | Automatic commit: `"Save: plan.wyt.md"` |
 | `BufWritePost` | `*text.wyt.md` | Automatic commit: `"Save: text.wyt.md"` |
+| `BufEnter` | `freewrite/*.md` | Bare buffer: wrap at words, no numbers, signs or columns |
+| `BufWritePost` | `freewrite/*.md` | Automatic commit: `"Save: freewrite/<file>"` |
+| `BufUnload` | `freewrite/*.md` | Deletes the file when it still holds only the prompt |
 
 Every save commits, so the project's history is the history of the writing. You
 never need to touch git by hand.
