@@ -119,7 +119,7 @@
       <li><b>Export</b><code>:WYTExport</code> assembles everything into <code>export.wyt.md</code> at the root.</li>
     </ol>
     <p class="note">Saving commits, so you never touch git by hand. Every WYT jump saves first.</p>
-    <p class="note"><b>Coming back.</b> <code>:WYTToday</code> recaps where you stopped (the last paragraph, plus a summary after a day away), lists what is open, gives one prompt, and offers where to start: continue, an open placeholder, or a freewrite on the prompt. Free writing lands in <code>freewrite/</code>, outside the plan and the export.</p>
+    <p class="note"><b>Coming back.</b> <code>:WYTToday</code> recaps where you stopped (the last paragraph, plus a summary after a day away), lists what is open, gives one prompt, and offers where to start: continue, an open placeholder, or a freewrite on the prompt. Free writing lands in <code>freewrite/</code>, outside the plan and the export, until <code>:WYTPlace</code> moves it where it belongs.</p>
   </section>
 
   <div class="cols">
@@ -138,6 +138,7 @@
         <h2>WYT commands</h2>
         <table>
           <tr><td><code>:WYTToday</code></td><td>Recap, open items, a prompt, and where to start.</td></tr>
+          <tr><td><code>:WYTPlace</code></td><td>Move a freewrite's paragraphs into the project, each confirmed</td></tr>
           <tr><td><code>:WYTNew p</code></td><td>New project.</td></tr>
           <tr><td><code>:WYTNew i</code></td><td>New idea, free or by the type's guided questions.</td></tr>
           <tr><td><code>:WYTNew g</code></td><td>New group. Select idea lines with <kbd>V</kbd> first to pre-tick them.</td></tr>

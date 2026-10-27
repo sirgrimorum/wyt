@@ -10,6 +10,7 @@ To see everything in use, start to finish, read the
 - [Project structure](#project-structure)
 - [Commands](#commands)
 - [Coming back with :WYTToday](#coming-back-with-wyttoday)
+- [Placing a freewrite with :WYTPlace](#placing-a-freewrite-with-wytplace)
 - [How to use :WYTGenerate](#how-to-use-wytgenerate)
 - [Mappings](#mappings)
 - [Automatic behaviour](#automatic-behaviour)
@@ -31,7 +32,7 @@ hidden in a database.
 | `plan.wyt.md` | the description, the loose ideas and the groups they gather into |
 | `text.wyt.md` | the prose, one paragraph per idea, written or generated |
 | `export.wyt.md` | the assembled document, rebuilt by `:WYTExport` |
-| `freewrite/*.md` | free writing, one file per start, outside the plan; created at the root |
+| `freewrite/*.md` | free writing, one file per start, outside the plan until `:WYTPlace` moves it; created at the root |
 
 A **group** is a set of ideas that belong together. `<S-Tab>` on a group header
 turns it into a **section** of its own, with its own plan and groups, or writes
@@ -96,6 +97,11 @@ happens depends on the type's depth, below.
   open, a prompt for today, and a menu of where to start.
   _See [Coming back with :WYTToday](#coming-back-with-wyttoday)._
 
+- `:WYTPlace`
+  Moves the paragraphs of a freewrite to where they belong in the project, one
+  chunk at a time, each confirmed by you.
+  _See [Placing a freewrite with :WYTPlace](#placing-a-freewrite-with-wytplace)._
+
 - `:WYTGenerate [instruction]`
   Generates at the cursor and inserts the result there.
   _The instruction is optional: without it, the position decides the task. See
@@ -155,10 +161,42 @@ The menu offers, in this order:
 A freewrite buffer has no WYT keys and no line numbers, columns or signs: it is
 only for typing. It is committed on save like the rest, and a start closed
 without a word is deleted. It is not a section, so the export, `:WYTNav` and
-`:WYTSearch` leave it alone.
+`:WYTSearch` leave it alone until `:WYTPlace` moves its paragraphs into one.
 
 The summary and the prompt come from the model, and nothing else in the brief
 does. With no API key, or no connection, the brief still opens without them.
+
+## Placing a freewrite with :WYTPlace
+
+Write first, organise after. `:WYTPlace` runs on the freewrite on screen, or
+asks which one, newest first. The model groups its paragraphs into chunks and
+proposes one home for each:
+
+| Home | What happens to the chunk |
+|------|---------------------------|
+| After: section › group | added after the last paragraph written in that group |
+| New idea in: section › group: idea | added there too, and the idea the model named is added to the plan, under `## Ideas` and under the group |
+| Write: idea (section) | replaces that placeholder |
+| New group in: section: group › idea | a new `## Group:` holding the chunk, added to the text and claimed in the plan as implemented. In a section with `sections: true` the group is a section of its own instead (`sections: false`, prose, or the archetype of the reference section it sits in) |
+| Idea in: section | for a note, not prose: joined into one line, added under the plan's `## Ideas` |
+| nowhere yet | stays in the freewrite |
+
+The model names a new idea or group; if the name is taken, nothing moves and
+**Change it…** asks for another.
+
+Each chunk is shown in full with its proposed home, one at a time:
+
+- **Place it there**: done, on to the next chunk.
+- **Change it…**: type what should change, where it goes or how it is split,
+  and the model proposes again for that chunk. An empty answer goes back to the
+  menu; `<Esc>` stops.
+- **Leave it in freewrite**: on to the next chunk.
+
+`<Esc>` on the menu stops the run; what was placed stays placed. The model only
+splits and points: your words are moved as you wrote them, never rewritten.
+What was placed leaves the freewrite, and a freewrite left with nothing is
+deleted. The run ends in one commit, `"Save: placed freewrite/<file>"`, which
+`:WYTToday` reads as writing when a paragraph went into a `text.wyt.md`.
 
 ---
 

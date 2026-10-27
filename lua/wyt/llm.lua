@@ -645,4 +645,80 @@ function M.today(ctx, callback)
     end)
 end
 
+-- The model is handed numbers and ids, and answers with numbers and ids: the
+-- writer's paragraphs never pass through it on their way into a text.
+local PLACE_PROMPT = {
+    en = {
+        frame = "Project: %s",
+        paragraphs = "A writer wrote these paragraphs freely, before deciding where they go:\n<paragraphs>\n%s\n</paragraphs>",
+        targets = "Places in the project, by id:\n%s",
+        task = "Group the paragraphs that belong together into chunks, and give each chunk the one place"
+            .. ' where it fits best. Use "keep" for a chunk that fits nowhere yet. Do not rewrite them.'
+            .. ' A "New idea in" place needs "idea": a short name for what the chunk is about. A "New group in"'
+            .. ' place needs "group", a short name for the new group, and "idea". Prefer a place that exists;'
+            .. ' use "Idea in" only for a note, never for prose.',
+        change = 'The writer did not want "%s" and says: %s',
+        reply = 'Reply with a JSON object only, no code fences: {"chunks": [{"paragraphs": [1, 2], "target": "T3",'
+            .. ' "why": "one short sentence", "idea": "only for a new idea or group", "group": "only for a new group"}]}',
+    },
+    es = {
+        frame = "Proyecto: %s",
+        paragraphs = "Un autor escribió estos párrafos libremente, antes de decidir dónde van:\n<paragraphs>\n%s\n</paragraphs>",
+        targets = "Lugares del proyecto, por id:\n%s",
+        task = "Agrupa en fragmentos los párrafos que van juntos, y da a cada fragmento el único lugar"
+            .. ' donde mejor encaja. Usa "keep" para un fragmento que aún no encaja en ningún lugar. No los reescribas.'
+            .. ' Un lugar "Idea nueva en" necesita "idea": un nombre breve de lo que trata el fragmento. Un lugar'
+            .. ' "Grupo nuevo en" necesita "group", un nombre breve para el grupo nuevo, e "idea". Prefiere un lugar'
+            .. ' que ya existe; usa "Idea en" solo para una nota, nunca para prosa.',
+        change = 'El autor no quiso "%s" y dice: %s',
+        reply = 'Responde solo con un objeto JSON, sin bloques de código: {"chunks": [{"paragraphs": [1, 2], "target": "T3",'
+            .. ' "why": "una frase breve", "idea": "solo para una idea o un grupo nuevos", "group": "solo para un grupo nuevo"}]}',
+    },
+}
+
+--- The model's half of `:WYTPlace`. `ctx` is { lang, project, paragraphs, targets,
+--- change }: `paragraphs` is { { n, text } }, `targets` is { { id, label } }, and
+--- `change`, when the writer asked for one, is { previous = label, note }.
+--- The callback gets the chunks as the model gave them, unchecked:
+--- { { paragraphs = {n...}, target = id, why, idea, group } }, the last three
+--- strings or nil. A name lands in a plan line and a group heading, so it is
+--- stripped like any reply that lands in a file.
+function M.place(ctx, callback)
+    local words = PLACE_PROMPT[ctx.lang] or PLACE_PROMPT.en
+    local paragraphs, targets = {}, {}
+    for _, p in ipairs(ctx.paragraphs) do paragraphs[#paragraphs + 1] = "[" .. p.n .. "] " .. p.text end
+    for _, t in ipairs(ctx.targets) do targets[#targets + 1] = t.id .. ": " .. t.label end
+    local parts = {}
+    if ctx.project and ctx.project ~= "" then parts[#parts + 1] = words.frame:format(ctx.project) end
+    parts[#parts + 1] = words.paragraphs:format(table.concat(paragraphs, "\n\n"))
+    parts[#parts + 1] = words.targets:format(table.concat(targets, "\n"))
+    parts[#parts + 1] = words.task
+    if ctx.change then parts[#parts + 1] = words.change:format(ctx.change.previous, ctx.change.note) end
+    parts[#parts + 1] = words.reply
+
+    M.generate_text(table.concat(parts, "\n"), function(raw, err)
+        if err or not raw then
+            callback(nil, err)
+            return
+        end
+        local data = extract_json(raw)
+        if not data or type(data.chunks) ~= "table" then
+            callback(nil, "no chunks in the reply")
+            return
+        end
+        local function line(v)
+            v = type(v) == "string" and M.to_single_line(v) or ""
+            return v ~= "" and v or nil
+        end
+        local chunks = {}
+        for _, c in ipairs(data.chunks) do
+            if type(c) == "table" and type(c.paragraphs) == "table" then
+                chunks[#chunks + 1] = { paragraphs = c.paragraphs, target = c.target,
+                    why = line(c.why), idea = line(c.idea), group = line(c.group) }
+            end
+        end
+        callback(chunks)
+    end)
+end
+
 return M

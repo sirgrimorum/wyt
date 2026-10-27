@@ -37,7 +37,8 @@ Saving commits. You never touch git by hand, and every WYT jump saves first.
 **Coming back.** `:WYTToday` recaps where you stopped (the last paragraph, plus
 a summary after a day away), lists what is open, gives one prompt, and offers
 where to start: continue, an open placeholder, or a freewrite on the prompt.
-Free writing lands in `freewrite/`, outside the plan and the export.
+Free writing lands in `freewrite/`, outside the plan and the export, until
+`:WYTPlace` moves it where it belongs.
 
 ## WYT keys (normal mode, WYT files only)
 
@@ -55,6 +56,7 @@ Free writing lands in `freewrite/`, outside the plan and the export.
 | Command | Does |
 |---------|------|
 | `:WYTToday` | recap, open items, a prompt, and where to start |
+| `:WYTPlace` | move a freewrite's paragraphs into the project, each confirmed |
 | `:WYTNew p` | new project |
 | `:WYTNew i` | new idea, free or by the type's guided questions |
 | `:WYTNew g` | new group; select idea lines with `V` first to pre-tick them |

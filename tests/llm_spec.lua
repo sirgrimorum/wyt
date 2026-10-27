@@ -402,6 +402,43 @@ describe("llm.today", function()
     end)
 end)
 
+describe("llm.place", function()
+    local ctx = {
+        lang = "es",
+        paragraphs = { { n = 1, text = "La puerta." } },
+        targets = { { id = "T1", label = "Idea nueva en: Puerto" } },
+        change = { previous = "Idea en: Puerto", note = "es la huelga" },
+    }
+
+    it("asks in the project's language, with the writer's note", function()
+        local captured = helpers.capture_prompt('{"chunks": []}')
+        require("wyt.llm").place(ctx, function() end)
+        assert.matches("Un autor escribió estos párrafos", captured.prompt)
+        assert.truthy(captured.prompt:find("[1] La puerta.", 1, true))
+        assert.truthy(captured.prompt:find("T1: Idea nueva en: Puerto", 1, true))
+        assert.truthy(captured.prompt:find("es la huelga", 1, true))
+    end)
+
+    it("keeps each chunk's names to one clean line, and drops malformed chunks", function()
+        helpers.capture_prompt('```json\n{"chunks": [{"paragraphs": [1], "target": "T1", "idea": "## la puerta\\nencadenada", "why": ""},'
+            .. ' {"target": "T1"}, "x"]}\n```')
+        local got
+        require("wyt.llm").place(ctx, function(r) got = r end)
+        assert.equals(1, #got)
+        -- The first line only, undecorated: it becomes a plan line or a slug.
+        assert.equals("la puerta", got[1].idea)
+        assert.is_nil(got[1].why)
+    end)
+
+    it("is an error when the reply has no chunks", function()
+        helpers.capture_prompt("I would put it in the harbour.")
+        local got, err = false, nil
+        require("wyt.llm").place(ctx, function(r, e) got, err = r, e end)
+        assert.is_nil(got)
+        assert.truthy(err)
+    end)
+end)
+
 describe("a heading marker never survives into a name", function()
     it("is stripped from a single line, as it is from prose", function()
         assert.equals("A title", llm.to_single_line("## A title"))

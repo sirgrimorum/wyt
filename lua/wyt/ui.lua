@@ -98,7 +98,7 @@ end
 
 -- Windows hands the same file back with either separator, and its filesystem
 -- does not care about case, so paths are compared through this.
-local function canonical(path)
+function M.canonical(path)
     local full = vim.fn.fnamemodify(path, ":p"):gsub("\\", "/")
     if vim.fn.has("win32") == 1 then full = full:lower() end
     return full
@@ -118,14 +118,14 @@ end
 
 --- Jump to the window already showing `path`, in any tab. True when it found one.
 local function focus_existing(path)
-    local target = canonical(path)
+    local target = M.canonical(path)
     -- This tab's windows first. A file open both here and in a tab the writer
     -- left behind should not pull them out of the tab they are working in.
     local wins = vim.api.nvim_tabpage_list_wins(0)
     vim.list_extend(wins, vim.api.nvim_list_wins())
     for _, win in ipairs(wins) do
         local name = vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(win))
-        if name ~= "" and canonical(name) == target then
+        if name ~= "" and M.canonical(name) == target then
             vim.fn.win_gotoid(win)
             -- The file may have been rewritten on disk while it sat in that tab
             vim.cmd("silent! checktime")

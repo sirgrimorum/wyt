@@ -230,8 +230,15 @@ function M.today_command()
     end, { desc = loc.t("today_desc") })
 end
 
+function M.place_command()
+    vim.api.nvim_create_user_command("WYTPlace", function()
+        require("wyt.place").open()
+    end, { desc = loc.t("place_desc") })
+end
+
 function M.setup()
     M.today_command()
+    M.place_command()
     M.setup_command()
     M.generate_text_command()
     M.nav_command()

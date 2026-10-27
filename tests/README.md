@@ -35,6 +35,7 @@ and restore it yourself.
 | `export_spec.lua` | the finished document, per type, end to end |
 | `tree_spec.lua` | the section walk `:WYTNav` and `:WYTSearch` share |
 | `today_spec.lua` | what `:WYTToday` reads from git and the plans, its menu, and a freewrite |
+| `place_spec.lua` | where `:WYTPlace` lands each chunk, unchanged, and what stays in the freewrite |
 | `ui_spec.lua` | fitting text a prompt line would truncate, and opening files |
 | `localization_spec.lua` | key parity between the two languages |
 | `smoke_spec.lua` | every module loads, every command is registered |
@@ -92,9 +93,10 @@ What the specs leave out above, run for real: your own nvim config (Telescope
 draws the menus), the provider behind your API key, the curl transport, and the
 floating windows' contents. It builds a project whose prose was committed three
 days ago, then types `:WYTToday`, picks the freewrite in the picker, writes and
-saves, recaps again, and runs `:WYTNav` and `:WYTExport`. Keys go in through a
-terminal; the screen is read back over the child's RPC socket, every window and
-float on its tab. Each step's snapshot and `results.txt` land in `out_dir` (a
+saves, recaps again, runs `:WYTNav` and `:WYTExport`, and places the freewrite
+with `:WYTPlace`. Keys go in through a terminal; the screen is read back over
+the child's RPC socket, every window and float on its tab. Each step's
+snapshot and `results.txt` land in `out_dir` (a
 dated `wyt-drive-*` folder in the system temp directory by default), and it
 exits 1 when a check fails.
 

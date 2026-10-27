@@ -10,12 +10,31 @@ function M.lines(content)
     return vim.split((content or ""):gsub("\r\n", "\n"), "\n", { plain = true })
 end
 
+--- Whether each of `lines` sits inside a fence tagged `old`, where
+--- re-implementing a group parks the text of groups the plan dropped. The
+--- export leaves those out, so nothing there is open or a place to write. The
+--- fences are written back to back: "``````old" closes one and opens the next.
+function M.parked(lines)
+    local out, in_old = {}, false
+    for i, line in ipairs(lines) do
+        if in_old then
+            out[i] = true
+            if line:match("^```") then in_old = line:match("^```.*```old") ~= nil end
+        else
+            in_old = line:match("^```old") ~= nil
+            out[i] = in_old
+        end
+    end
+    return out
+end
+
 --- Placeholders still waiting in `lines`, as { line = n, idea = "..." }.
 function M.placeholders(project_mod, lines)
     local pat = require("wyt.text").placeholder_pattern(project_mod)
+    local parked = M.parked(lines)
     local found = {}
     for i, line in ipairs(lines) do
-        local idea = line:match(pat)
+        local idea = not parked[i] and line:match(pat)
         if idea then found[#found + 1] = { line = i, idea = idea } end
     end
     return found
@@ -54,7 +73,7 @@ end
 
 --- Every section in plan order, the root first: the same walk the export and
 --- `:WYTNav` make, so a folder no plan names is not part of it. Each entry is
---- { dir, definition, placeholders, ungrouped, pending_groups }.
+--- { dir, title, definition, placeholders, ungrouped, pending_groups }.
 function M.sections(project_mod)
     local out = {}
     local function walk(dir, level)
@@ -63,6 +82,7 @@ function M.sections(project_mod)
         local text = project_mod.read_file(dir .. "text.wyt.md")
         out[#out + 1] = {
             dir = dir,
+            title = plan_content:match("^#%s+([^\r\n]+)") or "",
             definition = level > 1 and project_mod.is_definition_section(dir),
             placeholders = text and M.placeholders(project_mod, M.lines(text)) or {},
             ungrouped = gaps.ungrouped,

@@ -173,6 +173,27 @@ local export = read(ROOT .. "export.wyt.md") or ""
 check(":WYTExport assembles the prose", export:find("Nobody unloaded anything that week", 1, true) ~= nil)
 check("export leaves freewrite out", export:find("grey coat", 1, true) == nil)
 
+-- Place, on the freewrite: the model may fairly keep the chunk, so moving it is
+-- checked only when the menu offered to.
+send(":edit freewrite/" .. files[1] .. "\r")
+pause(800)
+send(":WYTPlace\r")
+check(":WYTPlace shows a chunk and its menu", wait_for("Leave it in freewrite", 60000))
+pause(800)
+snap("place-menu")
+if screen():find("Place it there", 1, true) then
+    send("Place it")
+    pause(600)
+    send("\r")
+    pause(2500)
+    snap("placed")
+    check("placed text lands unchanged", (read(ROOT .. "text.wyt.md") or ""):find("a man in a grey coat held the key", 1, true) ~= nil)
+    check("place commit counts as writing", sh({ "log", "-1", "--format=%s" }).stdout:find("^Save: placed freewrite/") ~= nil)
+else
+    send("\27\27")
+    pause(800)
+end
+
 snap("final")
 local m = screen()
 check("no Lua errors in :messages", not (m:find("E5108", 1, true) or m:find("stack traceback", 1, true)))
