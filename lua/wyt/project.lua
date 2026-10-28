@@ -98,6 +98,14 @@ function M.write_file(path, content)
     return true
 end
 
+--- Write `content` with the line ending `like` had, the file as it was read, so
+--- a CRLF file does not show up whole in the commit. False when the write
+--- failed: write_file has said so.
+function M.write_file_like(path, content, like)
+    if like and like:find("\r\n", 1, true) then content = content:gsub("\r?\n", "\r\n") end
+    return M.write_file(path, content)
+end
+
 local function get_project_lang()
     local config_content = M.read_file(M.config_path)
     if not config_content then return "en" end

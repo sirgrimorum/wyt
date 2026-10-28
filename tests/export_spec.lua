@@ -189,3 +189,30 @@ describe("a group name that slugifies to nothing", function()
         assert.equals(1, count)
     end)
 end)
+
+describe("export and wyt markers", function()
+    local root
+    before_each(function() helpers.cleanup(root) end)
+
+    it("keeps a marker as written and says how many are left", function()
+        root = helpers.project({ type = "essay", name = "On Cities" })
+        section(root, "", "Density", { type = "essay", text = "Density came in wyt: the year :wyt.\n" })
+        section(root, "", "Notes", { type = "essay", text = "```old\nwyt(parked)\n```\n" })
+        local messages, restore = helpers.capture_notify()
+        local ui = require("wyt.ui")
+        local edit = ui.edit_file
+        ui.edit_file = function() end
+        -- The export assembles what was written: a marker is never answered here.
+        local llm = require("wyt.llm")
+        local generate_text, called = llm.generate_text, false
+        llm.generate_text = function() called = true end
+        require("wyt.export").export()
+        llm.generate_text = generate_text
+        ui.edit_file = edit
+        restore()
+        assert.falsy(called)
+        assert.matches("Density came in wyt: the year :wyt%.", helpers.read(root .. "export.wyt.md"))
+        local t = require("wyt.localization").t
+        assert.equals(t("export_markers_left", "en"):format(1), messages[#messages].msg)
+    end)
+end)

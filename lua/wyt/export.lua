@@ -134,6 +134,10 @@ function M.export()
     project.commit_changes("Export: " .. title)
 
     vim.notify(loc.t("export_generated") .. export_path, vim.log.levels.INFO)
+    -- Kept as written, since the export never calls the model; but a gap that
+    -- reaches the export should not go unnoticed.
+    local left = #require("wyt.markers").in_lines(require("wyt.status").lines(export_content))
+    if left > 0 then vim.notify(loc.t("export_markers_left"):format(left), vim.log.levels.WARN) end
     require("wyt.ui").edit_file(export_path)
 end
 

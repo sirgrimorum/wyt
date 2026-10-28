@@ -721,4 +721,108 @@ function M.place(ctx, callback)
     end)
 end
 
+-- What the writer keeps about the project, for the two calls that answer from
+-- it: the reference sections, then the text the question came from.
+local KNOWN_PROMPT = {
+    en = { frame = "Project: %s",
+        reference = "What the writer keeps as reference:\n<reference>\n%s\n</reference>",
+        text = "The text they are writing:\n<text>\n%s\n</text>" },
+    es = { frame = "Proyecto: %s",
+        reference = "Lo que el autor guarda como referencia:\n<reference>\n%s\n</reference>",
+        text = "El texto que está escribiendo:\n<text>\n%s\n</text>" },
+}
+
+-- The project, its reference and its text, as Ask and Resolve both open.
+local function known(ctx, parts)
+    local words = KNOWN_PROMPT[ctx.lang] or KNOWN_PROMPT.en
+    if ctx.project and ctx.project ~= "" then parts[#parts + 1] = words.frame:format(ctx.project) end
+    if ctx.reference and ctx.reference ~= "" then parts[#parts + 1] = words.reference:format(ctx.reference) end
+    if ctx.text and ctx.text ~= "" then parts[#parts + 1] = words.text:format(ctx.text) end
+end
+
+local ASK_PROMPT = {
+    en = { question = "The writer asks: %s",
+        task = "Answer briefly, from the reference and the text first. Say so when they do not say, and"
+            .. " then answer from what you know. Plain sentences, no headings or lists." },
+    es = { question = "El autor pregunta: %s",
+        task = "Responde brevemente, primero desde la referencia y el texto. Dilo cuando no lo dicen, y"
+            .. " entonces responde desde lo que sabes. Frases simples, sin títulos ni listas." },
+}
+
+--- The model's half of `:WYTAsk`. `ctx` is { lang, project, reference, text,
+--- question }. The answer is only shown, never written, but it is read as prose.
+function M.ask(ctx, callback)
+    local words = ASK_PROMPT[ctx.lang] or ASK_PROMPT.en
+    local parts = {}
+    known(ctx, parts)
+    parts[#parts + 1] = words.question:format(ctx.question)
+    parts[#parts + 1] = words.task
+    M.generate_text(table.concat(parts, "\n"), function(raw, err)
+        if err or not raw then return callback(nil, err) end
+        local answer = M.to_prose(raw)
+        if answer == "" then return callback(nil, "empty reply") end
+        callback(answer)
+    end)
+end
+
+local RESOLVE_PROMPT = {
+    en = { markers = "The writer left these gaps in their text, each a wyt marker with what it needs, by id,"
+            .. " and the paragraph it sits in:\n%s",
+        task = "For each, write only the words that replace the marker in its paragraph, in the language"
+            .. " of the text, so the sentence reads on. Give exactly what the marker asks for, in as few"
+            .. " words as the sentence needs (a name, a date, a place), and nothing it does not ask for."
+            .. " Take facts from the reference and the text first; otherwise give your best answer."
+            .. " Never rewrite the rest of the paragraph.",
+        change = 'The writer did not want "%s" and says: %s',
+        note = "The writer says: %s",
+        reply = 'Reply with a JSON object only, no code fences: {"answers": [{"id": "M1", "text": "..."}]}' },
+    es = { markers = "El autor dejó estos huecos en su texto, cada uno una marca wyt con lo que necesita, por id,"
+            .. " y el párrafo donde está:\n%s",
+        task = "Para cada uno, escribe solo las palabras que reemplazan la marca en su párrafo, en el idioma"
+            .. " del texto, de modo que la frase siga. Da exactamente lo que la marca pide, en tan pocas"
+            .. " palabras como la frase necesite (un nombre, una fecha, un lugar), y nada que no pida."
+            .. " Toma los datos primero de la referencia y del texto; si no, da tu mejor respuesta."
+            .. " Nunca reescribas el resto del párrafo.",
+        change = 'El autor no quiso "%s" y dice: %s',
+        note = "El autor dice: %s",
+        reply = 'Responde solo con un objeto JSON, sin bloques de código: {"answers": [{"id": "M1", "text": "..."}]}' },
+}
+
+--- The model's half of `:WYTResolve`. `ctx` is { lang, project, reference,
+--- markers = { { id, text, paragraph } }, change = { previous?, note } }. The
+--- callback gets { [id] = answer }: an answer lands in a text, so it is
+--- stripped like any reply that lands in a file.
+function M.resolve(ctx, callback)
+    local words = RESOLVE_PROMPT[ctx.lang] or RESOLVE_PROMPT.en
+    local list = {}
+    for _, m in ipairs(ctx.markers) do
+        list[#list + 1] = m.id .. ": " .. m.text .. "\n<paragraph>\n" .. (m.paragraph or "") .. "\n</paragraph>"
+    end
+    local parts = {}
+    known(ctx, parts)
+    parts[#parts + 1] = words.markers:format(table.concat(list, "\n\n"))
+    parts[#parts + 1] = words.task
+    -- No previous answer when the first reply had none for this marker.
+    if ctx.change and ctx.change.previous then
+        parts[#parts + 1] = words.change:format(ctx.change.previous, ctx.change.note)
+    elseif ctx.change then
+        parts[#parts + 1] = words.note:format(ctx.change.note)
+    end
+    parts[#parts + 1] = words.reply
+
+    M.generate_text(table.concat(parts, "\n"), function(raw, err)
+        if err or not raw then return callback(nil, err) end
+        local data = extract_json(raw)
+        if not data or type(data.answers) ~= "table" then return callback(nil, "no answers in the reply") end
+        local out = {}
+        for _, a in ipairs(data.answers) do
+            if type(a) == "table" and type(a.id) == "string" and type(a.text) == "string" then
+                local text = M.to_prose(a.text)
+                if text ~= "" then out[a.id] = text end
+            end
+        end
+        callback(out)
+    end)
+end
+
 return M

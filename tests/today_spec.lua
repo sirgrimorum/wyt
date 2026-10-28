@@ -176,14 +176,14 @@ end)
 describe("today.open_summary", function()
     local t = function(k) return require("wyt.localization").t(k, "en") end
 
-    it("counts what is open in the content sections, not the reference ones", function()
+    it("counts what is open in the content sections, and the markers of every section", function()
         local sections = {
-            { placeholders = { {}, {} }, pending_groups = { "G" }, ungrouped = 3 },
-            { definition = true, placeholders = { {} }, pending_groups = { "H" }, ungrouped = 5 },
+            { placeholders = { {}, {} }, markers = { {} }, pending_groups = { "G" }, ungrouped = 3 },
+            { definition = true, placeholders = { {} }, markers = { {}, {} }, pending_groups = { "H" }, ungrouped = 5 },
         }
-        assert.equals("paragraphs to write: 2, groups to implement: 1, ideas without a group: 3",
+        assert.equals("paragraphs to write: 2, groups to implement: 1, ideas without a group: 3, wyt markers to answer: 3",
             today.open_summary(sections, t))
-        assert.is_nil(today.open_summary({ { placeholders = {}, pending_groups = {}, ungrouped = 0 } }, t))
+        assert.is_nil(today.open_summary({ { placeholders = {}, markers = {}, pending_groups = {}, ungrouped = 0 } }, t))
     end)
 end)
 
@@ -263,7 +263,8 @@ describe(":WYTToday end to end", function()
     before_each(function() helpers.cleanup(root) end)
 
     local function port(seconds_ago)
-        root = helpers.project({ name = "The Port", description = "A town during a dock strike." })
+        -- Flat: the text sits at the root, which a project of sub-sections never exports.
+        root = helpers.project({ sections = false, name = "The Port", description = "A town during a dock strike." })
         git(root, { "init", "-q" })
         helpers.write(root .. "text.wyt.md", TEXT)
         commit_all(root, seconds_ago)

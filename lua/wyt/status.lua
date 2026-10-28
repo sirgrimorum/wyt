@@ -93,18 +93,22 @@ end
 
 --- Every section in plan order, the root first: the same walk the export and
 --- `:WYTNav` make, so a folder no plan names is not part of it. Each entry is
---- { dir, title, definition, placeholders, ungrouped, pending_groups }.
+--- { dir, title, definition, placeholders, markers, ungrouped, pending_groups }.
+--- A level that holds sub-sections has no text the export reads, so nothing
+--- open is counted in one left there.
 function M.sections(project_mod)
     local out = {}
     local function walk(dir, level)
         local plan_content = project_mod.read_file(dir .. "plan.wyt.md") or ""
         local gaps = M.plan_gaps(project_mod, plan_content)
-        local text = project_mod.read_file(dir .. "text.wyt.md")
+        local text = not M.nested(project_mod, dir) and project_mod.read_file(dir .. "text.wyt.md")
+        local lines = text and M.lines(text)
         out[#out + 1] = {
             dir = dir,
             title = plan_content:match("^#%s+([^\r\n]+)") or "",
             definition = level > 1 and project_mod.is_definition_section(dir),
-            placeholders = text and M.placeholders(project_mod, M.lines(text)) or {},
+            placeholders = lines and M.placeholders(project_mod, lines) or {},
+            markers = lines and require("wyt.markers").in_lines(lines, M.parked(lines)) or {},
             ungrouped = gaps.ungrouped,
             pending_groups = gaps.pending_groups,
         }

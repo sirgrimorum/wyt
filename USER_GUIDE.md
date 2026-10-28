@@ -11,6 +11,7 @@ To see everything in use, start to finish, read the
 - [Commands](#commands)
 - [Coming back with :WYTToday](#coming-back-with-wyttoday)
 - [Placing a freewrite with :WYTPlace](#placing-a-freewrite-with-wytplace)
+- [Leaving gaps: wyt markers](#leaving-gaps-wyt-markers)
 - [How to use :WYTGenerate](#how-to-use-wytgenerate)
 - [Mappings](#mappings)
 - [Automatic behaviour](#automatic-behaviour)
@@ -94,16 +95,17 @@ happens depends on the type's depth, below.
   Shows or hides a sidebar of the project, in the order the export walks it:
   each section, the groups written in its text, and, marked `○`, the groups
   its plan names with nothing written yet. The number on a row is what is open
-  there: a group counts its placeholders; a section counts everything open in
-  it and under it (placeholders, `○` groups, ideas without a group, and its
-  sub-sections), so the first row is the whole project. A last row counts
-  the freewrites waiting for `:WYTPlace`. `<CR>` opens the row in the window
-  beside it, a group at its line; on the freewrite row it opens the newest
-  freewrite and runs `:WYTPlace` on it; `p` opens the row's plan; `q` closes.
+  there: a group counts its placeholders and wyt markers; a section counts
+  everything open in it and under it (placeholders, markers, `○` groups, ideas
+  without a group, and its sub-sections), so the first row is the whole
+  project. A last row counts the freewrites waiting for `:WYTPlace`. `<CR>`
+  opens the row in the window beside it, a group at its line; on the freewrite
+  row it opens the newest freewrite and runs `:WYTPlace` on it; `p` opens the
+  row's plan; `q` closes.
   A section that holds sub-sections has no groups of its own in the list, its
   sub-sections are its groups, and `<CR>` opens its plan. It redraws when a
-  plan, text or freewrite is saved, after `:WYTPlace`, and when you return to
-  it.
+  plan, text or freewrite is saved, after `:WYTPlace` or `:WYTResolve`, and
+  when you return to it.
 
 ### Writing and generation
 
@@ -117,6 +119,16 @@ happens depends on the type's depth, below.
   chunk at a time, each confirmed by you.
   _See [Placing a freewrite with :WYTPlace](#placing-a-freewrite-with-wytplace)._
 
+- `:WYTResolve`
+  Answers the wyt markers of the text on screen, or of the whole project, each
+  answer confirmed by you.
+  _See [Leaving gaps: wyt markers](#leaving-gaps-wyt-markers)._
+
+- `:WYTAsk`
+  Asks the model a question about the project and shows the answer. It never
+  edits a file.
+  _See [Leaving gaps: wyt markers](#leaving-gaps-wyt-markers)._
+
 - `:WYTGenerate [instruction]`
   Generates at the cursor and inserts the result there.
   _The instruction is optional: without it, the position decides the task. See
@@ -127,7 +139,8 @@ happens depends on the type's depth, below.
   previous one and expands it.
 
 - `:WYTExport`
-  Assembles every section into the root's `export.wyt.md`.
+  Assembles every section into the root's `export.wyt.md`. A wyt marker is
+  kept as written, and a warning says how many are left.
 
 - `:checkhealth wyt`
   Checks dependencies, the LLM provider and where the API key comes from.
@@ -161,8 +174,8 @@ time away, so that you do not spend your writing time rereading:
 The last paragraph is always there word for word: a summary brings back what
 happened, but only your own sentence brings back the voice. Below it come the
 open items of the content sections (paragraphs to write, groups to implement,
-ideas without a group), and one prompt: a question meant to get you writing the
-next part right away.
+ideas without a group) and the wyt markers left anywhere, and one prompt: a
+question meant to get you writing the next part right away.
 
 The menu offers, in this order:
 
@@ -212,6 +225,43 @@ splits and points: your words are moved as you wrote them, never rewritten.
 What was placed leaves the freewrite, and a freewrite left with nothing is
 deleted. The run ends in one commit, `"Save: placed freewrite/<file>"`, which
 `:WYTToday` reads as writing when a paragraph went into a `text.wyt.md`.
+
+## Leaving gaps: wyt markers
+
+When a fact is missing, do not stop to look it up: leave a marker and keep
+writing.
+
+| You write | It asks for |
+|-----------|-------------|
+| `wyt: the year the law passed :wyt` | the words between the two |
+| `wyt(the sister's name)` | the words in the brackets |
+| `wyt: what the gate looked like` | the rest of the line, when nothing closes it |
+
+Case does not matter, so `WYT:` from handwriting recognition counts too. An
+empty marker is not one, and text parked in an ```` ```old ```` fence is left
+alone. Markers count as open work in the `:WYTToday` brief, reference sections
+included, and on the `:WYTOutline` rows; the export keeps them as written and
+warns about them.
+
+`:WYTResolve` answers them. From a `text.wyt.md` with markers it takes that
+text's; from anywhere else, every text in the project. One model call answers
+them all, from the reference sections and the paragraph each sits in, and each
+answer is shown with its paragraph:
+
+- **Use it**: the answer replaces the marker, on to the next one.
+- **Change it…**: type what should change, what it should say or where to look,
+  and the model answers that marker again. An empty answer goes back to the
+  menu; `<Esc>` stops.
+- **Skip**: the marker stays, on to the next one.
+
+`<Esc>` on the menu stops the run, and what you took is still written. A marker
+in the middle of a sentence gets its answer on the same line; a marker alone on
+its line can become paragraphs. A marker whose line you changed during the run
+is left as it is. The run ends in one commit, `"Save: resolved wyt markers"`.
+
+`:WYTAsk` is for a question rather than a gap: type it, and the answer, from
+the reference sections and the file on screen, shows in a panel under **Ask
+another** and **Close**. Nothing is written.
 
 ---
 

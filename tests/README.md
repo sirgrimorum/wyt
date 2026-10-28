@@ -36,6 +36,8 @@ and restore it yourself.
 | `tree_spec.lua` | the section walk `:WYTNav` and `:WYTSearch` share |
 | `today_spec.lua` | what `:WYTToday` reads from git and the plans, its menu, and a freewrite |
 | `place_spec.lua` | where `:WYTPlace` lands each chunk, unchanged, and what stays in the freewrite |
+| `markers_spec.lua` | what counts as a wyt marker, its columns past accents, and what an answer does to its line |
+| `resolve_spec.lua` | which markers `:WYTResolve` asks about, what it answers from, that only the answers taken land, CRLF kept; `:WYTAsk` never writes |
 | `outline_spec.lua` | the rows `:WYTOutline` shows, where each opens, and the redraw on save |
 | `ui_spec.lua` | fitting text a prompt line would truncate, and opening files |
 | `localization_spec.lua` | key parity between the two languages |
@@ -95,7 +97,8 @@ draws the menus), the provider behind your API key, the curl transport, and the
 floating windows' contents. It builds a project whose prose was committed three
 days ago, then types `:WYTToday`, picks the freewrite in the picker, writes and
 saves, recaps again, runs `:WYTNav` and `:WYTExport`, places the freewrite with
-`:WYTPlace`, and opens a group from `:WYTOutline`. Keys go in through a
+`:WYTPlace`, opens a group from `:WYTOutline`, answers a wyt marker with
+`:WYTResolve`, and asks a question with `:WYTAsk`. Keys go in through a
 terminal; the screen is read back over the child's RPC socket, every window and
 float on its tab. Each step's snapshot and `results.txt` land in `out_dir` (a
 dated `wyt-drive-*` folder in the system temp directory by default), and it

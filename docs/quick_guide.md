@@ -40,6 +40,10 @@ where to start: continue, an open placeholder, or a freewrite on the prompt.
 Free writing lands in `freewrite/`, outside the plan and the export, until
 `:WYTPlace` moves it where it belongs.
 
+**Gaps.** Do not stop for a missing fact: write `wyt: the year :wyt` or
+`wyt(her name)` and keep going. `:WYTResolve` answers the markers later, each
+confirmed; `:WYTAsk` answers a question without touching the text.
+
 ## WYT keys (normal mode, WYT files only)
 
 | Key | In | Does |
@@ -57,6 +61,8 @@ Free writing lands in `freewrite/`, outside the plan and the export, until
 |---------|------|
 | `:WYTToday` | recap, open items, a prompt, and where to start |
 | `:WYTPlace` | move a freewrite's paragraphs into the project, each confirmed |
+| `:WYTResolve` | answer the `wyt:` markers in this text, or the project, each confirmed |
+| `:WYTAsk` | ask about the project; the answer is shown, nothing is written |
 | `:WYTNew p` | new project |
 | `:WYTNew i` | new idea, free or by the type's guided questions |
 | `:WYTNew g` | new group; select idea lines with `V` first to pre-tick them |

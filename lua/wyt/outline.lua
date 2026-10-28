@@ -24,11 +24,12 @@ end
 
 --- The outline of the project, in plan order: rows { text, count, path, line,
 --- plan, planned, freewrite }. A planned row is a group the plan names and
---- nothing has been written for. A group counts its placeholders; a section
---- counts everything open in it and under it, so the root is the whole project
---- and the numbers lead down to where the work is. Walked here rather than from status.sections
---- so a planned group sits where its plan puts it, between the sections around
---- it; the walk is the same, a folder no plan names is not part of it.
+--- nothing has been written for. A group counts its placeholders and wyt
+--- markers; a section counts everything open in it and under it, so the root
+--- is the whole project and the numbers lead down to where the work is. Walked
+--- here rather than from status.sections so a planned group sits where its plan
+--- puts it, between the sections around it; the walk is the same, a folder no
+--- plan names is not part of it.
 function M.rows(project_mod)
     local status = require("wyt.status")
     local pat = require("wyt.text").placeholder_pattern(project_mod)
@@ -52,6 +53,7 @@ function M.rows(project_mod)
         rows[#rows + 1] = section
         local written, order = {}, {}
         if text then
+            local find = require("wyt.markers").find
             local lines = status.lines(text)
             local parked = status.parked(lines)
             local group
@@ -62,9 +64,10 @@ function M.rows(project_mod)
                         name = project_mod.clean_group_name(name)
                         group = { text = indent .. "  " .. name, count = 0, path = text_path, line = i, plan = plan_path }
                         written[name], order[#order + 1] = group, name
-                    elseif line:match(pat) then
-                        section.count = section.count + 1
-                        if group then group.count = group.count + 1 end
+                    else
+                        local open = (line:match(pat) and 1 or 0) + #find(line)
+                        section.count = section.count + open
+                        if group then group.count = group.count + open end
                     end
                 end
             end

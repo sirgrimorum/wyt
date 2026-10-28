@@ -208,6 +208,40 @@ send(":WYTOutline\r")
 pause(600)
 check("outline closes", child("return #vim.api.nvim_tabpage_list_wins(0)") == 1)
 
+-- A gap left while writing, answered by the model through the real picker.
+child([[vim.cmd("edit " .. vim.fn.fnameescape(vim.fn.getcwd() .. "/text.wyt.md"))
+    vim.api.nvim_buf_set_lines(0, -1, -1, false, { "", "The ferry came in from wyt(the port it left)." })
+    vim.cmd("silent write")]])
+pause(1500)
+send(":WYTResolve\r")
+check(":WYTResolve shows a marker and its menu", wait_for("Skip", 60000))
+pause(800)
+snap("resolve-menu")
+if screen():find("Use it", 1, true) then
+    send("Use it")
+    pause(600)
+    send("\r")
+    pause(2500)
+    snap("resolved")
+    local text = read(ROOT .. "text.wyt.md") or ""
+    check("the answer replaces the marker", text:find("The ferry came in from ", 1, true) ~= nil
+        and text:find("wyt(", 1, true) == nil)
+    check("resolve commits", sh({ "log", "-1", "--format=%s" }).stdout:find("^Save: resolved wyt markers") ~= nil)
+else
+    check("the model answered the marker", false)
+    send("\27\27")
+    pause(800)
+end
+
+send(":WYTAsk\r")
+pause(800)
+send("Where does the story happen?\r")
+check(":WYTAsk shows an answer and its menu", wait_for("Ask another", 60000))
+pause(800)
+snap("ask")
+send("\27\27")
+pause(600)
+
 snap("final")
 local m = screen()
 check("no Lua errors in :messages", not (m:find("E5108", 1, true) or m:find("stack traceback", 1, true)))

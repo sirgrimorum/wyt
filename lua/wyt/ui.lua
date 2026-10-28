@@ -104,6 +104,44 @@ function M.canonical(path)
     return full
 end
 
+--- The loaded buffer that holds `path`, or nil. Not bufnr(), which reads its
+--- argument as a pattern; names compare the way canonical has Windows compare them.
+function M.buffer_of(path)
+    local want = M.canonical(path)
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+        local name = vim.api.nvim_buf_get_name(b)
+        if vim.api.nvim_buf_is_loaded(b) and name ~= "" and M.canonical(name) == want then return b end
+    end
+end
+
+--- Files written while their buffers sat loaded (a set of paths): reread them,
+--- or the next save of a stale buffer writes the old text back out. A buffer
+--- with edits made meanwhile is left alone rather than thrown away: Neovim
+--- asks before saving it over the file that changed.
+function M.reload(paths)
+    for path in pairs(paths) do
+        local b = M.buffer_of(path)
+        if b and not vim.bo[b].modified then
+            vim.api.nvim_buf_call(b, function() vim.cmd("silent edit!") end)
+        end
+    end
+end
+
+--- Save every buffer under `root` with unsaved text, before a command rewrites
+--- files on disk: the buffer would either lose that text or put the old text
+--- back out on its next save. Only that project's: a buffer elsewhere is not
+--- WYT's to write.
+function M.save_project(root)
+    root = M.canonical(root)
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+        local name = vim.api.nvim_buf_get_name(b)
+        if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].modified and vim.bo[b].buftype == "" and name ~= ""
+            and vim.startswith(M.canonical(name), root) then
+            vim.api.nvim_buf_call(b, function() pcall(vim.cmd, "silent write") end)
+        end
+    end
+end
+
 --- Write the current buffer if it has unsaved changes.
 --- Navigation moves between files of one project, and an edit that was never
 --- written is lost to the move. Writing also fires the auto-commit, so the step
@@ -193,6 +231,9 @@ function M.ask_input(q, on_input)
     local panel, prompt = place(q)
     vim.ui.input({ prompt = loc.pad(prompt), default = q.default }, function(answer)
         M.close(panel)
+        -- The typed answer is still on the command line: the "[WYT] ..." most
+        -- callers notify next would go under it and stop on Press ENTER.
+        vim.cmd("redraw")
         on_input(answer)
     end)
 end

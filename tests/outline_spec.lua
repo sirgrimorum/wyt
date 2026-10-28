@@ -206,3 +206,17 @@ describe(":WYTOutline", function()
         assert.falsy(vim.wo.winfixbuf)
     end)
 end)
+
+describe("outline.rows and wyt markers", function()
+    local root
+    before_each(function() helpers.cleanup(root); root = setup_project() end)
+
+    it("counts a marker as open, in its group and every section above it", function()
+        helpers.write(root .. "part-one/text.wyt.md",
+            (PART_TEXT:gsub("Nobody unloaded", "In wyt(the year), nobody unloaded")))
+        local got = vim.tbl_map(function(r) return { r.text, r.count } end, outline.rows(project))
+        assert.same({ "The Port", 6 }, got[1])
+        assert.same({ "  Part one", 4 }, got[2])
+        assert.same({ "    The strike", 1 }, got[4])
+    end)
+end)

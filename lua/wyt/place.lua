@@ -126,13 +126,6 @@ end
 
 local function trimmed(content) return ((content or ""):gsub("%s+$", "")) end
 
--- Written with the line ending the file had, so a CRLF file does not show up
--- whole in the commit. False when the write failed: write_file has said so.
-local function save(project_mod, path, content, like)
-    if like and like:find("\r\n", 1, true) then content = content:gsub("\r?\n", "\r\n") end
-    return project_mod.write_file(path, content)
-end
-
 -- The plan side of a new idea: tagged under Ideas, the way a group claims its
 -- ideas, and listed under the group itself.
 local function plan_with_idea(project_mod, plan, group, idea)
@@ -188,12 +181,12 @@ local function new_group(project_mod, c, text, plan, plan_path, raw_plan)
     else
         local raw = project_mod.read_file(text_path)
         local current = trimmed(raw):gsub("\r\n", "\n")
-        if not save(project_mod, text_path, (current == "" and "" or current .. "\n\n")
+        if not project_mod.write_file_like(text_path, (current == "" and "" or current .. "\n\n")
             .. block .. c.group .. "\n\n" .. text .. "\n", raw) then return nil end
     end
     plan = require("wyt.plan").add_item_to_section(plan, t("ideas_section"),
         c.idea .. " [" .. t("group_tag") .. ": " .. c.group .. "]")
-    save(project_mod, plan_path, trimmed(plan) .. "\n\n" .. block .. c.group
+    project_mod.write_file_like(plan_path, trimmed(plan) .. "\n\n" .. block .. c.group
         .. " [" .. t("implemented") .. "]\n- " .. c.idea .. "\n", raw_plan)
     return { text_path, plan_path }
 end
@@ -214,7 +207,7 @@ function M.apply(project_mod, c, text)
     if target.kind == "idea" then
         -- An idea is one line in the plan.
         local item = (text:gsub("%s*\n%s*", " "))
-        local ok = save(project_mod, plan_path,
+        local ok = project_mod.write_file_like(plan_path,
             require("wyt.plan").add_item_to_section(plan, project_mod.t("ideas_section"), item), raw_plan)
         return ok and { plan_path } or nil
     end
@@ -240,33 +233,10 @@ function M.apply(project_mod, c, text)
         if not at then return nil, "place_gone" end
         insert(lines, at, "\n" .. text)
     end
-    if not save(project_mod, target.path, table.concat(lines, "\n"), raw) then return nil end
+    if not project_mod.write_file_like(target.path, table.concat(lines, "\n"), raw) then return nil end
     if target.kind ~= "new_idea" then return { target.path } end
-    save(project_mod, plan_path, plan_with_idea(project_mod, plan, target.key, c.idea), raw_plan)
+    project_mod.write_file_like(plan_path, plan_with_idea(project_mod, plan, target.key, c.idea), raw_plan)
     return { target.path, plan_path }
-end
-
--- The loaded buffer of `path`, or nil. Not bufnr(), which reads its argument
--- as a pattern; names compare the way ui.canonical has Windows compare them.
-local function buffer_of(path)
-    local want = require("wyt.ui").canonical(path)
-    for _, b in ipairs(vim.api.nvim_list_bufs()) do
-        local name = vim.api.nvim_buf_get_name(b)
-        if vim.api.nvim_buf_is_loaded(b) and name ~= "" and require("wyt.ui").canonical(name) == want then return b end
-    end
-end
-
--- Files written while their buffers sat loaded: reread them, or the next save
--- of a stale buffer writes the placed text back out. A buffer with edits made
--- during the run is left alone rather than thrown away: Neovim asks before
--- saving it over the file that changed.
-local function reload(paths)
-    for path in pairs(paths) do
-        local b = buffer_of(path)
-        if b and not vim.bo[b].modified then
-            vim.api.nvim_buf_call(b, function() vim.cmd("silent edit!") end)
-        end
-    end
 end
 
 --- Where chunk `c` would go, as the menu says it.
@@ -294,7 +264,7 @@ function M.run(path)
     -- Read-only for the run: the paragraphs were read once, and what is typed
     -- in the freewrite meanwhile would be overwritten at the end, or saved back
     -- over a freewrite the run deleted. Every way out of the run unlocks it.
-    local fw_buf = buffer_of(path)
+    local fw_buf = ui.buffer_of(path)
     local was = fw_buf and vim.bo[fw_buf].modifiable
     local function unlock()
         if fw_buf and vim.api.nvim_buf_is_valid(fw_buf) then vim.bo[fw_buf].modifiable = was end
@@ -338,10 +308,10 @@ function M.run(path)
             project.write_file(path, table.concat(rest, "\n\n") .. "\n")
             written[path] = true
         end
-        reload(written)
+        ui.reload(written)
         ui.edit_file(last_path)
         if removed then
-            local b = buffer_of(path)
+            local b = ui.buffer_of(path)
             if b then vim.api.nvim_buf_delete(b, { force = true }) end
         end
         project.commit_changes("Save: placed freewrite/" .. vim.fn.fnamemodify(path, ":t"))
@@ -405,18 +375,7 @@ end
 function M.open()
     local project = require("wyt.project")
     if not project.setup() then return end
-    -- Place rewrites files on disk, and a buffer with unsaved text would
-    -- either lose it or put the placed text back out on its next save. Only
-    -- this project's: a buffer elsewhere is not Place's to write.
-    local ui = require("wyt.ui")
-    local root = ui.canonical(project.project_root)
-    for _, b in ipairs(vim.api.nvim_list_bufs()) do
-        local name = vim.api.nvim_buf_get_name(b)
-        if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].modified and vim.bo[b].buftype == "" and name ~= ""
-            and vim.startswith(ui.canonical(name), root) then
-            vim.api.nvim_buf_call(b, function() pcall(vim.cmd, "silent write") end)
-        end
-    end
+    require("wyt.ui").save_project(project.project_root)
     local current = vim.fn.expand("%:p")
     if require("wyt.freewrite").is_freewrite(current) then return M.run(current) end
 

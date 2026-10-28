@@ -27,20 +27,23 @@ end
 
 --- One line of what is still open across the content sections, or nil.
 --- Reference sections are left out: an unexpanded character sheet is not
---- something the writer came to write today.
+--- something the writer came to write today. Their wyt markers still count:
+--- a gap left in the notes is one the writer chose to come back to.
 function M.open_summary(sections, t)
-    local placeholders, groups, ideas = 0, 0, 0
+    local placeholders, groups, ideas, marks = 0, 0, 0, 0
     for _, s in ipairs(sections) do
         if not s.definition then
             placeholders = placeholders + #s.placeholders
             groups = groups + #s.pending_groups
             ideas = ideas + s.ungrouped
         end
+        marks = marks + #s.markers
     end
     local parts = {}
     if placeholders > 0 then parts[#parts + 1] = t("today_open_placeholders"):format(placeholders) end
     if groups > 0 then parts[#parts + 1] = t("today_open_groups"):format(groups) end
     if ideas > 0 then parts[#parts + 1] = t("today_open_ideas"):format(ideas) end
+    if marks > 0 then parts[#parts + 1] = t("today_open_markers"):format(marks) end
     if #parts == 0 then return nil end
     return table.concat(parts, ", ")
 end

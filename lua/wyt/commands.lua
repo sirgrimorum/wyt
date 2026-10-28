@@ -242,10 +242,24 @@ function M.outline_command()
     end, { desc = loc.t("outline_desc") })
 end
 
+function M.resolve_command()
+    vim.api.nvim_create_user_command("WYTResolve", function()
+        require("wyt.resolve").open()
+    end, { desc = loc.t("resolve_desc") })
+end
+
+function M.ask_command()
+    vim.api.nvim_create_user_command("WYTAsk", function()
+        require("wyt.ask").open()
+    end, { desc = loc.t("ask_desc") })
+end
+
 function M.setup()
     M.today_command()
     M.place_command()
     M.outline_command()
+    M.resolve_command()
+    M.ask_command()
     M.setup_command()
     M.generate_text_command()
     M.nav_command()

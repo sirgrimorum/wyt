@@ -35,6 +35,20 @@ local function collect_definition_files(project_mod, dir, results)
     return results
 end
 
+--- What the writer keeps as reference, every definition section's files as
+--- one text, each under its path: what `:WYTResolve` and `:WYTAsk` answer from
+--- first, since a name or a date the writer already settled is there.
+function M.reference(project_mod)
+    local parts = {}
+    for _, path in ipairs(collect_definition_files(project_mod, project_mod.project_root)) do
+        local content = vim.trim(project_mod.read_file(path) or "")
+        if content ~= "" then
+            parts[#parts + 1] = "--- " .. path:sub(#project_mod.project_root + 1) .. "\n" .. content
+        end
+    end
+    return table.concat(parts, "\n\n")
+end
+
 function M.search()
     local project = require("wyt.project")
     local loc = require("wyt.localization")
