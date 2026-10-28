@@ -76,17 +76,25 @@ local function handle_response(result, callback, extract)
         -- A JSON null decodes to vim.NIL, which is truthy: a refusal with
         -- "content": null used to reach the callback as userdata and blow up in
         -- the first gsub, leaving the rest of a batch unfinished.
-        local text = extract(data)
+        local text, err = extract(data)
+        if err then return callback(nil, err) end
         callback(type(text) == "string" and text or "", nil)
     end)
 end
 
 -- Internal: call OpenAI chat completions endpoint
-local function call_openai(prompt, api_key, callback)
+local function call_openai(prompt, api_key, callback, opts)
+    local content = prompt
+    if opts.pdf then
+        content = {
+            { type = "file", file = { filename = "notes.pdf", file_data = "data:application/pdf;base64," .. opts.pdf } },
+            { type = "text", text = prompt },
+        }
+    end
     local body = vim.json.encode({
         model = "gpt-4o",
-        messages = { { role = "user", content = prompt } },
-        max_tokens = 1024,
+        messages = { { role = "user", content = content } },
+        max_tokens = opts.max_tokens or 1024,
     })
     curl_request(
         "https://api.openai.com/v1/chat/completions",
@@ -97,6 +105,11 @@ local function call_openai(prompt, api_key, callback)
         body,
         function(result)
             handle_response(result, callback, function(data)
+                -- A reply cut at the token limit reads as a whole one: an
+                -- import would record the full file and lose the rest of it.
+                if data.choices and data.choices[1] and data.choices[1].finish_reason == "length" then
+                    return nil, "the reply was cut off at the token limit"
+                end
                 return data.choices
                     and data.choices[1]
                     and data.choices[1].message
@@ -107,11 +120,18 @@ local function call_openai(prompt, api_key, callback)
 end
 
 -- Internal: call Anthropic Messages endpoint
-local function call_claude(prompt, api_key, callback)
+local function call_claude(prompt, api_key, callback, opts)
+    local content = prompt
+    if opts.pdf then
+        content = {
+            { type = "document", source = { type = "base64", media_type = "application/pdf", data = opts.pdf } },
+            { type = "text", text = prompt },
+        }
+    end
     local body = vim.json.encode({
         model = "claude-opus-4-6",
-        max_tokens = 1024,
-        messages = { { role = "user", content = prompt } },
+        max_tokens = opts.max_tokens or 1024,
+        messages = { { role = "user", content = content } },
     })
     curl_request(
         "https://api.anthropic.com/v1/messages",
@@ -123,14 +143,18 @@ local function call_claude(prompt, api_key, callback)
         body,
         function(result)
             handle_response(result, callback, function(data)
+                if data.stop_reason == "max_tokens" then return nil, "the reply was cut off at the token limit" end
                 return data.content and data.content[1] and data.content[1].text
             end)
         end
     )
 end
 
--- Public async API: callback(result_string, err_string_or_nil)
-function M.generate_text(prompt, callback)
+-- Public async API: callback(result_string, err_string_or_nil). `opts` is
+-- optional: { pdf = base64 of a PDF the model reads with the prompt,
+-- max_tokens = a longer reply than the default allows }.
+function M.generate_text(prompt, callback, opts)
+    opts = opts or {}
     local provider, api_key, key_err = get_opts()
 
     if key_err then
@@ -150,9 +174,9 @@ function M.generate_text(prompt, callback)
     end
 
     if provider == "openai" then
-        call_openai(prompt, api_key, callback)
+        call_openai(prompt, api_key, callback, opts)
     elseif provider == "claude" then
-        call_claude(prompt, api_key, callback)
+        call_claude(prompt, api_key, callback, opts)
     else
         if callback then
             callback(nil, require("wyt.localization").t("provider_not_supported"))
@@ -823,6 +847,80 @@ function M.resolve(ctx, callback)
         end
         callback(out)
     end)
+end
+
+-- Handwriting from the Boox, read by its recognition or by the model. Both ask
+-- for the writer's words as written: a tidier sentence is not theirs. The
+-- markers are named because recognition misreads short odd words first.
+local IMPORT_PROMPT = {
+    en = { clean = "This text came from handwriting recognition on an e-ink tablet:\n<text>\n%s\n</text>\n"
+            .. "Fix only what the recognition got wrong: misread words, a paragraph broken across lines,"
+            .. " stray symbols. Keep the writer's words, their order, their punctuation and their"
+            .. " paragraphs; never improve the style.",
+        read = "This PDF holds handwritten pages from an e-ink tablet. Transcribe the handwriting word for"
+            .. " word, from page %d to the end; leave out the pages before it. Keep the writer's words, their"
+            .. " order and their paragraphs; never improve the style. Leave out drawings and crossed-out words.",
+        markers = "The writer marks gaps as `wyt: ... :wyt` or `wyt( ... )`, and they may read as wvt, vyt,"
+            .. " w y t, WYT; or similar. Write each back exactly in one of those two forms.",
+        change = "The writer did not want this version:\n<previous>\n%s\n</previous>\nand says: %s",
+        clean_reply = "Paragraphs separated by a blank line. Reply with the text only.",
+        read_reply = 'Reply with a JSON object only, no code fences: {"pages": <how many pages the PDF has>,'
+            .. ' "text": "<the transcription, paragraphs separated by a blank line>"}' },
+    es = { clean = "Este texto viene del reconocimiento de escritura a mano de una tableta de tinta electrónica:\n<text>\n%s\n</text>\n"
+            .. "Corrige solo lo que el reconocimiento leyó mal: palabras mal leídas, un párrafo partido en"
+            .. " líneas, símbolos sueltos. Conserva las palabras del autor, su orden, su puntuación y sus"
+            .. " párrafos; nunca mejores el estilo.",
+        read = "Este PDF tiene páginas escritas a mano en una tableta de tinta electrónica. Transcribe la letra"
+            .. " palabra por palabra, desde la página %d hasta el final; omite las páginas anteriores. Conserva"
+            .. " las palabras del autor, su orden y sus párrafos; nunca mejores el estilo. Omite dibujos y"
+            .. " palabras tachadas.",
+        markers = "El autor marca los huecos como `wyt: ... :wyt` o `wyt( ... )`, y pueden leerse como wvt,"
+            .. " vyt, w y t, WYT; o algo parecido. Escribe cada uno exactamente en una de esas dos formas.",
+        change = "El autor no quiso esta versión:\n<previous>\n%s\n</previous>\ny dice: %s",
+        clean_reply = "Párrafos separados por una línea en blanco. Responde solo con el texto.",
+        read_reply = 'Responde solo con un objeto JSON, sin bloques de código: {"pages": <cuántas páginas tiene el PDF>,'
+            .. ' "text": "<la transcripción, párrafos separados por una línea en blanco>"}' },
+}
+
+-- A notebook's worth of handwriting runs well past the default reply.
+local IMPORT_TOKENS = 8192
+
+local function import_change(words, ctx, parts)
+    if ctx.note then parts[#parts + 1] = words.change:format(ctx.previous or "", ctx.note) end
+end
+
+--- Clean up text from the Boox's own recognition. `ctx` is { lang, text,
+--- note, previous }, the last two after Change it…. The callback gets the
+--- cleaned text, stripped like any reply that lands in a file.
+function M.clean_recognized(ctx, callback)
+    local words = IMPORT_PROMPT[ctx.lang] or IMPORT_PROMPT.en
+    local parts = { words.clean:format(ctx.text), words.markers }
+    import_change(words, ctx, parts)
+    parts[#parts + 1] = words.clean_reply
+    M.generate_text(table.concat(parts, "\n"), function(raw, err)
+        if err or not raw then return callback(nil, err) end
+        local text = M.to_prose(raw)
+        if text == "" then return callback(nil, "empty reply") end
+        callback(text)
+    end, { max_tokens = IMPORT_TOKENS })
+end
+
+--- Transcribe the handwriting of a PDF, from page `ctx.from` on. `ctx` is
+--- { lang, pdf = base64, from, note, previous }. The callback gets { text,
+--- pages }, how many pages the PDF has, so the next import starts after them.
+function M.transcribe(ctx, callback)
+    local words = IMPORT_PROMPT[ctx.lang] or IMPORT_PROMPT.en
+    local parts = { words.read:format(ctx.from or 1), words.markers }
+    import_change(words, ctx, parts)
+    parts[#parts + 1] = words.read_reply
+    M.generate_text(table.concat(parts, "\n"), function(raw, err)
+        if err or not raw then return callback(nil, err) end
+        local data = extract_json(raw)
+        if not data or type(data.text) ~= "string" or type(data.pages) ~= "number" then
+            return callback(nil, "no transcription in the reply")
+        end
+        callback({ text = M.to_prose(data.text), pages = math.floor(data.pages) })
+    end, { pdf = ctx.pdf, max_tokens = IMPORT_TOKENS })
 end
 
 return M

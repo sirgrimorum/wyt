@@ -44,6 +44,11 @@ Free writing lands in `freewrite/`, outside the plan and the export, until
 `wyt(her name)` and keep going. `:WYTResolve` answers the markers later, each
 confirmed; `:WYTAsk` answers a question without touching the text.
 
+**From the Boox.** `:WYTImport` reads the folder the tablet syncs to (asked
+once, never written to) and brings what is new into `freewrite/`: a `.txt` as
+a word-by-word cleanup to confirm, a `.pdf` as a transcription. Then
+`:WYTPlace` it.
+
 ## WYT keys (normal mode, WYT files only)
 
 | Key | In | Does |
@@ -63,6 +68,7 @@ confirmed; `:WYTAsk` answers a question without touching the text.
 | `:WYTPlace` | move a freewrite's paragraphs into the project, each confirmed |
 | `:WYTResolve` | answer the `wyt:` markers in this text, or the project, each confirmed |
 | `:WYTAsk` | ask about the project; the answer is shown, nothing is written |
+| `:WYTImport` | bring what is new in the Boox folder into `freewrite/`, each confirmed |
 | `:WYTNew p` | new project |
 | `:WYTNew i` | new idea, free or by the type's guided questions |
 | `:WYTNew g` | new group; select idea lines with `V` first to pre-tick them |

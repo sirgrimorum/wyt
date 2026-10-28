@@ -449,3 +449,70 @@ describe("a heading marker never survives into a name", function()
         assert.equals("#silence", llm.to_single_line("#silence"))
     end)
 end)
+
+describe("llm.generate_text with a PDF", function()
+    local config = require("wyt.config")
+
+    -- The request body each provider would have been sent, read back from the
+    -- curl config on stdin. The transport is stubbed, so nothing goes out.
+    local function body_for(provider)
+        local options, system = config.options, vim.system
+        config.setup({ llm_provider = provider, api_key = "test-key" })
+        local stdin
+        vim.system = function(_, o) stdin = o.stdin; return {} end
+        llm.generate_text("read this", function() end, { pdf = "UERG", max_tokens = 8192 })
+        vim.system = system
+        config.options = options
+        config.setup({})
+        local quoted = stdin:match('data%-binary = "(.-)"\r?\n$')
+        return vim.json.decode((quoted:gsub("\\(.)", "%1")))
+    end
+
+    it("sends Claude the PDF as a document block, before the prompt", function()
+        local body = body_for("claude")
+        assert.equals(8192, body.max_tokens)
+        local content = body.messages[1].content
+        assert.same({ type = "base64", media_type = "application/pdf", data = "UERG" }, content[1].source)
+        assert.same({ type = "text", text = "read this" }, content[2])
+    end)
+
+    it("sends OpenAI the PDF as a file part, before the prompt", function()
+        local body = body_for("openai")
+        local content = body.messages[1].content
+        assert.equals("data:application/pdf;base64,UERG", content[1].file.file_data)
+        assert.same({ type = "text", text = "read this" }, content[2])
+    end)
+end)
+
+describe("llm.generate_text cut off at the token limit", function()
+    local config = require("wyt.config")
+
+    -- What the caller gets for a reply `body`. The transport is stubbed.
+    local function reply_for(provider, body)
+        local options, system = config.options, vim.system
+        config.setup({ llm_provider = provider, api_key = "test-key" })
+        vim.system = function(_, _, on_exit)
+            on_exit({ code = 0, stdout = vim.json.encode(body), stderr = "" })
+            return {}
+        end
+        local got, err, done
+        llm.generate_text("write", function(text, e) got, err, done = text, e, true end)
+        vim.system = system
+        config.options = options
+        config.setup({})
+        vim.wait(1000, function() return done end)
+        return got, err
+    end
+
+    it("is an error from Claude, not a shorter reply", function()
+        local text, err = reply_for("claude", { stop_reason = "max_tokens", content = { { type = "text", text = "half a" } } })
+        assert.is_nil(text)
+        assert.matches("cut off", err)
+    end)
+
+    it("is an error from OpenAI, not a shorter reply", function()
+        local text, err = reply_for("openai", { choices = { { finish_reason = "length", message = { content = "half a" } } } })
+        assert.is_nil(text)
+        assert.matches("cut off", err)
+    end)
+end)

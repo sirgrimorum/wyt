@@ -242,6 +242,38 @@ snap("ask")
 send("\27\27")
 pause(600)
 
+-- The Boox folder outside the project, typed in the first time. A .txt only: a
+-- PDF would need real handwriting to read.
+local BOOX = vim.fn.tempname():gsub("\\", "/") .. "/boox/"
+vim.fn.mkdir(BOOX, "p")
+local NOTE = "Teh ferry left at midnihgt.\r\n"
+write(BOOX .. "Ferry.txt", NOTE)
+send(":WYTImport\r")
+-- The input's prompt is a float title, not buffer text, so the screen cannot see
+-- it: the config shows the answer went in.
+pause(1500)
+send(BOOX .. "\r")
+check(":WYTImport shows the cleanup and its menu", wait_for("Keep as recognized", 60000))
+check(":WYTImport keeps the folder it asked for", (read(ROOT .. "config.wyt.yml") or ""):find("import_dir: '" .. BOOX .. "'", 1, true) ~= nil)
+pause(800)
+snap("import-menu")
+send("Use the cleanup")
+pause(600)
+send("\r")
+check(":WYTImport offers Place", wait_for("Later", 10000))
+send("Later")
+pause(600)
+send("\r")
+pause(1500)
+snap("imported")
+local imported = ""
+for _, name in ipairs(vim.fn.readdir(ROOT .. "freewrite")) do
+    if name:find("%-ferry%.md$") then imported = read(ROOT .. "freewrite/" .. name) end
+end
+check("the import lands as a freewrite", imported:find("^> Boox: Ferry%.txt") ~= nil and imported:find("midnight", 1, true) ~= nil)
+check("import commits", sh({ "log", "-1", "--format=%s" }).stdout:find("^Save: imported from the Boox") ~= nil)
+check("the Boox file is untouched", read(BOOX .. "Ferry.txt") == NOTE)
+
 snap("final")
 local m = screen()
 check("no Lua errors in :messages", not (m:find("E5108", 1, true) or m:find("stack traceback", 1, true)))

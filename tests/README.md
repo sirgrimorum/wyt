@@ -38,6 +38,7 @@ and restore it yourself.
 | `place_spec.lua` | where `:WYTPlace` lands each chunk, unchanged, and what stays in the freewrite |
 | `markers_spec.lua` | what counts as a wyt marker, its columns past accents, and what an answer does to its line |
 | `resolve_spec.lua` | which markers `:WYTResolve` asks about, what it answers from, that only the answers taken land, CRLF kept; `:WYTAsk` never writes |
+| `import_spec.lua` | what `:WYTImport` sends the model, what lands in freewrite per choice, only the new part next time, the Boox folder never written |
 | `outline_spec.lua` | the rows `:WYTOutline` shows, where each opens, and the redraw on save |
 | `ui_spec.lua` | fitting text a prompt line would truncate, and opening files |
 | `localization_spec.lua` | key parity between the two languages |

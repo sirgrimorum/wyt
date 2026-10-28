@@ -12,6 +12,7 @@ To see everything in use, start to finish, read the
 - [Coming back with :WYTToday](#coming-back-with-wyttoday)
 - [Placing a freewrite with :WYTPlace](#placing-a-freewrite-with-wytplace)
 - [Leaving gaps: wyt markers](#leaving-gaps-wyt-markers)
+- [Importing from the Boox](#importing-from-the-boox)
 - [How to use :WYTGenerate](#how-to-use-wytgenerate)
 - [Mappings](#mappings)
 - [Automatic behaviour](#automatic-behaviour)
@@ -34,6 +35,7 @@ hidden in a database.
 | `text.wyt.md` | the prose, one paragraph per idea, written or generated |
 | `export.wyt.md` | the assembled document, rebuilt by `:WYTExport` |
 | `freewrite/*.md` | free writing, one file per start, outside the plan until `:WYTPlace` moves it; created at the root |
+| `imports.wyt.json` | how much of each Boox file `:WYTImport` already brought in; at the root |
 
 A **group** is a set of ideas that belong together. `<S-Tab>` on a group header
 turns it into a **section** of its own, with its own plan and groups, or writes
@@ -128,6 +130,11 @@ happens depends on the type's depth, below.
   Asks the model a question about the project and shows the answer. It never
   edits a file.
   _See [Leaving gaps: wyt markers](#leaving-gaps-wyt-markers)._
+
+- `:WYTImport`
+  Brings what is new in the project's Boox folder into `freewrite/`, each file
+  confirmed by you. The folder is only read.
+  _See [Importing from the Boox](#importing-from-the-boox)._
 
 - `:WYTGenerate [instruction]`
   Generates at the cursor and inserts the result there.
@@ -262,6 +269,47 @@ is left as it is. The run ends in one commit, `"Save: resolved wyt markers"`.
 `:WYTAsk` is for a question rather than a gap: type it, and the answer, from
 the reference sections and the file on screen, shows in a panel under **Ask
 another** and **Close**. Nothing is written.
+
+---
+
+## Importing from the Boox
+
+Handwriting from an e-ink tablet comes in as freewrite. The tablet syncs a
+folder (Dropbox, for the Boox); `:WYTImport` asks for that folder the first
+time and keeps it in the root `config.wyt.yml`:
+
+```yaml
+import_dir: 'C:/Users/me/Dropbox/Apps/Boox/Notes/'
+```
+
+It reads the folder and never writes to it: nothing there is moved, renamed or
+changed. Files come oldest first, and two kinds count:
+
+- **A `.txt`**, the tablet's own handwriting recognition. The model cleans up
+  what the recognition misread, and you see the cleanup word by word, as
+  `[-teh-]{+the+}`, under **Use the cleanup**, **Change it…**, **Keep as
+  recognized** and **Skip**. Without the model, only the last two.
+- **A `.pdf`**, the pages themselves. The model transcribes the handwriting, and
+  you see it under **Import it**, **Change it…** and **Skip**. A PDF over 20 MB
+  is skipped with a message, and the providers read at most 100 pages a
+  request: past that, export the new pages from the Boox as a PDF of their own.
+
+**Change it…** takes a note (a word it misread, a name, what to leave as is) and
+asks again with the last version. A folder inside the project is refused, since
+every save would commit it. Each import becomes
+`freewrite/<date>-<time>-<file>.md`, headed `> Boox: <file>`, which
+`:WYTPlace` leaves out. **Skip** leaves the file for the next import; `<Esc>`
+stops, and what you took stays.
+
+`imports.wyt.json`, at the root, records how much of each file came in, so a
+notebook that keeps growing brings only its new part: the text after what was
+imported, or the pages after the last one. A `.txt` rewritten from the start is
+read whole again. The run ends in one commit, `"Save: imported from the Boox"`,
+and offers **Place now**, which opens the first import in `:WYTPlace`, or
+**Later**.
+
+Write wyt markers on the tablet as on the keyboard: the model writes back
+`wyt: ... :wyt` and `wyt( ... )` however the handwriting came out.
 
 ---
 

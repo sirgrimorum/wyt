@@ -254,12 +254,19 @@ function M.ask_command()
     end, { desc = loc.t("ask_desc") })
 end
 
+function M.import_command()
+    vim.api.nvim_create_user_command("WYTImport", function()
+        require("wyt.import").open()
+    end, { desc = loc.t("import_desc") })
+end
+
 function M.setup()
     M.today_command()
     M.place_command()
     M.outline_command()
     M.resolve_command()
     M.ask_command()
+    M.import_command()
     M.setup_command()
     M.generate_text_command()
     M.nav_command()
