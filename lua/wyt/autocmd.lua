@@ -75,6 +75,7 @@ function M.setup()
             local project = require("wyt.project")
             if not project.setup() then return end
             project.commit_changes("Save: " .. vim.fn.expand("%:t"))
+            require("wyt.outline").refresh()
         end,
         desc = "WYT: auto-commit on write",
     })
@@ -99,6 +100,7 @@ function M.setup()
             local project = require("wyt.project")
             if not project.setup() then return end
             project.commit_changes("Save: freewrite/" .. vim.fn.fnamemodify(ev.file, ":t"))
+            require("wyt.outline").refresh()
         end,
         desc = "WYT: auto-commit free writing on write",
     })

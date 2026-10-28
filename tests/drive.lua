@@ -194,6 +194,20 @@ else
     pause(800)
 end
 
+-- The outline, after Place, so its counts are the project as it now stands.
+send(":WYTOutline\r")
+pause(800)
+snap("outline")
+s = screen()
+check(":WYTOutline lists the sections and groups", s:find("  The arrival", 1, true) ~= nil and s:find("  The strike", 1, true) ~= nil)
+send("jj\r")
+pause(800)
+local at = child([[return vim.fn.expand("%:t") .. ":" .. vim.api.nvim_get_current_line()]])
+check("outline opens a group at its line", at == "text.wyt.md:## Group: The strike", at)
+send(":WYTOutline\r")
+pause(600)
+check("outline closes", child("return #vim.api.nvim_tabpage_list_wins(0)") == 1)
+
 snap("final")
 local m = screen()
 check("no Lua errors in :messages", not (m:find("E5108", 1, true) or m:find("stack traceback", 1, true)))

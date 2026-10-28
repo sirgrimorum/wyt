@@ -90,6 +90,21 @@ happens depends on the type's depth, below.
 - `:WYTSearch`
   Searches the reference sections.
 
+- `:WYTOutline`
+  Shows or hides a sidebar of the project, in the order the export walks it:
+  each section, the groups written in its text, and, marked `○`, the groups
+  its plan names with nothing written yet. The number on a row is what is open
+  there: a group counts its placeholders; a section counts everything open in
+  it and under it (placeholders, `○` groups, ideas without a group, and its
+  sub-sections), so the first row is the whole project. A last row counts
+  the freewrites waiting for `:WYTPlace`. `<CR>` opens the row in the window
+  beside it, a group at its line; on the freewrite row it opens the newest
+  freewrite and runs `:WYTPlace` on it; `p` opens the row's plan; `q` closes.
+  A section that holds sub-sections has no groups of its own in the list, its
+  sub-sections are its groups, and `<CR>` opens its plan. It redraws when a
+  plan, text or freewrite is saved, after `:WYTPlace`, and when you return to
+  it.
+
 ### Writing and generation
 
 - `:WYTToday`
@@ -294,10 +309,10 @@ This happens on its own, with nothing to run:
 | `BufEnter` | `plan.wyt.md` | Reads the language from the config, applies it and sets the buffer mappings |
 | `BufEnter` | `text.wyt.md` | The same, with the text mappings |
 | `TextChanged`, `InsertLeave` | `*plan.wyt.md` | Syncs after a 300 ms wait: the ideas in the groups are mirrored in the `## Ideas` section |
-| `BufWritePost` | `*plan.wyt.md` | Automatic commit: `"Save: plan.wyt.md"` |
-| `BufWritePost` | `*text.wyt.md` | Automatic commit: `"Save: text.wyt.md"` |
+| `BufWritePost` | `*plan.wyt.md` | Automatic commit: `"Save: plan.wyt.md"`; an open `:WYTOutline` redraws |
+| `BufWritePost` | `*text.wyt.md` | Automatic commit: `"Save: text.wyt.md"`; an open `:WYTOutline` redraws |
 | `BufEnter` | `freewrite/*.md` | Bare buffer: wrap at words, no numbers, signs or columns |
-| `BufWritePost` | `freewrite/*.md` | Automatic commit: `"Save: freewrite/<file>"` |
+| `BufWritePost` | `freewrite/*.md` | Automatic commit: `"Save: freewrite/<file>"`; an open `:WYTOutline` redraws |
 | `BufUnload` | `freewrite/*.md` | Deletes the file when it still holds only the prompt |
 
 Every save commits, so the project's history is the history of the writing. You

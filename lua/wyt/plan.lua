@@ -5,12 +5,6 @@ local ui = require("wyt.ui")
 
 local M = {}
 
-local function get_config_sections(section_dir)
-    local config_path = section_dir .. "config.wyt.yml"
-    local config_content = project.read_file(config_path)
-    return project.config_value(config_content, "sections") == "true"
-end
-
 local function get_group_tags(line)
     local tags = {}
     for tag in line:gmatch("%[" .. project.t("group_tag") .. ": ([^%]]+)%]") do
@@ -76,7 +70,7 @@ function M.goto_wyt_tab()
     if not line then return end
 
     local current_section_dir = project.get_section_dir()
-    local sections_enabled = get_config_sections(current_section_dir)
+    local sections_enabled = require("wyt.status").nested(project, current_section_dir)
     local group_pat = "^## " .. project.t("group_tag") .. ": (.+)"
     local idea_pat = "^%- (.+)"
     local group_tag_pat = "%[" .. project.t("group_tag") .. ": ([^%]]+)%]"

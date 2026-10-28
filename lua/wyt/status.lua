@@ -28,6 +28,26 @@ function M.parked(lines)
     return out
 end
 
+--- The pattern of a `## Group: <name>` line in a text.wyt.md; captures the name.
+function M.group_marker(project_mod)
+    return "^##%s+" .. vim.pesc(project_mod.t("group_tag")) .. ":%s*(.+)$"
+end
+
+--- True when the section at `dir` holds sub-sections (`sections: true`): its
+--- groups are folders, and a text.wyt.md left there is never exported.
+function M.nested(project_mod, dir)
+    return project_mod.config_value(project_mod.read_file(dir .. "config.wyt.yml"), "sections") == "true"
+end
+
+--- The freewrites waiting in the project, newest first (named by date and
+--- time, so the name sorts them), and the folder they are in.
+function M.freewrites(project_mod)
+    local dir = project_mod.project_root .. "freewrite/"
+    local files = vim.fn.isdirectory(dir) == 1 and vim.fn.readdir(dir, function(n) return n:match("%.md$") and 1 or 0 end) or {}
+    table.sort(files, function(a, b) return a > b end)
+    return files, dir
+end
+
 --- Placeholders still waiting in `lines`, as { line = n, idea = "..." }.
 function M.placeholders(project_mod, lines)
     local pat = require("wyt.text").placeholder_pattern(project_mod)
@@ -166,7 +186,7 @@ end
 --- The scene around `line_nr`: the written lines of the `## Group:` block that
 --- holds it, and that group's name (nil before the first marker).
 function M.scene_at(project_mod, lines, line_nr)
-    local marker = "^##%s+" .. vim.pesc(project_mod.t("group_tag")) .. ":%s*(.+)$"
+    local marker = M.group_marker(project_mod)
     local first, name = 1, nil
     for i = math.min(line_nr, #lines), 1, -1 do
         local m = lines[i]:match(marker)

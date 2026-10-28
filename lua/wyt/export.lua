@@ -4,11 +4,6 @@ local loc = require("wyt.localization")
 
 local M = {}
 
-local function sections_enabled(config_path, project_mod)
-    local cfg = project_mod.read_file(config_path) or ""
-    return project_mod.config_value(cfg, "sections") == "true"
-end
-
 -- Join blocks that carry no heading of their own. A type that marks scene
 -- changes gets its separator between them; the rest simply run on.
 local function join(parts, spec)
@@ -24,7 +19,7 @@ end
 -- What the reader should see in its place is the type's business, so it becomes
 -- a heading, a scene break, or nothing at all.
 local function split_group_blocks(lines, project_mod)
-    local marker = "^##%s+" .. vim.pesc(project_mod.t("group_tag")) .. ":%s*(.+)$"
+    local marker = require("wyt.status").group_marker(project_mod)
     local blocks, names = {}, {}
     local current, pending = {}, nil
     local function flush()
@@ -57,7 +52,6 @@ end
 -- reading that file again at every node of the tree bought nothing.
 local function collect_text(project_mod, section_dir, level, project_type)
     local uv = vim.uv or vim.loop
-    local config_path = section_dir .. "config.wyt.yml"
     local text_path   = section_dir .. "text.wyt.md"
     local plan_path   = section_dir .. "plan.wyt.md"
 
@@ -66,7 +60,7 @@ local function collect_text(project_mod, section_dir, level, project_type)
     -- the one config this never applies to.
     if level > 1 and project_mod.is_definition_section(section_dir) then return "" end
 
-    if sections_enabled(config_path, project_mod) then
+    if require("wyt.status").nested(project_mod, section_dir) then
         local plan_content = project_mod.read_file(plan_path) or ""
         local groups = project_mod.get_groups(plan_content)
         -- Sections of this parent all sit one level down, so they share a spec.

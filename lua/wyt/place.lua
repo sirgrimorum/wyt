@@ -23,10 +23,6 @@ function M.paragraphs(content)
     return out, header
 end
 
-local function group_marker(project_mod)
-    return "^##%s+" .. vim.pesc(project_mod.t("group_tag")) .. ":%s*(.+)$"
-end
-
 --- Every home a chunk can go to, in plan order: the end of a group's text, a
 --- new idea at the end of it, a placeholder still waiting for its paragraph, a
 --- new group, or the ideas of a section's plan. Each is { id, kind, label, dir,
@@ -38,12 +34,12 @@ function M.targets(project_mod)
         target.id = "T" .. (#out + 1)
         out[#out + 1] = target
     end
-    local marker = group_marker(project_mod)
+    local marker = status.group_marker(project_mod)
     for _, s in ipairs(status.sections(project_mod)) do
         local text_path = s.dir .. "text.wyt.md"
         -- A level that holds sub-sections exports only them: a text.wyt.md
         -- left there is never read, so nothing placed in it would show.
-        local nested = project_mod.config_value(project_mod.read_file(s.dir .. "config.wyt.yml"), "sections") == "true"
+        local nested = status.nested(project_mod, s.dir)
         local lines = nested and {} or status.lines(project_mod.read_file(text_path))
         local parked = status.parked(lines)
         for i, line in ipairs(lines) do
@@ -108,7 +104,7 @@ end
 -- After the last paragraph written in `group`, ahead of the placeholders still
 -- waiting: the freewrite continues the prose. Nil when the text has no such group.
 local function after_group(project_mod, lines, group)
-    local marker = group_marker(project_mod)
+    local marker = status.group_marker(project_mod)
     local pat = require("wyt.text").placeholder_pattern(project_mod)
     local parked = status.parked(lines)
     local start, at
@@ -144,7 +140,7 @@ local function plan_with_idea(project_mod, plan, group, idea)
     plan = require("wyt.plan").add_item_to_section(plan, t("ideas_section"),
         idea .. " [" .. t("group_tag") .. ": " .. group .. "]")
     local lines = status.lines(plan)
-    local marker = group_marker(project_mod)
+    local marker = status.group_marker(project_mod)
     local at
     for i, line in ipairs(lines) do
         local name = line:match(marker)
@@ -349,6 +345,7 @@ function M.run(path)
             if b then vim.api.nvim_buf_delete(b, { force = true }) end
         end
         project.commit_changes("Save: placed freewrite/" .. vim.fn.fnamemodify(path, ":t"))
+        require("wyt.outline").refresh()
         vim.notify(t("place_done"):format(count, #paragraphs), vim.log.levels.INFO)
     end
 
@@ -423,11 +420,8 @@ function M.open()
     local current = vim.fn.expand("%:p")
     if require("wyt.freewrite").is_freewrite(current) then return M.run(current) end
 
-    local dir = project.project_root .. "freewrite/"
-    local files = vim.fn.isdirectory(dir) == 1 and vim.fn.readdir(dir, function(n) return n:match("%.md$") and 1 or 0 end) or {}
+    local files, dir = status.freewrites(project)
     if #files == 0 then return vim.notify(project.t("place_none"), vim.log.levels.INFO) end
-    -- Named by date and time, so the name sorts them.
-    table.sort(files, function(a, b) return a > b end)
     vim.ui.select(files, { prompt = project.t("place_pick") }, function(choice)
         if choice then M.run(dir .. choice) end
     end)

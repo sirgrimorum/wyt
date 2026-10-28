@@ -236,9 +236,16 @@ function M.place_command()
     end, { desc = loc.t("place_desc") })
 end
 
+function M.outline_command()
+    vim.api.nvim_create_user_command("WYTOutline", function()
+        require("wyt.outline").toggle()
+    end, { desc = loc.t("outline_desc") })
+end
+
 function M.setup()
     M.today_command()
     M.place_command()
+    M.outline_command()
     M.setup_command()
     M.generate_text_command()
     M.nav_command()

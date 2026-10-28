@@ -61,6 +61,7 @@ Free writing lands in `freewrite/`, outside the plan and the export, until
 | `:WYTNew i` | new idea, free or by the type's guided questions |
 | `:WYTNew g` | new group; select idea lines with `V` first to pre-tick them |
 | `:WYTNav` | pick any file or section of the project |
+| `:WYTOutline` | sidebar of sections and groups, with what is open in each; `<CR>` open, `p` plan, `q` close |
 | `:WYTGoto plan\|text\|config\|export\|parent` | jump to that file |
 | `:WYTSearch` | search characters, setting, chronology, concepts, sources |
 | `:WYTGenerate [instruction]` | generate at the cursor: a bridge between paragraphs in text, new ideas in a plan |
