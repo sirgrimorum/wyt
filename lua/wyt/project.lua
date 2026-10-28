@@ -324,6 +324,72 @@ function M.normalize_path(p)
     return (p:gsub("\\", "/"))
 end
 
+--- The folder kept as `key:` in the root config, with a trailing slash, or nil.
+function M.config_dir(key)
+    local dir = M.config_value(M.read_file(M.config_path), key)
+    return dir and (M.normalize_path(dir) .. "/")
+end
+
+--- Keep `dir` as the root config's `key:`.
+function M.set_config_dir(key, dir)
+    local config = M.read_file(M.config_path) or ""
+    -- Quoted: config_value reads a bare value up to the first character that
+    -- is not a letter, digit or `_`, and a path has slashes and a colon. In
+    -- the other quote when the path has a `'`, or it would end there.
+    local q = dir:find("'", 1, true) and '"' or "'"
+    local line = key .. ": " .. q .. dir .. q
+    local new, n = config:gsub("%f[%w_]" .. key .. ":[^\r\n]*", function() return line end)
+    if n == 0 then new = config:gsub("%s*$", "") .. "\n" .. line .. "\n" end
+    M.write_file_like(M.config_path, new, config)
+end
+
+-- Folders that must not be the same one.
+local APART = { brief_dir = "import_dir", import_dir = "brief_dir" }
+
+--- The folder outside the project kept as `key:`, asked under `title` with
+--- `question` the first time: `callback(dir)` once there is one that exists.
+--- The Boox folders of :WYTImport and :WYTBrief both come from here.
+function M.outside_dir(key, title, question, callback)
+    local ui = require("wyt.ui")
+    local function usable(dir)
+        if vim.fn.isdirectory(dir) == 0 then
+            vim.notify(M.t("folder_missing"):format(dir), vim.log.levels.WARN)
+            return false
+        end
+        -- Inside the project, the next save's `git add .` would commit the
+        -- whole folder, PDFs and all.
+        if vim.startswith(ui.canonical(dir), ui.canonical(M.project_root)) then
+            vim.notify(M.t("folder_inside"), vim.log.levels.WARN)
+            return false
+        end
+        -- The import reads every PDF in its folder, so a brief written there
+        -- would come back in as freewrite.
+        local other = APART[key] and M.config_dir(APART[key])
+        if other and ui.canonical(dir) == ui.canonical(other) then
+            vim.notify(M.t("folder_shared"), vim.log.levels.WARN)
+            return false
+        end
+        return true
+    end
+    local dir = M.config_dir(key)
+    if dir then
+        if usable(dir) then callback(dir) end
+        return
+    end
+    local ask
+    ask = function()
+        ui.ask_input({ title = title, question = question }, function(answer)
+            if answer == nil then return end
+            if vim.trim(answer) == "" then return ask() end
+            dir = M.normalize_path(answer) .. "/"
+            if not usable(dir) then return end
+            M.set_config_dir(key, dir)
+            callback(dir)
+        end)
+    end
+    ask()
+end
+
 --- The project `dir` would sit inside, or nil. The root walk takes the
 --- outermost project of a contiguous chain, so a project created inside another
 --- one is read as a section of it: its export and its navigation answer for the

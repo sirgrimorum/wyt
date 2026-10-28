@@ -13,6 +13,7 @@ To see everything in use, start to finish, read the
 - [Placing a freewrite with :WYTPlace](#placing-a-freewrite-with-wytplace)
 - [Leaving gaps: wyt markers](#leaving-gaps-wyt-markers)
 - [Importing from the Boox](#importing-from-the-boox)
+- [The brief on the Boox](#the-brief-on-the-boox)
 - [How to use :WYTGenerate](#how-to-use-wytgenerate)
 - [Mappings](#mappings)
 - [Automatic behaviour](#automatic-behaviour)
@@ -135,6 +136,10 @@ happens depends on the type's depth, below.
   Brings what is new in the project's Boox folder into `freewrite/`, each file
   confirmed by you. The folder is only read.
   _See [Importing from the Boox](#importing-from-the-boox)._
+
+- `:WYTBrief`
+  Writes the `:WYTToday` brief as a PDF to a folder of its own, for the Boox.
+  _See [The brief on the Boox](#the-brief-on-the-boox)._
 
 - `:WYTGenerate [instruction]`
   Generates at the cursor and inserts the result there.
@@ -310,6 +315,29 @@ and offers **Place now**, which opens the first import in `:WYTPlace`, or
 
 Write wyt markers on the tablet as on the keyboard: the model writes back
 `wyt: ... :wyt` and `wyt( ... )` however the handwriting came out.
+
+---
+
+## The brief on the Boox
+
+`:WYTBrief` builds the same brief as `:WYTToday` (the recap, what is open, the
+prompt) and writes it as a PDF, so a session can start on the tablet. The menu
+comes out as a list under **Where to start:**, since on paper there is nothing
+to pick. The folder is asked the first time and kept in the root
+`config.wyt.yml`. Unlike the import folder, this one is written to:
+
+```yaml
+brief_dir: 'C:/Users/me/Dropbox/Apps/Boox/Briefs/'
+```
+
+A folder inside the project is refused, as for the import, and so is the
+import folder itself, since the import would read the brief back in; a
+subfolder of it works. The file is
+`today-<project>.pdf`, rewritten each time, so the tablet shows the latest
+brief. The page is 3:4 in large type for the e-ink screen, in a font every
+reader has built in: accents and Spanish punctuation come through, and a
+character that font lacks prints as `?`. Without the model the PDF still has
+what came from disk.
 
 ---
 

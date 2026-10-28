@@ -260,6 +260,12 @@ function M.import_command()
     end, { desc = loc.t("import_desc") })
 end
 
+function M.brief_command()
+    vim.api.nvim_create_user_command("WYTBrief", function()
+        require("wyt.brief").open()
+    end, { desc = loc.t("brief_desc") })
+end
+
 function M.setup()
     M.today_command()
     M.place_command()
@@ -267,6 +273,7 @@ function M.setup()
     M.resolve_command()
     M.ask_command()
     M.import_command()
+    M.brief_command()
     M.setup_command()
     M.generate_text_command()
     M.nav_command()

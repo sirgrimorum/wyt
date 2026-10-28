@@ -30,7 +30,7 @@ describe("setup registers the commands the docs promise", function()
     local expected = {
         "WYTConfig", "WYTSetLang", "WYTNew", "WYTGenerate",
         "WYTNav", "WYTGoto", "WYTExport", "WYTExpand", "WYTSearch", "WYTToday", "WYTPlace", "WYTOutline",
-        "WYTResolve", "WYTAsk", "WYTImport",
+        "WYTResolve", "WYTAsk", "WYTImport", "WYTBrief",
     }
 
     it("creates each one", function()

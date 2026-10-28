@@ -274,6 +274,23 @@ check("the import lands as a freewrite", imported:find("^> Boox: Ferry%.txt") ~=
 check("import commits", sh({ "log", "-1", "--format=%s" }).stdout:find("^Save: imported from the Boox") ~= nil)
 check("the Boox file is untouched", read(BOOX .. "Ferry.txt") == NOTE)
 
+-- The brief goes the other way, into a folder of its own next to the Boox one.
+local BRIEF = BOOX:gsub("boox/$", "brief/")
+vim.fn.mkdir(BRIEF, "p")
+send(":WYTBrief\r")
+pause(1500)
+send(BRIEF .. "\r")
+vim.wait(60000, function() return #vim.fn.readdir(BRIEF) > 0 end, 200)
+-- A path wider than the command line stops at the hit-enter prompt, as the
+-- export's does, and a blocked child cannot be read.
+pause(800)
+send("\r")
+check(":WYTBrief says where the brief is", wait_for("The brief is in", 10000))
+local briefs = vim.fn.readdir(BRIEF)
+check(":WYTBrief writes one PDF", #briefs == 1 and (read(BRIEF .. briefs[1]) or ""):sub(1, 5) == "%PDF-")
+check(":WYTBrief keeps the folder it asked for", (read(ROOT .. "config.wyt.yml") or ""):find("brief_dir: '" .. BRIEF .. "'", 1, true) ~= nil)
+snap("brief")
+
 snap("final")
 local m = screen()
 check("no Lua errors in :messages", not (m:find("E5108", 1, true) or m:find("stack traceback", 1, true)))

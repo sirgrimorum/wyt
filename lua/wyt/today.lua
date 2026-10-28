@@ -98,13 +98,13 @@ function M.options(edit, where, sections, prompt, t)
     return items
 end
 
-function M.open()
-    local project = require("wyt.project")
-    if not project.setup() then return end
-    local ui = require("wyt.ui")
+--- Reads the brief from disk, asks the model for the summary and the prompt,
+--- and calls `callback(brief, items, by_label)`: the brief for `compose`, the
+--- menu items from `options` with one per label, and each item by its label.
+--- Both :WYTToday and :WYTBrief start
+--- here, so the brief on the Boox is the one the menu would have shown.
+function M.gather(project, callback)
     local status = require("wyt.status")
-    -- The recap reads the last commit, and a save is what makes one.
-    ui.save_current()
     local t = project.t
 
     local sections = status.sections(project)
@@ -131,32 +131,6 @@ function M.open()
     -- A commit whose text has since been deleted leaves nothing to continue.
     if not brief.paragraph then edit = nil end
 
-    local function show(ai)
-        brief.summary = ai and ai.summary
-        brief.prompt = ai and ai.prompt
-        -- The picker hands back the label alone, so two placeholders with the
-        -- same idea cannot both be offered: the first, nearer the last edit, stays.
-        local labels, by_label = {}, {}
-        for _, item in ipairs(M.options(edit, brief.where, sections, brief.prompt, t)) do
-            if not by_label[item.label] then
-                labels[#labels + 1] = item.label
-                by_label[item.label] = item
-            end
-        end
-        ui.ask_select({
-            title = t("today_title"),
-            question = M.compose(brief, t),
-            prompt = t("today_menu"),
-        }, labels, function(choice)
-            local item = choice and by_label[choice]
-            if not item then return end
-            if item.freewrite then return require("wyt.freewrite").open(brief.prompt) end
-            ui.edit_file(item.path)
-            local last = vim.api.nvim_buf_line_count(0)
-            vim.api.nvim_win_set_cursor(0, { math.min(item.line, last), 0 })
-        end)
-    end
-
     vim.notify(t("today_generating"), vim.log.levels.INFO)
     require("wyt.llm").today({
         lang = project.lang,
@@ -170,7 +144,43 @@ function M.open()
         -- Without a key or a connection the brief still has everything that
         -- came from disk; only the summary and the prompt are missing.
         if err then vim.notify(t("today_no_ai") .. err, vim.log.levels.WARN) end
-        show(ai)
+        brief.summary = ai and ai.summary
+        brief.prompt = ai and ai.prompt
+        -- The picker hands back the label alone, so two placeholders with the
+        -- same idea cannot both be offered: the first, nearer the last edit, stays.
+        local items, seen = {}, {}
+        for _, item in ipairs(M.options(edit, brief.where, sections, brief.prompt, t)) do
+            if not seen[item.label] then
+                items[#items + 1] = item
+                seen[item.label] = item
+            end
+        end
+        callback(brief, items, seen)
+    end)
+end
+
+function M.open()
+    local project = require("wyt.project")
+    if not project.setup() then return end
+    local ui = require("wyt.ui")
+    -- The recap reads the last commit, and a save is what makes one.
+    ui.save_current()
+    local t = project.t
+
+    M.gather(project, function(brief, items, by_label)
+        local labels = vim.tbl_map(function(item) return item.label end, items)
+        ui.ask_select({
+            title = t("today_title"),
+            question = M.compose(brief, t),
+            prompt = t("today_menu"),
+        }, labels, function(choice)
+            local item = choice and by_label[choice]
+            if not item then return end
+            if item.freewrite then return require("wyt.freewrite").open(brief.prompt) end
+            ui.edit_file(item.path)
+            local last = vim.api.nvim_buf_line_count(0)
+            vim.api.nvim_win_set_cursor(0, { math.min(item.line, last), 0 })
+        end)
     end)
 end
 

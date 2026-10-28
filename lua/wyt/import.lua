@@ -17,25 +17,6 @@ local MAX_SIZE = 20 * 1024 * 1024
 -- through and the marked text gets its blank lines back.
 local PARA = "\1"
 
---- The project's Boox folder from the root config, or nil.
-function M.dir(project_mod)
-    local dir = project_mod.config_value(project_mod.read_file(project_mod.config_path), "import_dir")
-    return dir and (project_mod.normalize_path(dir) .. "/")
-end
-
--- Keep `dir` as the root config's import_dir.
-local function set_dir(project_mod, dir)
-    local config = project_mod.read_file(project_mod.config_path) or ""
-    -- Quoted: config_value reads a bare value up to the first character that
-    -- is not a letter, digit or `_`, and a path has slashes and a colon. In
-    -- the other quote when the path has a `'`, or it would end there.
-    local q = dir:find("'", 1, true) and '"' or "'"
-    local line = "import_dir: " .. q .. dir .. q
-    local new, n = config:gsub("%f[%w_]import_dir:[^\r\n]*", function() return line end)
-    if n == 0 then new = config:gsub("%s*$", "") .. "\n" .. line .. "\n" end
-    project_mod.write_file_like(project_mod.config_path, new, config)
-end
-
 --- What was already imported, by file name; empty when there is no manifest.
 function M.read_manifest(project_mod)
     local raw = project_mod.read_file(project_mod.project_root .. MANIFEST)
@@ -248,37 +229,12 @@ end
 function M.open()
     local project = require("wyt.project")
     if not project.setup() then return end
-    local ui = require("wyt.ui")
     local t = project.t
-    local function go(dir)
+    project.outside_dir("import_dir", t("import_title"), t("import_dir_q"), function(dir)
         local items = M.pending(project, dir, M.read_manifest(project))
         if #items == 0 then return vim.notify(t("import_none"):format(dir), vim.log.levels.INFO) end
         M.run(items)
-    end
-    local dir = M.dir(project)
-    if dir then
-        if vim.fn.isdirectory(dir) == 1 then return go(dir) end
-        return vim.notify(t("import_no_dir"):format(dir), vim.log.levels.WARN)
-    end
-    local ask
-    ask = function()
-        ui.ask_input({ title = t("import_title"), question = t("import_dir_q") }, function(answer)
-            if answer == nil then return end
-            if vim.trim(answer) == "" then return ask() end
-            dir = project.normalize_path(answer) .. "/"
-            if vim.fn.isdirectory(dir) == 0 then
-                return vim.notify(t("import_no_dir"):format(dir), vim.log.levels.WARN)
-            end
-            -- Inside the project, the next save's `git add .` would commit the
-            -- whole notebook folder, PDFs and all.
-            if vim.startswith(ui.canonical(dir), ui.canonical(project.project_root)) then
-                return vim.notify(t("import_dir_inside"), vim.log.levels.WARN)
-            end
-            set_dir(project, dir)
-            go(dir)
-        end)
-    end
-    ask()
+    end)
 end
 
 return M

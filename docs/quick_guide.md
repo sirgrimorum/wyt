@@ -47,7 +47,8 @@ confirmed; `:WYTAsk` answers a question without touching the text.
 **From the Boox.** `:WYTImport` reads the folder the tablet syncs to (asked
 once, never written to) and brings what is new into `freewrite/`: a `.txt` as
 a word-by-word cleanup to confirm, a `.pdf` as a transcription. Then
-`:WYTPlace` it.
+`:WYTPlace` it. `:WYTBrief` goes the other way: Today's brief as a PDF in a
+folder of its own, to start the session on paper.
 
 ## WYT keys (normal mode, WYT files only)
 
@@ -69,6 +70,7 @@ a word-by-word cleanup to confirm, a `.pdf` as a transcription. Then
 | `:WYTResolve` | answer the `wyt:` markers in this text, or the project, each confirmed |
 | `:WYTAsk` | ask about the project; the answer is shown, nothing is written |
 | `:WYTImport` | bring what is new in the Boox folder into `freewrite/`, each confirmed |
+| `:WYTBrief` | write Today's brief as a PDF to the brief folder, for the Boox |
 | `:WYTNew p` | new project |
 | `:WYTNew i` | new idea, free or by the type's guided questions |
 | `:WYTNew g` | new group; select idea lines with `V` first to pre-tick them |
