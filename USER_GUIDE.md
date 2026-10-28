@@ -321,10 +321,11 @@ Write wyt markers on the tablet as on the keyboard: the model writes back
 ## The brief on the Boox
 
 `:WYTBrief` builds the same brief as `:WYTToday` (the recap, what is open, the
-prompt) and writes it as a PDF, so a session can start on the tablet. The menu
-comes out as a list under **Where to start:**, since on paper there is nothing
-to pick. The folder is asked the first time and kept in the root
-`config.wyt.yml`. Unlike the import folder, this one is written to:
+prompt) and writes it as a PDF, so a session can start on the tablet. Each part
+has its own heading (**Last time**, **So far**, **Still open**, **Today's
+prompt**), and the menu comes out as a list under **Where to start**, since on
+paper there is nothing to pick. The folder is asked the first time and kept in
+the root `config.wyt.yml`. Unlike the import folder, this one is written to:
 
 ```yaml
 brief_dir: 'C:/Users/me/Dropbox/Apps/Boox/Briefs/'

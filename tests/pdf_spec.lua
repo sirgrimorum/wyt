@@ -52,7 +52,8 @@ describe("pdf.render", function()
     end
 
     it("writes a PDF whose xref points at each object", function()
-        local bytes, pages = pdf.render("Title (draft)", "2026-10-28", "One line.\n\nAnother \\ one.")
+        local bytes, pages = pdf.render("Title (draft)", "2026-10-28",
+            { { heading = "Part one", text = "One line.\n\nAnother \\ one." } })
         assert.equals(1, pages)
         assert.equals("%PDF-1.4", bytes:sub(1, 8))
         assert.equals("%%EOF\n", bytes:sub(-6))
@@ -71,10 +72,27 @@ describe("pdf.render", function()
         -- Parentheses and backslashes would end or bend the string in the stream.
         assert.truthy(bytes:find("(Title \\(draft\\)) Tj", 1, true))
         assert.truthy(bytes:find("(Another \\\\ one.) Tj", 1, true))
+        -- A heading is set in the bold font, the text under it in the regular one.
+        assert.truthy(bytes:find("/F2 15 Tf %d+ [%d.]+ Td %(Part one%) Tj"))
+        assert.truthy(bytes:find("/F1 13 Tf %d+ [%d.]+ Td %(One line.%) Tj"))
+    end)
+
+    it("does not leave a heading alone at the foot of a page", function()
+        local lines = {}
+        -- 24 lines leave room for the heading on the first page, not for the
+        -- line under it.
+        for i = 1, 24 do lines[i] = "Line " .. i end
+        local bytes, pages = pdf.render("T", nil, {
+            { text = table.concat(lines, "\n") },
+            { heading = "Next", text = "First" },
+        })
+        assert.equals(2, pages)
+        local second = bytes:match("stream\n.-endstream.-stream\n(.-)endstream")
+        assert.truthy(second:find("(Next) Tj", 1, true))
     end)
 
     it("gives each stream its real length", function()
-        local bytes = pdf.render("T", nil, "x")
+        local bytes = pdf.render("T", nil, { { text = "x" } })
         local len, body = bytes:match("/Length (%d+) >>\nstream\n(.-)\nendstream")
         assert.equals(#body, tonumber(len))
     end)
@@ -82,7 +100,7 @@ describe("pdf.render", function()
     it("starts a new page when the text runs past the bottom", function()
         local lines = {}
         for i = 1, 40 do lines[i] = "Line " .. i end
-        local bytes, pages = pdf.render("T", nil, table.concat(lines, "\n"))
+        local bytes, pages = pdf.render("T", nil, { { text = table.concat(lines, "\n") } })
         assert.equals(2, pages)
         assert.truthy(bytes:find("/Count 2", 1, true))
         assert.equals(8, #offsets(bytes))

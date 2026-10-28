@@ -7,7 +7,7 @@ local M = {}
 
 -- 3:4, the shape of the Boox screen, so a page fills it without zooming.
 local W, H, MARGIN = 446, 595, 36
-local SIZE, TITLE, LEAD = 13, 20, 1.45
+local SIZE, HEAD, TITLE, LEAD = 13, 15, 20, 1.45
 
 -- Helvetica's advance widths in thousandths of an em, ASCII 32 to 126.
 local WIDTHS = {
@@ -77,9 +77,10 @@ function M.wrap(line, size, max)
     return out
 end
 
---- The bytes of a PDF: `title` in bold, `subtitle` under it, then `text` one
---- line per line, wrapped, a blank line leaving space between paragraphs.
-function M.render(title, subtitle, text)
+--- The bytes of a PDF: `title` in bold, `subtitle` under it, then each of
+--- `sections`, { heading?, text }: the heading in bold, the text one line per
+--- line, wrapped, a blank line leaving space between paragraphs.
+function M.render(title, subtitle, sections)
     local pages, ops, y = {}, nil, 0
     local function new_page()
         ops, y = {}, H - MARGIN
@@ -95,11 +96,20 @@ function M.render(title, subtitle, text)
     -- Bold runs about a tenth wider than the table.
     for _, l in ipairs(M.wrap(M.encode(title), TITLE * 1.1, W - 2 * MARGIN)) do put("F2", TITLE, l) end
     if subtitle then put("F1", SIZE, M.encode(subtitle)) end
-    for _, line in ipairs(vim.split(text, "\n", { plain = true })) do
-        if vim.trim(line) == "" then
-            y = y - SIZE * LEAD / 2
-        else
-            for _, l in ipairs(M.wrap(M.encode(line), SIZE, W - 2 * MARGIN)) do put("F1", SIZE, l) end
+    for _, section in ipairs(sections) do
+        y = y - SIZE * LEAD / 2
+        if section.heading then
+            -- A heading alone at the foot of a page reads as a section with
+            -- nothing in it, so it goes over with its first line.
+            if y - (HEAD + SIZE) * LEAD < MARGIN then new_page() end
+            for _, l in ipairs(M.wrap(M.encode(section.heading), HEAD * 1.1, W - 2 * MARGIN)) do put("F2", HEAD, l) end
+        end
+        for _, line in ipairs(vim.split(section.text, "\n", { plain = true })) do
+            if vim.trim(line) == "" then
+                y = y - SIZE * LEAD / 2
+            else
+                for _, l in ipairs(M.wrap(M.encode(line), SIZE, W - 2 * MARGIN)) do put("F1", SIZE, l) end
+            end
         end
     end
 
