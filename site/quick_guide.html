@@ -119,9 +119,19 @@
       <li><b>Export</b><code>:WYTExport</code> assembles everything into <code>export.wyt.md</code> at the root.</li>
     </ol>
     <p class="note">Saving commits, so you never touch git by hand. Every WYT jump saves first.</p>
-    <p class="note"><b>Coming back.</b> <code>:WYTToday</code> recaps where you stopped (the last paragraph, plus a summary after a day away), lists what is open, gives one prompt, and offers where to start: continue, an open placeholder, or a freewrite on the prompt. Free writing lands in <code>freewrite/</code>, outside the plan and the export, until <code>:WYTPlace</code> moves it where it belongs.</p>
-    <p class="note"><b>Gaps.</b> Do not stop for a missing fact: write <code>wyt: the year :wyt</code> or <code>wyt(her name)</code> and keep going. <code>:WYTResolve</code> answers the markers later, each confirmed; <code>:WYTAsk</code> answers a question without touching the text.</p>
-    <p class="note"><b>From the Boox.</b> <code>:WYTImport</code> reads the folder the tablet syncs to (asked once, never written to) and brings what is new into <code>freewrite/</code>: a <code>.txt</code> as a word-by-word cleanup to confirm, a <code>.pdf</code> as a transcription. Then <code>:WYTPlace</code> it. <code>:WYTBrief</code> goes the other way: Today's brief as a PDF in a folder of its own, to start the session on paper.</p>
+  </section>
+
+  <section>
+    <h2>A session</h2>
+    <p>The loop builds the project; a session is one sitting of writing in it.</p>
+    <ol class="loop">
+      <li><b>Come back</b><code>:WYTToday</code> recaps where you stopped (the last paragraph, plus a summary after a day away), lists what is open, gives one prompt, and offers where to start: continue, an open placeholder, or a freewrite on the prompt. <code>:WYTOutline</code> shows the same open work per section, in a sidebar.</li>
+      <li><b>Or start on paper</b><code>:WYTBrief</code> writes Today's brief as a PDF to a folder of its own outside the project, synced to the Boox.</li>
+      <li><b>Write without stopping</b>For a missing fact write <code>wyt: the year :wyt</code> or <code>wyt(her name)</code> and keep going. <code>:WYTAsk</code> answers a question without touching the text.</li>
+      <li><b>Bring the paper in</b><code>:WYTImport</code> reads the folder the tablet syncs to (asked once, never written to) and brings what is new into <code>freewrite/</code>: a <code>.txt</code> as a word-by-word cleanup to confirm, a <code>.pdf</code> as a transcription.</li>
+      <li><b>Place it</b>Free writing stays in <code>freewrite/</code>, outside the plan and the export, until <code>:WYTPlace</code> moves it where it belongs.</li>
+      <li><b>Fill the gaps</b><code>:WYTResolve</code> answers the markers, each confirmed.</li>
+    </ol>
   </section>
 
   <div class="cols">

@@ -217,6 +217,9 @@ to write one.
 - `text.wyt.md`: the prose, written or generated.
 - `export.wyt.md`: the final export of the text.
 - A folder structure for sections and sub-sections, following the method.
+- `freewrite/`: free writing from `:WYTToday` or `:WYTImport`, outside the plan and the export
+  until `:WYTPlace` moves it.
+- `imports.wyt.json`: what `:WYTImport` already brought in, so it is not brought in twice.
 
 ## Which files should I edit?
 
@@ -228,6 +231,8 @@ Do not edit the plugin's internal files. Edit your project's files (`plan.wyt.md
 1. Run `:WYTNew p` to create a new writing project.
 2. Navigate and manage your project with the commands and mappings.
 3. Edit and organise your ideas, groups and texts in the generated files.
+4. Start each later session with `:WYTToday`, or `:WYTBrief` to start it on the Boox. The
+   [quick guide](./docs/quick_guide.md#a-session) has the rest of a session.
 
 ## Documentation
 

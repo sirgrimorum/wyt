@@ -34,21 +34,35 @@ flowchart LR
 
 Saving commits. You never touch git by hand, and every WYT jump saves first.
 
-**Coming back.** `:WYTToday` recaps where you stopped (the last paragraph, plus
-a summary after a day away), lists what is open, gives one prompt, and offers
-where to start: continue, an open placeholder, or a freewrite on the prompt.
-Free writing lands in `freewrite/`, outside the plan and the export, until
-`:WYTPlace` moves it where it belongs.
+## A session
 
-**Gaps.** Do not stop for a missing fact: write `wyt: the year :wyt` or
-`wyt(her name)` and keep going. `:WYTResolve` answers the markers later, each
-confirmed; `:WYTAsk` answers a question without touching the text.
+The loop builds the project; a session is one sitting of writing in it.
 
-**From the Boox.** `:WYTImport` reads the folder the tablet syncs to (asked
-once, never written to) and brings what is new into `freewrite/`: a `.txt` as
-a word-by-word cleanup to confirm, a `.pdf` as a transcription. Then
-`:WYTPlace` it. `:WYTBrief` goes the other way: Today's brief as a PDF in a
-folder of its own, to start the session on paper.
+```mermaid
+flowchart LR
+    today[":WYTToday<br/>recap and prompt"] --> text["text.wyt.md<br/>continue or fill"]
+    today --> free["freewrite/"]
+    brief[":WYTBrief<br/>PDF to the Boox"] --> hand["by hand<br/>on the Boox"]
+    hand -- ":WYTImport" --> free
+    free -- ":WYTPlace" --> text
+    text -- ":WYTResolve" --> text
+```
+
+1. **Come back.** `:WYTToday` recaps where you stopped (the last paragraph,
+   plus a summary after a day away), lists what is open, gives one prompt, and
+   offers where to start: continue, an open placeholder, or a freewrite on the
+   prompt. `:WYTOutline` shows the same open work per section, in a sidebar.
+2. **Or start on paper.** `:WYTBrief` writes Today's brief as a PDF to a folder
+   of its own outside the project, synced to the Boox.
+3. **Write without stopping.** For a missing fact write `wyt: the year :wyt` or
+   `wyt(her name)` and keep going. `:WYTAsk` answers a question without
+   touching the text.
+4. **Bring the paper in.** `:WYTImport` reads the folder the tablet syncs to
+   (asked once, never written to) and brings what is new into `freewrite/`: a
+   `.txt` as a word-by-word cleanup to confirm, a `.pdf` as a transcription.
+5. **Place it.** Free writing stays in `freewrite/`, outside the plan and the
+   export, until `:WYTPlace` moves it where it belongs.
+6. **Fill the gaps.** `:WYTResolve` answers the markers, each confirmed.
 
 ## WYT keys (normal mode, WYT files only)
 
