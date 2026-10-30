@@ -368,3 +368,163 @@ describe(":WYTImport", function()
         assert.truthy(opened:find("freewrite[\\/].*%-n%.md$"))
     end)
 end)
+
+local ntfy = require("wyt.ntfy")
+-- Stubbed in each spec below and put back at the end of the file.
+local poll, download = ntfy.poll, ntfy.download
+
+describe(":WYTImport over ntfy", function()
+    local root, fetched, temps
+    local URL = "https://ntfy.example/wyt"
+
+    -- The topic holds `messages`; an attachment's bytes are `files[url]`.
+    local function topic(messages, files)
+        fetched, temps = {}, {}
+        ntfy.poll = function(url)
+            assert.equals(URL, url)
+            return messages
+        end
+        ntfy.download = function(url, path)
+            fetched[#fetched + 1] = url
+            temps[#temps + 1] = path
+            if not files[url] then return nil, "404" end
+            project.write_file(path, files[url])
+            return true
+        end
+    end
+
+    local function file(id, name, extra)
+        return vim.tbl_extend("force", { id = id, time = 100, event = "message",
+            attachment = { name = name, url = "https://ntfy.example/file/" .. id, size = 10, expires = os.time() + 3600 } }, extra or {})
+    end
+
+    before_each(function()
+        llm.generate_text = generate_text
+        helpers.cleanup(root)
+        root = setup(nil)
+        local config = project.read_file(root .. "config.wyt.yml")
+        project.write_file(root .. "config.wyt.yml", config .. "ntfy: '" .. URL .. "/'\n")
+    end)
+
+    it("brings a shared note in, asks for no folder, and not twice", function()
+        topic({ { id = "a1", time = 100, event = "message", message = "Teh ferry" } }, {})
+        replies({ "The ferry" })
+        local log = run({ t("import_use"), t("import_place_later") })
+        assert.equals("select", log[1].kind)
+        assert.same({ "> Boox: note.txt\n\nThe ferry\n" }, freewrites(root))
+        assert.truthy(import.read_manifest(project)["ntfy:a1"])
+        assert.is_nil(import.read_manifest(project)["note.txt"])
+
+        local again, messages = run({})
+        assert.equals(0, #again)
+        assert.equals(t("import_none"):format(URL), messages[#messages].msg)
+    end)
+
+    it("reads only the latest share of a notebook, from the page after the last one imported", function()
+        project.write_file(root .. "imports.wyt.json", vim.json.encode({ ["Notebook.pdf"] = { pages = 2 } }))
+        topic({ file("p1", "Notebook.pdf"), file("p2", "Notebook.pdf") },
+            { ["https://ntfy.example/file/p2"] = "%PDF-1.4 fake" })
+        local calls = replies({ vim.json.encode({ pages = 4, text = "Page three." }) })
+        run({ t("import_it"), t("import_place_later") })
+        assert.same({ "https://ntfy.example/file/p2" }, fetched)
+        assert.equals(vim.base64.encode("%PDF-1.4 fake"), calls[1].opts.pdf)
+        assert.matches("from page 3 to the end", calls[1].prompt)
+        assert.same({ "> Boox: Notebook.pdf\n\nPage three.\n" }, freewrites(root))
+        assert.equals(0, vim.fn.filereadable(temps[1]))
+        local manifest = import.read_manifest(project)
+        assert.truthy(manifest["ntfy:p1"])
+        assert.truthy(manifest["ntfy:p2"])
+        assert.equals(4, manifest["Notebook.pdf"].pages)
+    end)
+
+    it("fetches a page only when the run reaches it", function()
+        topic({ file("q1", "One.pdf"), file("q2", "Two.pdf") },
+            { ["https://ntfy.example/file/q1"] = "%PDF one", ["https://ntfy.example/file/q2"] = "%PDF two" })
+        replies({ vim.json.encode({ pages = 1, text = "Page one." }) })
+        -- Esc at the first menu: the second is never fetched.
+        run({})
+        assert.same({ "https://ntfy.example/file/q1" }, fetched)
+    end)
+
+    it("brings in only what was added to a shared .txt", function()
+        local old = "First line.\n"
+        project.write_file(root .. "imports.wyt.json", vim.json.encode({ ["Ferry.txt"] = { bytes = #old, sha = vim.fn.sha256(old) } }))
+        topic({ file("t1", "Ferry.txt") }, { ["https://ntfy.example/file/t1"] = old .. "Second line.\n" })
+        local calls = replies({ "Second line." })
+        run({ t("import_use"), t("import_place_later") })
+        assert.matches("<text>\nSecond line.\n</text>", calls[1].prompt)
+        assert.same({ "> Boox: Ferry.txt\n\nSecond line.\n" }, freewrites(root))
+    end)
+
+    it("takes each note past the size limit as a note, not a notebook shared again", function()
+        topic({ file("n1", "attachment.txt"), file("n2", "attachment.txt") },
+            { ["https://ntfy.example/file/n1"] = "One.", ["https://ntfy.example/file/n2"] = "Two." })
+        replies({ "One.", "Two." })
+        run({ t("import_use"), t("import_use"), t("import_place_later") })
+        assert.same({ "https://ntfy.example/file/n1", "https://ntfy.example/file/n2" }, fetched)
+        local manifest = import.read_manifest(project)
+        assert.truthy(manifest["ntfy:n1"])
+        assert.truthy(manifest["ntfy:n2"])
+        assert.is_nil(manifest["attachment.txt"])
+    end)
+
+    it("records a shared .txt with nothing added, and says nothing is new", function()
+        local old = "First line.\n"
+        project.write_file(root .. "imports.wyt.json", vim.json.encode({ ["Ferry.txt"] = { bytes = #old, sha = vim.fn.sha256(old) } }))
+        topic({ file("t2", "Ferry.txt") }, { ["https://ntfy.example/file/t2"] = old })
+        local log, messages = run({})
+        assert.equals(0, #log)
+        assert.equals(t("import_none"):format(URL), messages[#messages].msg)
+        assert.truthy(import.read_manifest(project)["ntfy:t2"])
+    end)
+
+    it("leaves out the brief it sent and what is neither text nor a page", function()
+        topic({ file("b1", "today-notes.pdf", { tags = { ntfy.BRIEF_TAG } }), file("i1", "photo.png") }, {})
+        local log, messages = run({})
+        assert.equals(0, #log)
+        assert.same({}, fetched)
+        assert.equals(t("import_none"):format(URL), messages[#messages].msg)
+    end)
+
+    it("says once what expired on the server, and skips it", function()
+        topic({ file("e1", "Old.pdf", { attachment = { name = "Old.pdf", url = "x", size = 10, expires = os.time() - 1 } }) }, {})
+        local _, messages = run({})
+        assert.same({}, fetched)
+        assert.equals(t("import_expired"):format("Old.pdf"), messages[1].msg)
+        assert.truthy(import.read_manifest(project)["ntfy:e1"])
+        assert.equals("", vim.system({ "git", "-C", root, "status", "--porcelain", "--", "imports.wyt.json" }, { text = true }):wait().stdout)
+        _, messages = run({})
+        assert.equals(t("import_none"):format(URL), messages[1].msg)
+    end)
+
+    it("warns on a failed fetch and tries it again next time", function()
+        topic({ file("f1", "Notebook.pdf") }, {})
+        local _, messages = run({})
+        assert.matches("^" .. vim.pesc(t("ntfy_failed")) .. "Notebook%.pdf: 404", messages[1].msg)
+        assert.is_nil(import.read_manifest(project)["ntfy:f1"])
+    end)
+
+    it("does not fetch a .pdf too big to send", function()
+        topic({ file("g1", "Big.pdf", { attachment = { name = "Big.pdf", url = "x", size = 21 * 1024 * 1024, expires = os.time() + 60 } }) }, {})
+        local _, messages = run({})
+        assert.same({}, fetched)
+        assert.equals(t("import_too_big"):format("Big.pdf"), messages[1].msg)
+    end)
+
+    it("says a .txt is too big too, rather than dropping it as nothing new", function()
+        topic({ file("g2", "Big.txt", { attachment = { name = "Big.txt", url = "x", size = 21 * 1024 * 1024, expires = os.time() + 60 } }) }, {})
+        local _, messages = run({})
+        assert.same({}, fetched)
+        assert.equals(t("import_too_big"):format("Big.txt"), messages[1].msg)
+        assert.is_nil(import.read_manifest(project)["ntfy:g2"])
+    end)
+
+    it("says so when the server cannot be reached", function()
+        ntfy.poll = function() return nil, "connection refused" end
+        local log, messages = run({})
+        assert.equals(0, #log)
+        assert.equals(t("ntfy_failed") .. "connection refused", messages[1].msg)
+    end)
+end)
+
+ntfy.poll, ntfy.download = poll, download

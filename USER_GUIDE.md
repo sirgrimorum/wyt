@@ -14,6 +14,7 @@ To see everything in use, start to finish, read the
 - [Leaving gaps: wyt markers](#leaving-gaps-wyt-markers)
 - [Importing from the Boox](#importing-from-the-boox)
 - [The brief on the Boox](#the-brief-on-the-boox)
+- [The Boox over ntfy](#the-boox-over-ntfy)
 - [How to use :WYTGenerate](#how-to-use-wytgenerate)
 - [Mappings](#mappings)
 - [Automatic behaviour](#automatic-behaviour)
@@ -36,7 +37,7 @@ hidden in a database.
 | `text.wyt.md` | the prose, one paragraph per idea, written or generated |
 | `export.wyt.md` | the assembled document, rebuilt by `:WYTExport` |
 | `freewrite/*.md` | free writing, one file per start, outside the plan until `:WYTPlace` moves it; created at the root |
-| `imports.wyt.json` | how much of each Boox file `:WYTImport` already brought in; at the root |
+| `imports.wyt.json` | how much of each Boox file, and which ntfy messages, `:WYTImport` already brought in; at the root |
 
 A **group** is a set of ideas that belong together. `<S-Tab>` on a group header
 turns it into a **section** of its own, with its own plan and groups, or writes
@@ -133,12 +134,13 @@ happens depends on the type's depth, below.
   _See [Leaving gaps: wyt markers](#leaving-gaps-wyt-markers)._
 
 - `:WYTImport`
-  Brings what is new in the project's Boox folder into `freewrite/`, each file
-  confirmed by you. The folder is only read.
+  Brings what is new from the Boox into `freewrite/`, each one confirmed by
+  you: from the project's ntfy topic, or else its Boox folder, only read.
   _See [Importing from the Boox](#importing-from-the-boox)._
 
 - `:WYTBrief`
-  Writes the `:WYTToday` brief as a PDF to a folder of its own, for the Boox.
+  Sends the `:WYTToday` brief to the Boox as a PDF: to the ntfy topic, or else
+  to a folder of its own.
   _See [The brief on the Boox](#the-brief-on-the-boox)._
 
 - `:WYTGenerate [instruction]`
@@ -279,9 +281,10 @@ another** and **Close**. Nothing is written.
 
 ## Importing from the Boox
 
-Handwriting from an e-ink tablet comes in as freewrite. The tablet syncs a
-folder (Dropbox, for the Boox); `:WYTImport` asks for that folder the first
-time and keeps it in the root `config.wyt.yml`:
+Handwriting from an e-ink tablet comes in as freewrite. With an `ntfy:` topic
+in the config the tablet shares to it (see [The Boox over ntfy](#the-boox-over-ntfy));
+without one, it syncs a folder (Dropbox, for the Boox), and `:WYTImport` asks
+for that folder the first time and keeps it in the root `config.wyt.yml`:
 
 ```yaml
 import_dir: 'C:/Users/me/Dropbox/Apps/Boox/Notes/'
@@ -321,11 +324,14 @@ Write wyt markers on the tablet as on the keyboard: the model writes back
 ## The brief on the Boox
 
 `:WYTBrief` builds the same brief as `:WYTToday` (the recap, what is open, the
-prompt) and writes it as a PDF, so a session can start on the tablet. Each part
-has its own heading (**Last time**, **So far**, **Still open**, **Today's
-prompt**), and the menu comes out as a list under **Where to start**, since on
-paper there is nothing to pick. The folder is asked the first time and kept in
-the root `config.wyt.yml`. Unlike the import folder, this one is written to:
+prompt) as a PDF, so a session can start on the tablet. With an `ntfy:` topic
+it is sent there (see [The Boox over ntfy](#the-boox-over-ntfy)); without one it
+is written to a folder. Each part has its own heading (**Last time**, **So
+far**, **Still open**, **Today's prompt**), and the menu comes out as a list
+under **Where to start**, since on paper there is nothing to pick.
+
+Without a topic, the folder is asked the first time and kept in the root
+`config.wyt.yml`. Unlike the import folder, this one is written to:
 
 ```yaml
 brief_dir: 'C:/Users/me/Dropbox/Apps/Boox/Briefs/'
@@ -333,12 +339,80 @@ brief_dir: 'C:/Users/me/Dropbox/Apps/Boox/Briefs/'
 
 A folder inside the project is refused, as for the import, and so is the
 import folder itself, since the import would read the brief back in; a
-subfolder of it works. The file is
-`today-<project>.pdf`, rewritten each time, so the tablet shows the latest
-brief. The page is 3:4 in large type for the e-ink screen, in a font every
+subfolder of it works. The file is `today-<project>.pdf`, rewritten each time,
+so the tablet shows the latest brief; over ntfy each send is a notification of
+its own. The page is 3:4 in large type for the e-ink screen, in a font every
 reader has built in: accents and Spanish punctuation come through, and a
 character that font lacks prints as `?`. Without the model the PDF still has
 what came from disk.
+
+---
+
+## The Boox over ntfy
+
+[ntfy](https://ntfy.sh) is a message server with an Android app. With a topic
+in the root `config.wyt.yml`, the Boox needs no synced folder: `:WYTBrief`
+sends the PDF to the topic, and a tap on the notification opens it;
+`:WYTImport` reads what the tablet shared to it. Quote the URL:
+
+```yaml
+ntfy: 'https://my-pc.tail1234.ts.net/wyt-el-faro-k3x9'
+```
+
+With the key set, neither command asks for a folder. What reaches the import:
+
+- **A text message**, such as recognized handwriting shared as text, comes in
+  as a `.txt` named `note.txt`, cleaned up and confirmed as above.
+- **A `.txt` or `.pdf` shared as a file** is fetched and read like the file in a
+  folder. The Boox shares a notebook whole each time, so only its latest share
+  is read, from the page (or the text) after what was already imported. A file
+  over 20 MB is not fetched.
+- **The brief** WYT sent is tagged `wyt-brief` and left out, and so is anything
+  that is neither text nor a page.
+
+`imports.wyt.json` keeps the id of every message read, so none comes twice.
+The server drops an attachment after a while; one that was gone before it was
+imported is named once, recorded and skipped: share it again. A fetch that
+fails otherwise is warned about and tried again next time.
+
+### A server of your own, over Tailscale
+
+Anyone who knows a topic on the public `ntfy.sh` can read it and post to it, so
+the brief and the handwriting go to a server on the PC that runs WYT, reached by
+the tablet over [Tailscale](https://tailscale.com). The PC has to be on for
+either command, which it is while you write.
+
+1. Install Tailscale on the PC and on the Boox (Play Store), signed in to the
+   same account. `tailscale status` on the PC names it, as in `my-pc`.
+2. Run ntfy in Docker on the PC (it has no Windows build). Write
+   `C:/Users/me/ntfy/server.yml`, with your machine's name:
+
+   ```yaml
+   base-url: "https://my-pc.tail1234.ts.net"
+   cache-file: "/var/cache/ntfy/cache.db"
+   cache-duration: "168h"
+   attachment-cache-dir: "/var/cache/ntfy/attachments"
+   attachment-expiry-duration: "168h"
+   attachment-file-size-limit: "20M"
+   ```
+
+   then start it from PowerShell, bound to the PC alone (Git Bash rewrites the
+   `/etc/ntfy` side of `-v` into a Windows path):
+
+   ```powershell
+   docker run -d --name ntfy --restart unless-stopped -p 127.0.0.1:8090:80 -v ntfy-cache:/var/cache/ntfy -v C:/Users/me/ntfy:/etc/ntfy binwiederhier/ntfy serve
+   ```
+
+   A week of cache and attachments leaves time to import what the tablet
+   shared; the defaults are 12 and 3 hours.
+3. Put it on the tailnet, over HTTPS: `tailscale serve --bg 8090`. It answers at
+   `https://my-pc.tail1234.ts.net`, to your devices only.
+4. Set `ntfy:` in the project's config to that address and a topic of your own.
+5. In the ntfy app on the Boox, subscribe to the topic with **Use another
+   server** set to the same address, and turn on **Instant delivery**: without
+   it the e-ink power saving holds notifications back.
+6. To bring handwriting in, share it from the notebook to ntfy and pick the
+   topic, then run `:WYTImport`.
 
 ---
 

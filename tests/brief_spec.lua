@@ -149,4 +149,52 @@ describe(":WYTBrief", function()
     end)
 end)
 
+local ntfy = require("wyt.ntfy")
+local publish = ntfy.publish
+
+describe(":WYTBrief over ntfy", function()
+    local root
+    local URL = "https://ntfy.example/wyt"
+
+    -- What publish was handed, the file read while it still exists.
+    local function sent(ok, err)
+        local out = {}
+        ntfy.publish = function(url, path, filename, title, cb)
+            out.url, out.filename, out.title, out.path = url, filename, title, path
+            out.bytes = project.read_file(path)
+            cb(ok, err)
+        end
+        return out
+    end
+
+    before_each(function()
+        helpers.cleanup(root)
+        llm.today = function(_, cb) cb({ summary = "A story so far.", prompt = "Write the lighthouse." }) end
+        root = setup()
+        local config = project.read_file(root .. "config.wyt.yml")
+        project.write_file(root .. "config.wyt.yml", config .. "ntfy: '" .. URL .. "'\n")
+    end)
+
+    it("sends the brief to the topic without asking for a folder, and leaves no file", function()
+        local out = sent(true)
+        local log, messages = run({})
+        assert.equals(0, #log)
+        assert.equals(URL, out.url)
+        assert.equals("today-notes.pdf", out.filename)
+        assert.equals("Notes", out.title)
+        assert.equals("%PDF", out.bytes:sub(1, 4))
+        assert.truthy(out.bytes:find(pdf.encode("Write the lighthouse."), 1, true))
+        assert.equals(0, vim.fn.filereadable(out.path))
+        assert.is_nil(project.config_dir("brief_dir"))
+        assert.equals(t("brief_sent"):format(URL), messages[#messages].msg)
+    end)
+
+    it("says so when the server cannot be reached", function()
+        sent(nil, "connection refused")
+        local _, messages = run({})
+        assert.equals(t("ntfy_failed") .. "connection refused", messages[#messages].msg)
+    end)
+end)
+
+ntfy.publish = publish
 llm.today = today

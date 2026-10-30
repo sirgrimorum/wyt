@@ -232,7 +232,9 @@ Do not edit the plugin's internal files. Edit your project's files (`plan.wyt.md
 2. Navigate and manage your project with the commands and mappings.
 3. Edit and organise your ideas, groups and texts in the generated files.
 4. Start each later session with `:WYTToday`, or `:WYTBrief` to start it on the Boox. The
-   [quick guide](./docs/quick_guide.md#a-session) has the rest of a session.
+   [quick guide](./docs/quick_guide.md#a-session) has the rest of a session, and
+   [The Boox over ntfy](./USER_GUIDE.md#the-boox-over-ntfy) sets the tablet up with no synced
+   folder.
 
 ## Documentation
 

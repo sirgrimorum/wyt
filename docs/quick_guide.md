@@ -52,14 +52,17 @@ flowchart LR
    plus a summary after a day away), lists what is open, gives one prompt, and
    offers where to start: continue, an open placeholder, or a freewrite on the
    prompt. `:WYTOutline` shows the same open work per section, in a sidebar.
-2. **Or start on paper.** `:WYTBrief` writes Today's brief as a PDF to a folder
-   of its own outside the project, synced to the Boox.
+2. **Or start on paper.** `:WYTBrief` sends Today's brief to the Boox as a PDF:
+   to the project's ntfy topic, a tap away on the tablet, or else to a folder it
+   syncs. The guide has the
+   [ntfy setup](../USER_GUIDE.md#the-boox-over-ntfy).
 3. **Write without stopping.** For a missing fact write `wyt: the year :wyt` or
    `wyt(her name)` and keep going. `:WYTAsk` answers a question without
    touching the text.
-4. **Bring the paper in.** `:WYTImport` reads the folder the tablet syncs to
-   (asked once, never written to) and brings what is new into `freewrite/`: a
-   `.txt` as a word-by-word cleanup to confirm, a `.pdf` as a transcription.
+4. **Bring the paper in.** `:WYTImport` brings what is new into `freewrite/`,
+   from the ntfy topic you share the notebook to, or else from the folder the
+   tablet syncs: a `.txt` as a word-by-word cleanup to confirm, a `.pdf` as a
+   transcription.
 5. **Place it.** Free writing stays in `freewrite/`, outside the plan and the
    export, until `:WYTPlace` moves it where it belongs.
 6. **Fill the gaps.** `:WYTResolve` answers the markers, each confirmed.
@@ -83,8 +86,8 @@ flowchart LR
 | `:WYTPlace` | move a freewrite's paragraphs into the project, each confirmed |
 | `:WYTResolve` | answer the `wyt:` markers in this text, or the project, each confirmed |
 | `:WYTAsk` | ask about the project; the answer is shown, nothing is written |
-| `:WYTImport` | bring what is new in the Boox folder into `freewrite/`, each confirmed |
-| `:WYTBrief` | write Today's brief as a PDF to the brief folder, for the Boox |
+| `:WYTImport` | bring what is new from the Boox (ntfy topic or folder) into `freewrite/`, each confirmed |
+| `:WYTBrief` | send Today's brief to the Boox as a PDF (ntfy topic or folder) |
 | `:WYTNew p` | new project |
 | `:WYTNew i` | new idea, free or by the type's guided questions |
 | `:WYTNew g` | new group; select idea lines with `V` first to pre-tick them |

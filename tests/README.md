@@ -38,8 +38,9 @@ and restore it yourself.
 | `place_spec.lua` | where `:WYTPlace` lands each chunk, unchanged, and what stays in the freewrite |
 | `markers_spec.lua` | what counts as a wyt marker, its columns past accents, and what an answer does to its line |
 | `resolve_spec.lua` | which markers `:WYTResolve` asks about, what it answers from, that only the answers taken land, CRLF kept; `:WYTAsk` never writes |
-| `import_spec.lua` | what `:WYTImport` sends the model, what lands in freewrite per choice, only the new part next time, the Boox folder never written |
-| `brief_spec.lua` | the folder `:WYTBrief` asks for and refuses, and that the brief and its menu reach the PDF |
+| `import_spec.lua` | what `:WYTImport` sends the model, what lands in freewrite per choice, only the new part next time, the Boox folder never written; over ntfy, the latest share of a notebook, the brief left out, an expired share named once |
+| `brief_spec.lua` | the folder `:WYTBrief` asks for and refuses, that the brief and its menu reach the PDF, and that over ntfy it is sent with no folder asked |
+| `ntfy_spec.lua` | the topic URL from the config, and the curl commands that publish and poll it |
 | `pdf_spec.lua` | the PDF writer: WinAnsi text, wrapped lines, pages, and an xref that lands on each object |
 | `outline_spec.lua` | the rows `:WYTOutline` shows, where each opens, and the redraw on save |
 | `ui_spec.lua` | fitting text a prompt line would truncate, and opening files |

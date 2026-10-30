@@ -1,8 +1,9 @@
--- :WYTImport, handwriting from the Boox into the project. The tablet syncs to
--- a Dropbox folder: a .txt is its own handwriting recognition, cleaned up here
--- by the model; a .pdf is the pages themselves, transcribed by the model. Each
--- lands as a freewrite, so :WYTPlace puts it where it belongs. The folder is
--- only read: nothing on Dropbox is moved, renamed or changed.
+-- :WYTImport, handwriting from the Boox into the project. The tablet shares to
+-- an ntfy topic (wyt.ntfy), or syncs to a Dropbox folder: a .txt is its own
+-- handwriting recognition, cleaned up here by the model; a .pdf is the pages
+-- themselves, transcribed by the model. Each lands as a freewrite, so
+-- :WYTPlace puts it where it belongs. The folder is only read: nothing on
+-- Dropbox is moved, renamed or changed.
 local M = {}
 
 local uv = vim.uv or vim.loop
@@ -24,6 +25,18 @@ function M.read_manifest(project_mod)
     return ok and type(data) == "table" and data or {}
 end
 
+-- `raw` as the import compares it, and the part of it after what `seen` says
+-- was imported, trimmed: all of it again when its start no longer matches,
+-- since it was rewritten, not added to.
+local function new_text(raw, seen)
+    local content = (raw or ""):gsub("^\239\187\191", ""):gsub("\r\n", "\n")
+    local start = 1
+    if seen.bytes and #content >= seen.bytes and vim.fn.sha256(content:sub(1, seen.bytes)) == seen.sha then
+        start = seen.bytes + 1
+    end
+    return content, vim.trim(content:sub(start))
+end
+
 --- What is new in the folder, oldest first: { name, kind, text, content, size,
 --- mtime } for a .txt, `text` being the part after what was imported; { name,
 --- path, kind, from, size, mtime } for a .pdf, read from the page after the
@@ -40,12 +53,7 @@ function M.pending(project_mod, dir, manifest)
         if stat and stat.type ~= "file" then stat = nil end
         local seen = manifest[name] or {}
         if kind == "txt" and stat then
-            local content = (project_mod.read_file(path) or ""):gsub("^\239\187\191", ""):gsub("\r\n", "\n")
-            local start = 1
-            if seen.bytes and #content >= seen.bytes and vim.fn.sha256(content:sub(1, seen.bytes)) == seen.sha then
-                start = seen.bytes + 1
-            end
-            local text = vim.trim(content:sub(start))
+            local content, text = new_text(project_mod.read_file(path), seen)
             if text ~= "" then
                 out[#out + 1] = { name = name, kind = kind, text = text, content = content,
                     size = stat.size, mtime = stat.mtime.sec }
@@ -57,6 +65,81 @@ function M.pending(project_mod, dir, manifest)
     end
     table.sort(out, function(a, b) return a.mtime < b.mtime end)
     return out
+end
+
+-- The bytes of the attachment at `url`, or nil once the failure is said. The
+-- temp file goes at once: the temp dir is emptied only on exit.
+local function fetch(project_mod, url, name)
+    local path = vim.fn.tempname()
+    local ok, err = require("wyt.ntfy").download(url, path, MAX_SIZE)
+    local bytes = ok and project_mod.read_file(path)
+    os.remove(path)
+    if not bytes then
+        vim.notify(project_mod.t("ntfy_failed") .. name .. ": " .. tostring(err), vim.log.levels.WARN)
+        return nil
+    end
+    return bytes
+end
+
+--- What is new on the ntfy topic, from `messages` (ntfy.poll), oldest first,
+--- in the shape M.pending gives: a text message is a .txt of its own, an
+--- attached .txt or .pdf is read like the file in a folder, a .pdf fetched by
+--- the run from its `url`. Each item carries `key`, the message id the
+--- manifest keeps it under once it is imported. Also returns the names of
+--- attachments the server already dropped, and whether it marked in `manifest`
+--- messages with nothing to import, for the caller to write.
+function M.pending_ntfy(project_mod, messages, manifest)
+    local ntfy = require("wyt.ntfy")
+    local items, expired, recorded = {}, {}, false
+    -- The Boox shares a notebook whole each time, so only its latest share is
+    -- read, from the page after the last one imported, as in a folder.
+    local latest = {}
+    for _, m in ipairs(messages) do
+        if m.attachment and m.attachment.name then latest[m.attachment.name] = m.id end
+    end
+    for _, m in ipairs(messages) do
+        local key, a = "ntfy:" .. m.id, m.attachment
+        local name = a and a.name or ""
+        local kind = name:lower():match("%.(txt)$") or name:lower():match("%.(pdf)$")
+        -- ntfy turns a message past its size limit into this attachment: a
+        -- note, not a notebook shared again.
+        local note = not a or name == "attachment.txt"
+        if manifest[key] or vim.tbl_contains(m.tags or {}, ntfy.BRIEF_TAG) or (a and not kind) then
+            -- Already in, ours, or neither text nor a page.
+        elseif not a then
+            local text = vim.trim(m.message or "")
+            if text ~= "" then
+                items[#items + 1] = { name = "note.txt", kind = "txt", text = text, content = text,
+                    size = #text, mtime = m.time, key = key, note = true }
+            end
+        elseif not note and latest[name] ~= m.id then
+            manifest[key], recorded = true, true
+        elseif a.expires and a.expires < os.time() then
+            expired[#expired + 1] = name
+            manifest[key], recorded = true, true
+        else
+            local seen = note and {} or manifest[name] or {}
+            local item = { name = name, kind = kind, size = a.size or 0, mtime = m.time, key = key, note = note }
+            if kind == "pdf" then
+                item.from, item.pages = (seen.pages or 0) + 1, seen.pages or 0
+            end
+            if kind == "pdf" or item.size > MAX_SIZE then
+                -- The run fetches a page when it reaches it, so the first menu
+                -- waits on no download; too big is said there, before any.
+                item.url = a.url
+                items[#items + 1] = item
+            else
+                -- A .txt is fetched now: only its bytes tell if anything is new.
+                -- Not recorded on a failure, so it is tried again next time.
+                local bytes = fetch(project_mod, a.url, name)
+                if bytes then
+                    item.content, item.text = new_text(bytes, seen)
+                    if item.text ~= "" then items[#items + 1] = item else manifest[key], recorded = true, true end
+                end
+            end
+        end
+    end
+    return items, expired, recorded
 end
 
 local function tokens(text)
@@ -124,6 +207,11 @@ function M.run(items)
             vim.notify(t("import_too_big"):format(item.name), vim.log.levels.WARN)
             return callback(nil)
         end
+        if item.url and not item.pdf then
+            local bytes = fetch(project, item.url, item.name)
+            if not bytes then return callback(nil) end
+            item.pdf = vim.base64.encode(bytes)
+        end
         vim.notify(t("import_reading"):format(item.name), vim.log.levels.INFO)
         local function done(result, err)
             if not result then vim.notify(t("llm_error") .. tostring(err), vim.log.levels.WARN) end
@@ -158,6 +246,10 @@ function M.run(items)
     local step
     local function seen(item)
         changed = true
+        -- A message is read once: its id keeps it from coming back. A note
+        -- grows nowhere, so it leaves nothing under its name.
+        if item.key then manifest[item.key] = true end
+        if item.note then return end
         if item.kind == "txt" then
             manifest[item.name] = { bytes = #item.content, sha = vim.fn.sha256(item.content) }
         else
@@ -224,12 +316,34 @@ function M.run(items)
     step(1)
 end
 
---- `:WYTImport`: what is new in the project's Boox folder, asked for the
---- first time.
+-- What is new on the topic at `url`. What there is nothing to read in is
+-- recorded before the run, which reads the manifest again.
+local function from_ntfy(project, url)
+    local t = project.t
+    local messages, err = require("wyt.ntfy").poll(url)
+    if not messages then return vim.notify(t("ntfy_failed") .. tostring(err), vim.log.levels.WARN) end
+    local manifest = M.read_manifest(project)
+    local items, expired, recorded = M.pending_ntfy(project, messages, manifest)
+    if recorded then
+        project.write_file(project.project_root .. MANIFEST, vim.json.encode(manifest) .. "\n")
+        project.commit_changes("Save: imported from the Boox")
+    end
+    if #expired > 0 then
+        vim.notify(t("import_expired"):format(table.concat(expired, ", ")), vim.log.levels.WARN)
+    end
+    if #items == 0 then return vim.notify(t("import_none"):format(url), vim.log.levels.INFO) end
+    M.run(items)
+end
+
+--- `:WYTImport`: what is new on the project's ntfy topic, or else in its Boox
+--- folder, asked for the first time.
 function M.open()
     local project = require("wyt.project")
     if not project.setup() then return end
     local t = project.t
+    local url, bad = require("wyt.ntfy").url(project)
+    if bad then return vim.notify(bad, vim.log.levels.WARN) end
+    if url then return from_ntfy(project, url) end
     project.outside_dir("import_dir", t("import_title"), t("import_dir_q"), function(dir)
         local items = M.pending(project, dir, M.read_manifest(project))
         if #items == 0 then return vim.notify(t("import_none"):format(dir), vim.log.levels.INFO) end
